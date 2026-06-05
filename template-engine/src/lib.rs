@@ -295,6 +295,28 @@ fn build_context(config: &LoaderConfig) -> Context {
         .collect();
     ctx.insert("key_chunks", &key_chunks);
 
+    let mut rng = rand::thread_rng();
+    let key_tweak: u8 = rng.gen();
+    ctx.insert("key_tweak", &(key_tweak as u32));
+
+    let masked_key_hex: String = config.key_hex
+        .as_bytes()
+        .chunks(2)
+        .map(|pair| {
+            let hex_str: String = pair.iter().map(|&b| b as char).collect();
+            let byte = u8::from_str_radix(&hex_str, 16).unwrap_or(0);
+            format!("{:02x}", byte ^ key_tweak)
+        })
+        .collect();
+    ctx.insert("key_hex", &masked_key_hex);
+
+    let masked_key_chunks: Vec<String> = masked_key_hex
+        .as_bytes()
+        .chunks(100)
+        .map(|c| String::from_utf8_lossy(c).to_string())
+        .collect();
+    ctx.insert("key_chunks", &masked_key_chunks);
+
     let feature_names: Vec<String> = config.features.iter()
         .map(|f| format!("{:?}", f))
         .collect();
