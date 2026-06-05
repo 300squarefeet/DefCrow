@@ -23,7 +23,7 @@ pub unsafe fn run_no_rwx(shellcode: &[u8]) {
         &mut base_addr as *mut usize as usize,
         0,
         &mut region_size as *mut usize as usize,
-        0x1000 | 0x2000,
+        0x1000 | 0x2000 | 0x200,
         PAGE_READWRITE as usize,
     );
 

