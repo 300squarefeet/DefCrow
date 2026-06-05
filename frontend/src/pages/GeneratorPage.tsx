@@ -1,9 +1,10 @@
 import { useState, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { GenerateRequest, Feature, LoaderType, Encryption, ALL_FEATURES, generate } from '../api/generate'
+import { GenerateRequest, Feature, LoaderType, Encryption, ALL_FEATURES, LOADER_GROUPS, generate } from '../api/generate'
 import OpsecFeatures from '../components/OpsecFeatures'
 import AppDomainConfig from '../components/AppDomainConfig'
 import PeMetadata from '../components/PeMetadata'
+import ExecHint from '../components/ExecHint'
 import { useAuth } from '../store/auth'
 
 const DEFAULT_PE = {
@@ -59,32 +60,49 @@ export default function GeneratorPage() {
         <form onSubmit={handleSubmit} className="space-y-8">
           <section className="rounded-2xl p-6 space-y-5" style={{ border: '1px solid #1e1e2e', backgroundColor: '#12121a' }}>
             <h2 className="text-sm font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>Loader Configuration</h2>
-            <div className="grid grid-cols-2 gap-5">
-              <div>
-                <label className="block text-xs mb-2" style={{ color: '#64748b' }}>Loader Type</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['Binary', 'Dll', 'AppDomain', 'Injector'] as LoaderType[]).map((t) => (
-                    <button key={t} type="button" onClick={() => setLoaderType(t)}
-                      className="rounded-lg py-2 text-sm font-medium transition"
-                      style={{ border: `1px solid ${loaderType === t ? '#7c3aed' : '#1e1e2e'}`, backgroundColor: loaderType === t ? 'rgba(124,58,237,0.2)' : 'transparent', color: loaderType === t ? '#7c3aed' : '#64748b' }}>
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs mb-2" style={{ color: '#64748b' }}>Encryption</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['Aes256', 'Chacha20'] as Encryption[]).map((enc) => (
-                    <button key={enc} type="button" onClick={() => setEncryption(enc)}
-                      className="rounded-lg py-2 text-sm font-medium transition"
-                      style={{ border: `1px solid ${encryption === enc ? '#7c3aed' : '#1e1e2e'}`, backgroundColor: encryption === enc ? 'rgba(124,58,237,0.2)' : 'transparent', color: encryption === enc ? '#7c3aed' : '#64748b' }}>
-                      {enc}
-                    </button>
-                  ))}
-                </div>
+            <div>
+              <label className="block text-xs mb-2" style={{ color: '#64748b' }}>Loader Type</label>
+              <div className="space-y-3">
+                {Object.entries(LOADER_GROUPS).map(([groupLabel, items]) => (
+                  <div key={groupLabel}>
+                    <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: '#64748b' }}>
+                      {groupLabel}
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {items.map((item) => (
+                        <button
+                          key={item.type}
+                          type="button"
+                          onClick={() => setLoaderType(item.type)}
+                          className="rounded-lg py-2 px-2 text-xs font-medium transition text-left"
+                          style={{
+                            border: `1px solid ${loaderType === item.type ? '#7c3aed' : '#1e1e2e'}`,
+                            backgroundColor: loaderType === item.type ? 'rgba(124,58,237,0.2)' : 'transparent',
+                            color: loaderType === item.type ? '#7c3aed' : '#64748b',
+                          }}
+                        >
+                          <div className="font-medium">{item.label}</div>
+                          <div className="text-[10px]" style={{ color: '#64748b' }}>{item.ext}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
+            <div className="max-w-sm">
+              <label className="block text-xs mb-2" style={{ color: '#64748b' }}>Encryption</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['Aes256', 'Chacha20'] as Encryption[]).map((enc) => (
+                  <button key={enc} type="button" onClick={() => setEncryption(enc)}
+                    className="rounded-lg py-2 text-sm font-medium transition"
+                    style={{ border: `1px solid ${encryption === enc ? '#7c3aed' : '#1e1e2e'}`, backgroundColor: encryption === enc ? 'rgba(124,58,237,0.2)' : 'transparent', color: encryption === enc ? '#7c3aed' : '#64748b' }}>
+                    {enc}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <ExecHint type={loaderType} />
             <div className="space-y-3">
               <div>
                 <label className="block text-xs mb-1" style={{ color: '#64748b' }}>Shellcode (hex)</label>
