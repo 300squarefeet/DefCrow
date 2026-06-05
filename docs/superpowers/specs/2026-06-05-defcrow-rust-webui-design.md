@@ -37,7 +37,7 @@ DefCrow mengadopsi pola yang sama dalam Rust:
 | Backend | Rust + Axum + Tokio |
 | Build comms | WebSocket (progress streaming) + REST (job management) |
 | Frontend | React + Vite (static files served dari Axum) |
-| Auth | API key via header `X-API-Key` |
+| Auth | Username + password login, session token |
 | Build cache | sccache (cache rustc artifacts antar request) |
 
 ---
@@ -110,6 +110,7 @@ defcrow/
 │   └── src/
 │       ├── main.rs
 │       ├── api/
+│       │   ├── auth.rs                ← POST /api/auth/login, /logout
 │       │   ├── generate.rs            ← POST /api/generate
 │       │   ├── jobs.rs                ← GET /api/jobs/:id
 │       │   └── download.rs            ← GET /api/download/:id, DELETE
@@ -122,7 +123,7 @@ defcrow/
 │       ├── ws/
 │       │   └── progress.rs            ← WebSocket progress streaming
 │       └── middleware/
-│           └── auth.rs                ← X-API-Key validation
+│           └── auth.rs                ← session token validation
 │
 ├── frontend/                          ← React + Vite
 │   ├── package.json
@@ -135,6 +136,8 @@ defcrow/
 │           ├── LoaderConfig.tsx        ← tipe loader, enkripsi, delivery
 │           ├── OpsecFeatures.tsx       ← 15 toggle OPSEC dengan deskripsi
 │           └── AppDomainConfig.tsx     ← CLR version, target process, entry point
+│       └── pages/
+│           └── LoginPage.tsx           ← form login username + password
 │
 └── templates/
     └── appdomain.config.tera          ← AppDomain XML config template
@@ -239,7 +242,11 @@ let {{ rand_ident(8) }}: usize = shellcode.len();
 ## Frontend ↔ Backend Communication
 
 ```
-1. POST /api/generate  (REST, X-API-Key header)
+1. POST /api/auth/login  (REST, no auth required)
+   Body: { username, password }
+   Response: { token: "<256-bit hex session token>", expires_in: 86400 }
+
+2. POST /api/generate  (REST, Authorization: Bearer <token>)
    Body: { loader_type, features[], encryption, shellcode_b64, pe_config, appdomain_config }
    Response: { job_id: "abc123" }   ← INSTAN
 
@@ -264,12 +271,17 @@ let {{ rand_ident(8) }}: usize = shellcode.len();
 ## API Endpoints
 
 ```
-POST   /api/generate          Kirim config, terima job_id (instan)
+POST   /api/auth/login         Login, terima session token (no auth)
+POST   /api/auth/logout        Invalidate session token
+POST   /api/generate           Kirim config, terima job_id (instan)
 GET    /api/jobs/:id           Status snapshot: queued|building|done|error
 WS     /ws/jobs/:id            Real-time progress stream
 GET    /api/download/:id       Download artifact
 DELETE /api/jobs/:id           Hapus artifact
 GET    /api/health             Liveness check (no auth)
+
+Header wajib (semua kecuali /login dan /health):
+  Authorization: Bearer <session_token>
 ```
 
 ---
@@ -292,6 +304,53 @@ GET    /api/health             Liveness check (no auth)
 | Server startup (scaffold compile) | ~90 detik, sekali |
 | Generate baru (dingin) | ~8-15 detik |
 | Generate ulang (sccache hit) | ~1-3 detik |
+
+---
+
+## Authentication
+
+### Konfigurasi (.env)
+```
+DEFCROW_USERNAME=admin
+DEFCROW_PASSWORD_HASH=<argon2id hash dari password>
+DEFCROW_SESSION_SECRET=<random 256-bit hex>
+```
+
+Password hash di-generate sekali saat setup:
+```bash
+# Helper CLI yang disertakan:
+defcrow-cli hash-password
+# → Masukkan password → output Argon2id hash → paste ke .env
+```
+
+### Login Flow
+```
+1. POST /api/auth/login { username, password }
+2. Server: argon2id::verify(password, DEFCROW_PASSWORD_HASH)
+3. Jika valid: generate 256-bit random session token
+4. Simpan token di in-memory HashMap<token, expiry> (server-side)
+5. Return: { token, expires_in: 86400 }
+6. Frontend: simpan token di localStorage
+7. Semua request berikutnya: Authorization: Bearer <token>
+```
+
+### Session Middleware (Axum)
+- Setiap request ke endpoint protected → cek token di HashMap
+- Token expired (>24 jam) → 401 Unauthorized
+- Token tidak ada → 401 Unauthorized → frontend redirect ke /login
+- POST /api/auth/logout → hapus token dari HashMap
+
+### Frontend Auth
+- `LoginPage.tsx`: form username + password, POST ke `/api/auth/login`
+- Token disimpan di `localStorage`
+- Axios interceptor: inject `Authorization: Bearer <token>` ke semua request
+- Interceptor 401 response: clear token + redirect ke `/login`
+- Protected route wrapper: cek token ada sebelum render GeneratorPage
+
+### Password Hashing
+- **Argon2id** (bukan bcrypt/sha256) — standar modern, memory-hard
+- Parameter: `m=65536, t=3, p=4` (OWASP recommended)
+- Crate: `argon2` (pure Rust)
 
 ---
 
