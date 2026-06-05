@@ -58,3 +58,41 @@ pub unsafe fn indirect_syscall(
     );
     result
 }
+
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+#[inline(never)]
+pub unsafe fn indirect_syscall_10(
+    ssn: u16,
+    trampoline: *const u8,
+    arg1: usize, arg2: usize, arg3: usize, arg4: usize,
+    arg5: usize, arg6: usize, arg7: usize, arg8: usize,
+    arg9: usize, arg10: usize,
+) -> i32 {
+    let result: i32;
+    core::arch::asm!(
+        "sub rsp, 0x58",
+        "mov qword ptr [rsp+0x28], {a5}",
+        "mov qword ptr [rsp+0x30], {a6}",
+        "mov qword ptr [rsp+0x38], {a7}",
+        "mov qword ptr [rsp+0x40], {a8}",
+        "mov qword ptr [rsp+0x48], {a9}",
+        "mov qword ptr [rsp+0x50], {a10}",
+        "mov r10, rcx",
+        "mov eax, {ssn:e}",
+        "jmp {tramp}",
+        "add rsp, 0x58",
+        ssn   = in(reg) ssn as u32,
+        tramp = in(reg) trampoline,
+        in("rcx") arg1, in("rdx") arg2,
+        in("r8")  arg3, in("r9")  arg4,
+        a5  = in(reg) arg5,
+        a6  = in(reg) arg6,
+        a7  = in(reg) arg7,
+        a8  = in(reg) arg8,
+        a9  = in(reg) arg9,
+        a10 = in(reg) arg10,
+        out("rax") result,
+        options(nostack),
+    );
+    result
+}
