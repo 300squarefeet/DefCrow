@@ -281,6 +281,20 @@ fn build_context(config: &LoaderConfig) -> Context {
     ctx.insert("key_hex", &config.key_hex);
     ctx.insert("iv_hex", &config.iv_hex);
 
+    let sc_chunks: Vec<&str> = config.shellcode_hex
+        .as_bytes()
+        .chunks(100)
+        .map(|c| std::str::from_utf8(c).unwrap())
+        .collect();
+    ctx.insert("shellcode_chunks", &sc_chunks);
+
+    let key_chunks: Vec<&str> = config.key_hex
+        .as_bytes()
+        .chunks(100)
+        .map(|c| std::str::from_utf8(c).unwrap())
+        .collect();
+    ctx.insert("key_chunks", &key_chunks);
+
     let feature_names: Vec<String> = config.features.iter()
         .map(|f| format!("{:?}", f))
         .collect();
