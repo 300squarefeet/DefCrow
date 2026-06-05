@@ -48,6 +48,8 @@ async fn main() {
         jobs:     JobStore::new(),
     };
 
+    web_server::api::cleanup::spawn_cleanup_task(cfg.artifacts_dir.clone());
+
     let addr = format!("0.0.0.0:{}", cfg.port);
     let app  = build_router(state);
 
