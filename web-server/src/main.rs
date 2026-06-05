@@ -1,10 +1,4 @@
-mod api;
-mod builder;
-mod config;
-mod middleware;
-mod state;
-mod ws;
-
+use web_server::{api, builder, config, middleware, state, ws};
 use axum::{middleware as axum_mw, routing::{delete, get, post}, Router};
 use tower_http::{cors::CorsLayer, services::ServeDir};
 use tracing_subscriber::EnvFilter;

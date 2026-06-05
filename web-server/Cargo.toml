@@ -7,6 +7,10 @@ edition = "2021"
 name = "web-server"
 path = "src/main.rs"
 
+[lib]
+name = "web_server"
+path = "src/lib.rs"
+
 [dependencies]
 axum = { version = "0.7", features = ["ws", "macros"] }
 tokio = { version = "1", features = ["full"] }
@@ -28,3 +32,4 @@ which = "6"
 [dev-dependencies]
 axum-test = "14"
 tokio-test = "0.4"
+tempfile = "3"
