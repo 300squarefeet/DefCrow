@@ -1,7 +1,41 @@
 import { client } from './client'
 
-export type LoaderType = 'Binary' | 'Dll' | 'AppDomain' | 'Injector'
+export type LoaderType =
+  | 'Binary' | 'Dll' | 'AppDomain' | 'Injector' | 'Rundll32'
+  | 'Wsf' | 'Hta' | 'Regsvr32Sct' | 'MsBuild' | 'Cmstp' | 'WmicXsl'
+  | 'DocxMacro' | 'XlsxMacro' | 'InstallUtil'
 export type Encryption  = 'Aes256' | 'Chacha20'
+
+export interface LoaderTypeMeta {
+  type:  LoaderType
+  label: string
+  ext:   string
+}
+
+export const LOADER_GROUPS: Record<string, LoaderTypeMeta[]> = {
+  'PE Compiled': [
+    { type: 'Binary',      label: 'Binary',      ext: '.exe' },
+    { type: 'Dll',         label: 'DLL',         ext: '.dll' },
+    { type: 'AppDomain',   label: 'AppDomain',   ext: '.dll + .config' },
+    { type: 'Injector',    label: 'Injector',    ext: '.exe' },
+    { type: 'Rundll32',    label: 'Rundll32',    ext: '.dll' },
+  ],
+  'Script LOLBIN': [
+    { type: 'Wsf',         label: 'WSF',         ext: '.wsf' },
+    { type: 'Hta',         label: 'HTA',         ext: '.hta' },
+    { type: 'Regsvr32Sct', label: 'Squiblydoo',  ext: '.sct' },
+    { type: 'MsBuild',     label: 'MSBuild',     ext: '.csproj' },
+    { type: 'Cmstp',       label: 'CMSTP',       ext: '.inf' },
+    { type: 'WmicXsl',     label: 'WMIC XSL',    ext: '.xsl' },
+  ],
+  'Office Macro': [
+    { type: 'DocxMacro',   label: 'Word VBA',    ext: '.bas (paste manually)' },
+    { type: 'XlsxMacro',   label: 'Excel VBA',   ext: '.bas (paste manually)' },
+  ],
+  '.NET LOLBIN': [
+    { type: 'InstallUtil', label: 'InstallUtil', ext: '.dll' },
+  ],
+}
 
 export const ALL_FEATURES = [
   'DirectSyscall', 'UnhookDisk', 'UnhookKnownDlls',
