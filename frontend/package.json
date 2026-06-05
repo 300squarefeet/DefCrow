@@ -7,7 +7,7 @@
     "dev":     "vite",
     "build":   "tsc && vite build",
     "preview": "vite preview",
-    "test":    "vitest"
+    "test":    "NODE_OPTIONS=--localstorage-file=/tmp/defcrow_vitest_ls.json vitest"
   },
   "dependencies": {
     "react":             "^18.2.0",
