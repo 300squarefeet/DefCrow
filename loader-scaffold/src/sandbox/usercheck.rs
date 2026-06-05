@@ -3,6 +3,20 @@ use windows_sys::Win32::System::SystemInformation::{
     GetTickCount64, GlobalMemoryStatusEx, MEMORYSTATUSEX, GetSystemInfo, SYSTEM_INFO,
 };
 
+#[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+unsafe fn hypervisor_bit_set() -> bool {
+    let ecx: u32;
+    core::arch::asm!(
+        "cpuid",
+        inout("eax") 1u32 => _,
+        out("ebx") _,
+        out("ecx") ecx,
+        out("edx") _,
+        options(nostack, preserves_flags),
+    );
+    (ecx >> 31) & 1 != 0
+}
+
 #[cfg(target_os = "windows")]
 pub unsafe fn looks_real() -> bool {
     // Uptime check: at least 30 minutes
@@ -19,6 +33,9 @@ pub unsafe fn looks_real() -> bool {
     let mut sysinfo: SYSTEM_INFO = core::mem::zeroed();
     GetSystemInfo(&mut sysinfo);
     if sysinfo.dwNumberOfProcessors < 2 { return false; }
+
+    #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+    if hypervisor_bit_set() { return false; }
 
     true
 }
