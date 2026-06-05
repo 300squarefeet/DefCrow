@@ -1,0 +1,92 @@
+<h2>ScareCrow Konsep → DefCrow Modern OPSEC</h2>
+<p class="subtitle">Sama dalam pola — berbeda dalam teknik. Bukan port, tapi evolusi.</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">ScareCrow (Go) — Yang Dipertahankan</div>
+    <div class="mockup-body" style="font-family:monospace;font-size:12px;line-height:1.8">
+      <div style="color:#4ade80;margin-bottom:8px">✓ KONSEP SAMA</div>
+      <pre style="margin:0;white-space:pre-wrap;font-size:11px">Template Engine
+→ Tera template (.rs.tera)
+→ Generate Rust source code
+→ Randomize SEMUA nama variabel
+→ Encode API strings (hash-based)
+→ cargo build → output binary
+
+Loader Types
+→ binary (.exe)
+→ dll (.dll)
+→ appdomain (.dll + .config)
+→ injector
+
+Variable randomization
+→ Tiap build = identifer berbeda
+→ Mirip VarNumberLength() di Go
+
+Shellcode encryption
+→ AES-256 / ChaCha20
+→ Key embedded (randomized var name)
+→ Decrypt at runtime</pre>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">DefCrow (Rust) — Upgrade OPSEC Modern</div>
+    <div class="mockup-body" style="font-family:monospace;font-size:12px;line-height:1.8">
+      <div style="color:#f87171;margin-bottom:8px">✗ TIDAK ADA di ScareCrow</div>
+      <pre style="margin:0;white-space:pre-wrap;font-size:11px">Execution
+→ NO RWX memory
+  (RW alloc → write → NtProtect RX)
+→ Fiber-based execution (bukan thread)
+→ Threadless injection
+  (TpAllocWork callback trampoline)
+
+Syscall
+→ Indirect syscalls (bukan direct)
+  [SSN + trampoline via ntdll stub]
+→ Syscall SSN resolved at runtime
+  (tidak hardcode nomor syscall)
+
+API Resolution
+→ API Hashing semua WinAPI
+  (djb2/FNV — no IAT imports)
+→ Import table kosong / stomped
+
+Memory OPSEC
+→ Full PE masking saat sleep
+  (Ekko/Gargoyle — bukan hanya shellcode)
+→ PE Header stomping setelah load
+→ Module Stomping (non-MEM_PRIVATE)
+
+Bypass
+→ AMSI/ETW via Hardware Breakpoint
+  (DR0-DR3 — ZERO memory IOC)
+→ Bukan memory patch (detectable)
+
+AppDomain
+→ ICLRRuntimeHost2 (bukan v1)
+→ Custom AppDomainManager di .config
+  (hijack .NET startup sequence)</pre>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="subtitle">Apakah pemahaman ini sudah tepat? Klik <strong>Ya, lanjut revisi spec</strong> atau berikan koreksi di terminal.</p>
+  <div class="options">
+    <div class="option" data-choice="yes" onclick="toggleSelect(this)">
+      <div class="letter">✓</div>
+      <div class="content">
+        <h3>Ya, lanjut revisi spec</h3>
+        <p>Pemahaman sudah tepat — upgrade spec dan tulis implementation plan.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="more" onclick="toggleSelect(this)">
+      <div class="letter">+</div>
+      <div class="content">
+        <h3>Ada yang perlu ditambah/koreksi</h3>
+        <p>Saya akan jelaskan di terminal apa yang masih kurang atau salah.</p>
+      </div>
+    </div>
+  </div>
+</div>

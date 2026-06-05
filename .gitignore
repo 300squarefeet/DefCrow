@@ -1,0 +1,32 @@
+# Rust build artifacts
+/target/
+Cargo.lock.bak
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+artifacts/
+*.exe
+*.dll
+*.pdb
+
+# Temp
+*.tmp

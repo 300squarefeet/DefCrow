@@ -1,0 +1,137 @@
+<h2>OPSEC Features — Pilih Semua yang Diinginkan</h2>
+<p class="subtitle">Centang fitur OPSEC yang ingin dimasukkan ke dalam loader Rust (multi-select)</p>
+
+<div class="section">
+  <p class="label">EDR / Hook Evasion</p>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="direct_syscall" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Direct Syscalls (SysWhispers3-style)</h3>
+        <p>Bypass EDR hooks dengan memanggil syscall langsung via SSN — tidak melewati ntdll.dll yang di-hook.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="unhook_disk" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>NTDLL Unhooking (Disk / KnownDLLs)</h3>
+        <p>Baca versi bersih ntdll.dll dari disk atau KnownDLLs, timpa .text section yang di-hook EDR.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="module_stomp" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Module Stomping</h3>
+        <p>Map shellcode ke ruang memori modul legit yang sudah di-load (bukan MEM_PRIVATE), menghindari deteksi berbasis memory scan.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">Memory OPSEC</p>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="sleep_encrypt" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content">
+        <h3>Sleep Encryption (Ekko/Foliage)</h3>
+        <p>Enkripsi seluruh region shellcode di memori saat sleep — mencegah memory scanner menemukan payload saat idle.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="stack_spoof" onclick="toggleSelect(this)">
+      <div class="letter">E</div>
+      <div class="content">
+        <h3>Return Address / Stack Spoofing</h3>
+        <p>Spoof call stack agar tidak terlihat berasal dari shellcode — bypass stack-based detection (Elastic, CrowdStrike).</p>
+      </div>
+    </div>
+    <div class="option" data-choice="heap_encrypt" onclick="toggleSelect(this)">
+      <div class="letter">F</div>
+      <div class="content">
+        <h3>Heap Encryption saat Sleep</h3>
+        <p>Enkripsi heap region saat loader idle agar IOC berbasis heap tidak terdeteksi.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">Anti-Sandbox / Anti-Analysis</p>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="sandbox_domain" onclick="toggleSelect(this)">
+      <div class="letter">G</div>
+      <div class="content">
+        <h3>Domain-Joined Check</h3>
+        <p>Hanya eksekusi jika mesin bergabung ke domain Active Directory — sandbox biasanya tidak di-domain.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="sandbox_user" onclick="toggleSelect(this)">
+      <div class="letter">H</div>
+      <div class="content">
+        <h3>User Interaction Check</h3>
+        <p>Periksa mouse movement, jumlah proses, uptime, dan RAM sebelum eksekusi.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="ppid_spoof" onclick="toggleSelect(this)">
+      <div class="letter">I</div>
+      <div class="content">
+        <h3>PPID Spoofing</h3>
+        <p>Spawn proses dengan parent process palsu (misal: explorer.exe) agar proses tidak tampak mencurigakan di process tree.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">Bypass AV/EDR Instrumentation</p>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="amsi_patch" onclick="toggleSelect(this)">
+      <div class="letter">J</div>
+      <div class="content">
+        <h3>AMSI Patch</h3>
+        <p>Patch AmsiScanBuffer di memori untuk menonaktifkan AMSI scanning.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="etw_patch" onclick="toggleSelect(this)">
+      <div class="letter">K</div>
+      <div class="content">
+        <h3>ETW Patch</h3>
+        <p>Patch EtwEventWrite untuk mencegah event tracing ke EDR/Windows Defender.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="hwbp_bypass" onclick="toggleSelect(this)">
+      <div class="letter">L</div>
+      <div class="content">
+        <h3>Hardware Breakpoint AMSI/ETW Bypass</h3>
+        <p>Gunakan hardware debug registers (DR0-DR3) untuk intercept dan bypass AMSI/ETW tanpa modifikasi memori — lebih stealth dari patch.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">Payload & PE OPSEC</p>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="pe_spoof" onclick="toggleSelect(this)">
+      <div class="letter">M</div>
+      <div class="content">
+        <h3>PE Metadata Spoofing + Code Signing</h3>
+        <p>Fake version info, company name, cert cloning dari binary legit (mirip fitur limelighter yang ada).</p>
+      </div>
+    </div>
+    <div class="option" data-choice="string_obfu" onclick="toggleSelect(this)">
+      <div class="letter">N</div>
+      <div class="content">
+        <h3>String & Import Obfuscation</h3>
+        <p>Enkripsi string literal dan sembunyikan Windows API import menggunakan dynamic resolution (GetProcAddress hash).</p>
+      </div>
+    </div>
+    <div class="option" data-choice="staged" onclick="toggleSelect(this)">
+      <div class="letter">O</div>
+      <div class="content">
+        <h3>Staged Payload (download dari URL)</h3>
+        <p>Payload tidak embed di loader — diunduh saat runtime dari URL yang dikonfigurasi, enkripsi AES/ChaCha20.</p>
+      </div>
+    </div>
+  </div>
+</div>
