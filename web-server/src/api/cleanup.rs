@@ -16,17 +16,30 @@ pub fn spawn_cleanup_task(artifacts_dir: String) {
 
 fn sweep(dir: &str) {
     let now = SystemTime::now();
+    let canon_dir = match std::path::Path::new(dir).canonicalize() {
+        Ok(p) => p,
+        Err(_) => return,
+    };
     let Ok(entries) = std::fs::read_dir(dir) else { return };
     for entry in entries.flatten() {
         let path = entry.path();
-        // Only consider .path files (not .path.consumed — those are in-flight)
-        if path.extension().map_or(false, |e| e == "path") {
+        // Only consider .path files whose stem is a safe identifier (no path traversal).
+        // .path.consumed files are in-flight downloads; skip them.
+        let stem_ok = path.file_stem()
+            .and_then(|s| s.to_str())
+            .map_or(false, |s| !s.is_empty() && s.len() <= 64
+                && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
+        if path.extension().map_or(false, |e| e == "path") && stem_ok {
             if let Ok(meta) = std::fs::metadata(&path) {
                 if let Ok(age) = now.duration_since(meta.modified().unwrap_or(now)) {
                     if age > TTL {
-                        // Read the artifact path and delete it too
-                        if let Ok(artifact_path) = std::fs::read_to_string(&path) {
-                            let _ = std::fs::remove_file(artifact_path.trim());
+                        if let Ok(artifact_str) = std::fs::read_to_string(&path) {
+                            let candidate = std::path::PathBuf::from(artifact_str.trim());
+                            if let Ok(canon) = candidate.canonicalize() {
+                                if canon.starts_with(&canon_dir) {
+                                    let _ = std::fs::remove_file(&canon);
+                                }
+                            }
                         }
                         let _ = std::fs::remove_file(&path);
                     }
