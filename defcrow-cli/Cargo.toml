@@ -1,0 +1,8 @@
+[package]
+name = "defcrow-cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "defcrow-cli"
+path = "src/main.rs"
