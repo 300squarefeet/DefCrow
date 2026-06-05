@@ -44,7 +44,7 @@ impl SessionStore {
 }
 
 pub async fn require_auth(
-    State(sessions): State<SessionStore>,
+    State(state): State<crate::state::AppState>,
     req: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
@@ -55,7 +55,7 @@ pub async fn require_auth(
         .map(|s| s.to_string());
 
     match auth {
-        Some(token) if sessions.validate(&token) => Ok(next.run(req).await),
+        Some(token) if state.sessions.validate(&token) => Ok(next.run(req).await),
         _ => Err(StatusCode::UNAUTHORIZED),
     }
 }
