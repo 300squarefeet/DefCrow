@@ -1,74 +1,130 @@
 # DefCrow — Rust Loader + Web Generator UI
 
 **Date:** 2026-06-05  
-**Status:** Approved
+**Status:** Approved (Revised)
 
 ---
 
 ## Overview
 
-Redesign ScareCrow loader dari Go ke Rust, dilengkapi web application (Axum backend + React+Vite frontend) untuk generate loader via browser. Menambahkan fitur AppDomain injection (cross-process, generate DLL + `.config`). Semua OPSEC features dikontrol via Cargo feature flags.
+Redesign ScareCrow loader dari Go ke Rust. Konsep identik ScareCrow: **Tera template engine → generate Rust source code dengan variabel ter-randomize → compile → output binary**. Bukan port langsung — semua teknik eksekusi dan bypass diganti ke standar OPSEC 2024/2025. Dilengkapi web application (Axum backend + React+Vite frontend) untuk generate loader via browser dengan progress real-time via WebSocket.
 
 ---
 
-## Architecture
+## Pola Inti (Sama dengan ScareCrow)
 
-### Stack
+ScareCrow bekerja dengan cara:
+1. Template engine mengisi `map[string]string` variabel dengan nama acak (`VarNumberLength`)
+2. Hasilnya adalah source code Go yang ter-randomize tiap build
+3. `go build` mengkompilasi source tersebut
+4. Scaffold (zip berisi go.mod, asm, icons) sudah pre-packed, hanya file generated yang dikompilasi baru
+
+DefCrow mengadopsi pola yang sama dalam Rust:
+1. Tera template mengisi variabel dengan identifier acak (Rust equivalent)
+2. Hasilnya adalah `loader-config.rs` — source Rust tipis (~50-100 baris) yang ter-randomize tiap build
+3. `rustc loader-config.rs --extern scaffold=libscaffold.rlib` — hanya compile file ini
+4. `libscaffold.rlib` sudah pre-compiled saat server startup (mirip zip scaffold ScareCrow)
+
+---
+
+## Stack
 
 | Layer | Technology |
 |---|---|
-| Loader (payload) | Rust, cross-compile ke `x86_64-pc-windows-gnu` |
-| Backend | Rust + Axum |
+| Loader payload | Rust, cross-compile ke `x86_64-pc-windows-gnu` |
+| Template engine | Tera (`.rs.tera` templates) |
+| Scaffold library | `libscaffold.rlib` — pre-compiled sekali saat startup |
+| Backend | Rust + Axum + Tokio |
+| Build comms | WebSocket (progress streaming) + REST (job management) |
 | Frontend | React + Vite (static files served dari Axum) |
-| Code generation | Cargo feature flags (`--features amsi,etw,...`) |
-| Template engine | Tera (untuk `.config` XML dan PE metadata) |
 | Auth | API key via header `X-API-Key` |
+| Build cache | sccache (cache rustc artifacts antar request) |
 
-### Monorepo Layout
+---
+
+## Arsitektur Build — Pre-compiled Scaffold
+
+```
+Server Startup (sekali, ~90 detik):
+  cargo build --release → libscaffold.rlib
+  (semua modul OPSEC sudah di-compile dalam lib ini)
+
+Per Request (~5-12 detik):
+  1. Tera template → loader-config.rs (50-100 baris, variabel ter-randomize)
+  2. rustc loader-config.rs
+       --extern scaffold=libscaffold.rlib
+       --target x86_64-pc-windows-gnu
+       --crate-type cdylib / bin
+  3. PE metadata inject + code signing
+  4. Artifact siap diunduh
+
+Warm Cache (sccache hit, ~1-2 detik):
+  Kombinasi feature + randomized config yang identik → dari cache
+```
+
+---
+
+## Monorepo Layout
 
 ```
 defcrow/
-├── Cargo.toml                      ← workspace root
-├── loader-core/                    ← payload Rust crate
-│   ├── Cargo.toml                  ← semua feature flags
-│   └── src/
-│       ├── main.rs                 ← binary (.exe) entry
-│       ├── lib.rs                  ← DLL entry (DllMain)
-│       ├── evasion/
-│       │   ├── syscalls.rs         ← direct-syscall feature
-│       │   ├── unhook.rs           ← unhook-disk / unhook-knowndlls
-│       │   ├── module_stomp.rs     ← module-stomp
-│       │   ├── sleep_encrypt.rs    ← sleep-encrypt (Ekko-style)
-│       │   └── stack_spoof.rs      ← stack-spoof
-│       ├── bypass/
-│       │   ├── amsi.rs             ← amsi-patch / amsi-hwbp
-│       │   └── etw.rs              ← etw-patch / etw-hwbp
-│       ├── sandbox/
-│       │   ├── domain.rs           ← sandbox-domain
-│       │   └── usercheck.rs        ← sandbox-user
-│       ├── inject/
-│       │   ├── process_inject.rs   ← VirtualAllocEx + WriteProcessMemory
-│       │   ├── ppid_spoof.rs       ← ppid-spoof
-│       │   └── appdomain.rs        ← appdomain feature
-│       └── crypto/
-│           ├── aes.rs              ← AES-256-CBC
-│           └── chacha20.rs         ← ChaCha20-Poly1305
-├── web-server/                     ← Axum backend
+├── Cargo.toml                         ← workspace root
+│
+├── loader-scaffold/                   ← pre-compiled library (libscaffold.rlib)
 │   ├── Cargo.toml
-│   ├── build.rs                    ← jalankan `npm run build` saat compile
+│   └── src/
+│       ├── lib.rs
+│       ├── evasion/
+│       │   ├── syscalls.rs            ← indirect syscalls (SSN + trampoline)
+│       │   ├── unhook.rs              ← NTDLL unhook: Disk / KnownDLLs
+│       │   ├── module_stomp.rs        ← module stomping (non-MEM_PRIVATE)
+│       │   ├── sleep_mask.rs          ← full PE masking saat sleep (Ekko/Gargoyle)
+│       │   └── stack_spoof.rs         ← synthetic stack frames (return addr spoof)
+│       ├── bypass/
+│       │   ├── amsi_hwbp.rs           ← AMSI via hardware breakpoint (DR0-DR3)
+│       │   └── etw_hwbp.rs            ← ETW via hardware breakpoint
+│       ├── sandbox/
+│       │   ├── domain.rs              ← domain-joined check (NetGetJoinInformation)
+│       │   └── usercheck.rs           ← mouse movement, proses, RAM, uptime
+│       ├── inject/
+│       │   ├── exec.rs                ← fiber execution + NtProtect RW→RX (no RWX)
+│       │   ├── threadless.rs          ← threadless injection via TpAllocWork callback
+│       │   ├── ppid_spoof.rs          ← parent process ID spoofing
+│       │   └── appdomain.rs           ← CLR hosting via ICLRRuntimeHost2
+│       ├── resolve/
+│       │   └── api_hash.rs            ← WinAPI resolution by djb2/FNV hash (no IAT)
+│       └── crypto/
+│           ├── aes256.rs
+│           └── chacha20.rs
+│
+├── loader-gen/                        ← generated per-request (thin, ~50-100 baris)
+│   └── templates/
+│       ├── binary.rs.tera
+│       ├── dll.rs.tera
+│       ├── appdomain.rs.tera
+│       └── injector.rs.tera
+│
+├── web-server/                        ← Axum backend
+│   ├── Cargo.toml
+│   ├── build.rs                       ← npm run build saat compile
 │   └── src/
 │       ├── main.rs
 │       ├── api/
-│       │   ├── generate.rs         ← POST /api/generate
-│       │   ├── jobs.rs             ← GET /api/jobs/:id
-│       │   └── download.rs         ← GET /api/download/:id + DELETE
+│       │   ├── generate.rs            ← POST /api/generate
+│       │   ├── jobs.rs                ← GET /api/jobs/:id
+│       │   └── download.rs            ← GET /api/download/:id, DELETE
 │       ├── builder/
-│       │   ├── cargo_builder.rs    ← invoke cargo build async
-│       │   ├── config_gen.rs       ← render appdomain .config via Tera
-│       │   └── pe_sign.rs          ← PE metadata + cert cloning
+│       │   ├── scaffold.rs            ← pre-compile libscaffold.rlib saat startup
+│       │   ├── template_gen.rs        ← Tera template → loader-config.rs
+│       │   ├── rustc_runner.rs        ← invoke rustc dengan --extern scaffold
+│       │   ├── config_gen.rs          ← render appdomain .config XML
+│       │   └── pe_sign.rs             ← PE metadata + cert cloning
+│       ├── ws/
+│       │   └── progress.rs            ← WebSocket progress streaming
 │       └── middleware/
-│           └── auth.rs             ← X-API-Key validation
-├── frontend/                       ← React + Vite
+│           └── auth.rs                ← X-API-Key validation
+│
+├── frontend/                          ← React + Vite
 │   ├── package.json
 │   └── src/
 │       ├── App.tsx
@@ -76,179 +132,173 @@ defcrow/
 │       │   ├── GeneratorPage.tsx
 │       │   └── JobStatusPage.tsx
 │       └── components/
-│           ├── LoaderConfig.tsx     ← tipe loader, enkripsi, delivery
-│           ├── OpsecFeatures.tsx    ← toggle 15 fitur OPSEC
-│           └── AppDomainConfig.tsx  ← CLR version, target process, entry point
+│           ├── LoaderConfig.tsx        ← tipe loader, enkripsi, delivery
+│           ├── OpsecFeatures.tsx       ← 15 toggle OPSEC dengan deskripsi
+│           └── AppDomainConfig.tsx     ← CLR version, target process, entry point
+│
 └── templates/
-    └── appdomain.config.tera       ← AppDomain XML config template
+    └── appdomain.config.tera          ← AppDomain XML config template
 ```
 
 ---
 
-## Cargo Feature Flags (loader-core)
+## OPSEC Techniques — Modern Standard 2024/2025
 
-| Feature | Teknik |
-|---|---|
-| `direct-syscall` | SysWhispers3-style SSN syscall langsung |
-| `unhook-disk` | Baca clean ntdll dari disk |
-| `unhook-knowndlls` | Baca clean ntdll dari KnownDLLs namespace |
-| `module-stomp` | Map ke memori modul legit (non-MEM_PRIVATE) |
-| `sleep-encrypt` | Enkripsi shellcode region saat sleep (Ekko) |
-| `stack-spoof` | Return address / call stack spoofing |
-| `heap-encrypt` | Enkripsi heap saat idle |
-| `sandbox-domain` | Hanya eksekusi jika domain-joined |
-| `sandbox-user` | Cek mouse movement, proses, RAM, uptime |
-| `ppid-spoof` | Parent process ID spoofing |
-| `amsi-patch` | Patch AmsiScanBuffer di memori |
-| `amsi-hwbp` | Hardware breakpoint bypass AMSI (stealth) |
-| `etw-patch` | Patch EtwEventWrite |
-| `etw-hwbp` | Hardware breakpoint bypass ETW |
-| `pe-spoof` | Fake PE metadata + cert cloning |
-| `string-obfu` | Compile-time string encryption via proc-macro |
-| `staged` | Download payload dari URL saat runtime |
-| `appdomain` | CLR hosting + AppDomain cross-process injection |
-
----
-
-## Loader Types
-
-| Type | Output | Catatan |
-|---|---|---|
-| `binary` | `.exe` | Standalone, shellcode dalam proses sendiri |
-| `dll` | `.dll` | Export: DllRegisterServer, DllGetClassObject |
-| `appdomain` | `.dll` + `.config` | CLR hosting, inject ke proses eksternal |
-| `injector` | `.exe` | Remote process injection (VirtualAllocEx) |
-
----
-
-## AppDomain Injection — Detail
-
-### Output Files
-- `loader.dll` — DLL yang mengandung CLR hosting code
-- `loader.config` — AppDomain configuration XML
-
-### Alur Eksekusi (di target machine)
-1. `OpenProcess(PROCESS_ALL_ACCESS, target_pid)`
-2. `VirtualAllocEx` → alokasi memori di proses target
-3. `WriteProcessMemory` → tulis CLR hosting stub
-4. `CreateRemoteThread` → eksekusi stub di proses target
-5. Stub: `CLRCreateInstance` → `ICLRMetaHost::GetRuntime(clr_version)` → `ICLRRuntimeHost::Start()`
-6. `ExecuteInDefaultAppDomain(assembly_bytes, type_name, method_name, argument)`
-
-### Template `appdomain.config.tera`
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<configuration>
-  <startup>
-    <supportedRuntime version="{{ clr_version }}" sku=".NETFramework,Version={{ net_version }}" />
-  </startup>
-  <runtime>
-    <AppDomainManagerType value="{{ appdomain_name }}" />
-  </runtime>
-</configuration>
+### Eksekusi Shellcode (No RWX)
+```
+LAMA (ScareCrow): VirtualAlloc(RWX) → copy → execute  ← flagged by semua EDR
+BARU (DefCrow):
+  1. NtAllocateVirtualMemory(RW)     ← alokasi tanpa execute permission
+  2. memcpy shellcode ke region
+  3. NtProtectVirtualMemory(RW→RX)   ← via indirect syscall
+  4. Fiber execution (CreateFiber/SwitchToFiber)  ← bukan thread baru
 ```
 
-### Web UI Input (AppDomainConfig.tsx)
-- Target process name atau PID
-- CLR version: `v2.0.50727` / `v4.0.30319`
-- .NET assembly: upload file atau staged URL
-- Entry point: `Namespace.Class::Method`
-- AppDomain name
+### Syscall Method
+```
+LAMA: Direct syscall (SSN hardcoded + inline asm jump)  ← EDR monitor SSN
+BARU: Indirect syscall
+  1. Resolve SSN dari ntdll di runtime (bukan hardcode)
+  2. Set RIP ke ntdll stub (bukan shellcode) sebelum syscall
+  3. Call stack terlihat datang dari ntdll yang legit
+```
+
+### API Resolution
+```
+LAMA: Import table (IAT) — semua API visible di PE header
+BARU: API Hashing
+  - Semua WinAPI di-resolve via djb2/FNV hash di runtime
+  - IAT kosong / stomped setelah load
+  - Tidak ada string API name di binary
+```
+
+### Threadless Injection
+```
+LAMA: CreateRemoteThread → flagged oleh semua EDR
+BARU: TpAllocWork callback trampoline
+  1. Alokasi memori di proses target
+  2. Tulis shellcode + trampoline
+  3. TpAllocWork(callback=trampoline) → eksekusi via thread pool
+  4. Tidak ada thread baru yang dibuat
+```
+
+### AMSI / ETW Bypass
+```
+LAMA: WriteProcessMemory patch (memory IOC — mudah di-scan)
+BARU: Hardware Breakpoint (DR0-DR3)
+  - Set DR0 = address AmsiScanBuffer / EtwEventWrite
+  - VEH handler: intercept exception, ubah return value, resume
+  - ZERO modifikasi memori — tidak ada IOC
+```
+
+### Sleep Masking
+```
+LAMA: Tidak ada / hanya enkripsi shellcode region
+BARU: Full PE masking (Ekko/Gargoyle pattern)
+  - Saat sleep: enkripsi SELURUH image base (bukan hanya shellcode)
+  - ROP chain via NtContinue untuk mask/unmask tanpa thread suspicious
+  - PE header di-stomp setelah load
+```
+
+### AppDomain (ICLRRuntimeHost2)
+```
+LAMA (konsep): ICLRRuntimeHost (deprecated)
+BARU: ICLRRuntimeHost2
+  1. CLRCreateInstance(CLSID_CLRMetaHost)
+  2. ICLRMetaHost::GetRuntime(clr_version)
+  3. ICLRRuntimeInfo::GetInterface(ICLRRuntimeHost2)
+  4. ICLRRuntimeHost2::SetAppDomainManager(type_name)
+  5. Start() + ExecuteInDefaultAppDomain(assembly, method, arg)
+
+.config hijacking:
+  <appDomainManagerType value="Namespace.EvilManager" />
+  <appDomainManagerAssembly value="EvilAssembly, Version=..." />
+  → .NET runtime otomatis load custom AppDomainManager di startup
+```
+
+---
+
+## Variabel Randomization (Mirip ScareCrow)
+
+Tera template menggunakan fungsi custom untuk randomize identifier:
+
+```rust
+// Template helper functions (dipanggil dari .rs.tera)
+fn rand_ident(len: usize) -> String  // random alphanumeric identifier
+fn rand_string(s: &str) -> String    // encode string literal (hex/xor/split)
+fn rand_int(min: u32, max: u32) -> u32
+
+// Contoh template binary.rs.tera:
+let {{ rand_ident(12) }}: *mut c_void = std::ptr::null_mut();
+let {{ rand_ident(8) }}: usize = shellcode.len();
+// → setiap build generate variabel berbeda
+```
+
+---
+
+## Frontend ↔ Backend Communication
+
+```
+1. POST /api/generate  (REST, X-API-Key header)
+   Body: { loader_type, features[], encryption, shellcode_b64, pe_config, appdomain_config }
+   Response: { job_id: "abc123" }   ← INSTAN
+
+2. WebSocket: ws://host/ws/jobs/abc123
+   Server push (tidak ada polling):
+   {"status":"queued",    "progress":0,  "msg":"Job queued"}
+   {"status":"building",  "progress":15, "msg":"Generating source from template..."}
+   {"status":"building",  "progress":40, "msg":"Compiling against scaffold..."}
+   {"status":"building",  "progress":75, "msg":"PE signing & metadata inject..."}
+   {"status":"done",      "progress":100,"download_id":"xyz789"}
+   {"status":"error",     "msg":"Build failed: <stderr>"}
+
+3. GET /api/download/xyz789  (REST)
+   → Binary stream, Content-Disposition: attachment
+
+4. DELETE /api/jobs/abc123  (REST)
+   → Hapus artifact dari server
+```
 
 ---
 
 ## API Endpoints
 
 ```
-POST   /api/generate          Kirim config JSON, terima job_id
-GET    /api/jobs/:id           Poll status: queued | building | done | error
-GET    /api/download/:id       Download artifact (binary stream)
-DELETE /api/jobs/:id           Hapus artifact dari server
+POST   /api/generate          Kirim config, terima job_id (instan)
+GET    /api/jobs/:id           Status snapshot: queued|building|done|error
+WS     /ws/jobs/:id            Real-time progress stream
+GET    /api/download/:id       Download artifact
+DELETE /api/jobs/:id           Hapus artifact
 GET    /api/health             Liveness check (no auth)
 ```
 
-**Header wajib** (semua endpoint kecuali `/health`):
-```
-X-API-Key: <token>
-```
+---
 
-### Request Body `/api/generate`
-```json
-{
-  "loader_type": "appdomain",
-  "features": ["direct-syscall", "sleep-encrypt", "amsi-hwbp", "etw-hwbp"],
-  "encryption": "aes256",
-  "shellcode": "<base64>",
-  "pe_config": {
-    "company": "Microsoft Corporation",
-    "clone_cert": "<base64 cert>",
-    "sign": true
-  },
-  "appdomain_config": {
-    "clr_version": "v4.0.30319",
-    "target_process": "explorer.exe",
-    "assembly": "<base64 .NET assembly>",
-    "entry_point": "Namespace.Class::Run",
-    "appdomain_name": "DefaultDomain"
-  }
-}
-```
+## Loader Types & Output
+
+| Type | Output | Teknik Utama |
+|---|---|---|
+| `binary` | `.exe` | Fiber exec, no RWX, indirect syscall, sleep mask |
+| `dll` | `.dll` | DllMain entry, API hash, module stomp, reflective |
+| `appdomain` | `.dll` + `.config` | ICLRRuntimeHost2, custom AppDomainManager |
+| `injector` | `.exe` | Threadless injection (TpAllocWork), PPID spoof |
 
 ---
 
-## Build Flow (cargo_builder.rs)
+## Build Speed Target
 
-```
-1. Buat temp dir: /tmp/defcrow-jobs/{job_id}/
-2. Tulis shellcode.bin ke temp dir
-3. Render .config via Tera (jika appdomain)
-4. Set env: SHELLCODE_PATH, SHELLCODE_KEY, STAGING_URL, dll
-5. Jalankan:
-   cargo build
-     --target x86_64-pc-windows-gnu
-     --manifest-path loader-core/Cargo.toml
-     --features "{features}"
-     --release
-     -Z build-std=std,panic_abort
-6. Copy artifact ke /tmp/defcrow-jobs/{job_id}/output/
-7. Jalankan pe_sign.rs (inject PE metadata + cert)
-8. Update job status → done
-```
+| Skenario | Waktu |
+|---|---|
+| Server startup (scaffold compile) | ~90 detik, sekali |
+| Generate baru (dingin) | ~8-15 detik |
+| Generate ulang (sccache hit) | ~1-3 detik |
 
 ---
 
-## Frontend Pages
+## Out of Scope (v1)
 
-### GeneratorPage
-- Upload shellcode (drag & drop)
-- Pilih loader type (Binary / DLL / AppDomain / Injector)
-- Toggle OPSEC features (15 toggle switch dengan deskripsi)
-- AppDomainConfig section (muncul jika tipe AppDomain dipilih)
-- PE spoofing config (company name, clone cert upload)
-- Tombol Generate → poll status → tampilkan download link
-
-### JobStatusPage
-- Real-time polling setiap 2 detik
-- Progress indicator: queued → building → done/error
-- Build log streaming (opsional)
-- Download button + Delete job button
-
----
-
-## Authentication
-
-- API key disimpan di `.env`: `DEFCROW_API_KEY=<random-256bit-hex>`
-- Axum middleware membaca header `X-API-Key` per request
-- Mismatch → 401 Unauthorized
-- Frontend menyimpan key di `localStorage` (bukan cookie)
-- Tidak ada multi-user / session management
-
----
-
-## Out of Scope
-
-- Fitur yang tidak dimasukkan dalam versi ini:
-  - Garble/obfuscasi seluruh binary (terlalu lambat untuk web UX)
-  - WScript / HTA / Excel loader (tidak diminta)
-  - User management / multi-tenant
-  - Build queue persistence (restart server = reset queue)
+- WScript / HTA / Excel / Macro loaders
+- Garble-style full binary obfuscation (terlalu lambat untuk web UX)
+- User management / multi-tenant auth
+- Build queue persistence antar restart server
+- GUI Windows native (web only)
