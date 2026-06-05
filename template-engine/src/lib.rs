@@ -175,4 +175,21 @@ mod tests {
         assert!(xml.contains("DefaultDomain"));
         assert!(xml.contains("<configuration>"));
     }
+
+    #[test]
+    fn test_dll_template_has_dll_main() {
+        let config = LoaderConfig {
+            loader_type: LoaderType::Dll,
+            features: vec![Feature::AmsiHwbp],
+            encryption: Encryption::Aes256,
+            shellcode_hex: "cafebabe".into(),
+            key_hex: "aa".repeat(32),
+            iv_hex: "bb".repeat(16),
+            pe_config: None,
+            appdomain_config: None,
+        };
+        let source = generate_loader_source(&config).unwrap();
+        assert!(source.contains("DllMain"));
+        assert!(source.contains("DllRegisterServer"));
+    }
 }
