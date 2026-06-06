@@ -16,7 +16,8 @@ pub unsafe fn ldr_load_dll_by_name(dll_name: &[u8]) {
     let ldr_fn = match resolve_by_hash(ntdll, h::LDR_LOAD) {
         Some(p) => p, None => return,
     };
-    let ascii: &[u8] = dll_name.iter().take_while(|&&b| b != 0).as_slice();
+    let ascii_len = dll_name.iter().take_while(|&&b| b != 0).count();
+    let ascii = &dll_name[..ascii_len];
     let mut wide: [u16; 64] = [0u16; 64];
     let len = ascii.len().min(63);
     for (i, &b) in ascii.iter().take(len).enumerate() { wide[i] = b as u16; }

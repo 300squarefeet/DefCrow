@@ -25,7 +25,7 @@ unsafe fn nqip_usize(class: usize) -> (i32, usize) {
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 pub unsafe fn is_debugged() -> bool {
     // PEB.BeingDebugged via GS register (no API call)
-    let being_debugged: u8;
+    let being_debugged: u32;
     core::arch::asm!(
         "mov rax, gs:[0x60]",
         "movzx {0:e}, byte ptr [rax + 0x2]",

@@ -139,12 +139,13 @@ unsafe fn process_count_low() -> bool {
 unsafe fn hypervisor_bit_set() -> bool {
     let ecx: u32;
     core::arch::asm!(
+        "push rbx",
         "cpuid",
+        "pop rbx",
         inout("eax") 1u32 => _,
-        out("ebx") _,
         out("ecx") ecx,
         out("edx") _,
-        options(nostack, preserves_flags),
+        options(preserves_flags),
     );
     (ecx >> 31) & 1 != 0
 }

@@ -22,7 +22,7 @@ impl Config {
             session_secret: env::var("DEFCROW_SESSION_SECRET")
                               .expect("DEFCROW_SESSION_SECRET must be set"),
             scaffold_rlib:  env::var("DEFCROW_SCAFFOLD_RLIB")
-                              .unwrap_or("target/x86_64-pc-windows-gnu/release/libscaffold.rlib".into()),
+                              .unwrap_or("target/x86_64-pc-windows-gnu/release/libloader_scaffold.rlib".into()),
             artifacts_dir:  env::var("DEFCROW_ARTIFACTS_DIR")
                               .unwrap_or("/tmp/defcrow-artifacts".into()),
         })

@@ -228,7 +228,8 @@ unsafe fn find_pid_by_name(name: &[u8]) -> Option<u32> {
     let mut buf = vec![0u8; buf_size];
     let st = indirect_syscall(ssn, tramp, 5, buf.as_mut_ptr() as usize, buf_size, &mut needed as *mut u32 as usize, 0, 0);
     if st < 0 { return None; }
-    let target: &[u8] = name.iter().take_while(|&&b| b != 0).as_slice();
+    let target_len = name.iter().take_while(|&&b| b != 0).count();
+    let target = &name[..target_len];
     let mut offset = 0usize;
     loop {
         let p = buf.as_ptr().add(offset);

