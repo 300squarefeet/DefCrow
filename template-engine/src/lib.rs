@@ -261,6 +261,19 @@ fn build_context(config: &LoaderConfig) -> Context {
         ("jsc_fs_obj",            "Scripting.FileSystemObject"),
         ("jsc_wscript_shell",     "WScript.Shell"),
         ("jsc_vm_procs",          "vmtoolsd.exe|vboxservice.exe|cuckoo.exe|vmsrvc.exe|qemu-ga.exe|prl_tools.exe|xenservice.exe|sandboxiedcomlaunch.exe|vmusrvc.exe"),
+        // WMI query strings
+        ("jsc_wmi_proc_q",        "SELECT Name FROM Win32_Process"),
+        ("jsc_wmi_printer_q",     "SELECT Name FROM Win32_Printer"),
+        ("jsc_wmi_monitor_q",     "SELECT ScreenWidth,ScreenHeight FROM Win32_DesktopMonitor"),
+        ("jsc_wmi_monitor_w",     "SELECT ScreenWidth FROM Win32_DesktopMonitor"),
+        ("jsc_wmi_mac_q",         "SELECT MACAddress FROM Win32_NetworkAdapter WHERE MACAddress IS NOT NULL"),
+        // Sandbox env var names
+        ("jsc_env_vbox",          "VBOX_VERSION"),
+        ("jsc_env_sandboxie",     "SANDBOXIE_HOME"),
+        // System.Windows.Forms strings (hta.tera)
+        ("jsc_sys_win_forms",     "System.Windows.Forms"),
+        ("jsc_sys_win_forms_cur", "System.Windows.Forms.Cursor"),
+        ("jsc_cursor_position",   "Position"),
     ];
     for &(k, s) in jsc_pairs {
         vars.insert(k, to_charcode_jscript(s));
@@ -281,6 +294,15 @@ fn build_context(config: &LoaderConfig) -> Context {
         ("vba_fs_obj",          "Scripting.FileSystemObject"),
         ("vba_winmgmts",        "winmgmts:"),
         ("vba_vm_procs",        "vmtoolsd.exe|vboxservice.exe|cuckoo.exe|vmsrvc.exe|qemu-ga.exe|prl_tools.exe|xenservice.exe|sandboxiedcomlaunch.exe|vmusrvc.exe"),
+        // WMI query strings
+        ("vba_wmi_proc_q",    "SELECT Name FROM Win32_Process"),
+        ("vba_wmi_printer_q", "SELECT Name FROM Win32_Printer"),
+        // Sandbox env var names
+        ("vba_env_vbox",      "VBOX_VERSION"),
+        ("vba_env_sandboxie", "SANDBOXIE_HOME"),
+        // Sandbox indicator strings (pipe-delimited for Split())
+        ("vba_bad_users",     "sandbox|malware|virus|sample|cuckoo|user|admin"),
+        ("vba_bad_computers", "sandbox|malware|virus|analysis|cuckoo"),
     ];
     for &(k, s) in vba_pairs {
         vars.insert(k, to_charcode_vba(s));

