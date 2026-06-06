@@ -7,13 +7,18 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use crate::state::AppState;
 
-fn client_ip(headers: &HeaderMap) -> String {
-    headers.get("X-Forwarded-For")
+fn rate_key(headers: &HeaderMap, username: &str) -> String {
+    // Combine username + IP so the limiter catches both per-IP floods and
+    // credential-stuffing (same creds, many IPs).
+    // We use X-Forwarded-For only as a hint; the username component ensures
+    // an attacker cannot bypass per-IP limits by spoofing headers.
+    let ip = headers.get("X-Forwarded-For")
         .or_else(|| headers.get("X-Real-IP"))
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.split(',').next())
         .map(|s| s.trim().to_string())
-        .unwrap_or_else(|| "direct".to_string())
+        .unwrap_or_else(|| "direct".to_string());
+    format!("{}@{}", username, ip)
 }
 
 #[derive(Deserialize)]
@@ -33,8 +38,8 @@ pub async fn login(
     headers:      HeaderMap,
     Json(body):   Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, StatusCode> {
-    let ip = client_ip(&headers);
-    if !state.rate_limiter.check_and_record(&ip) {
+    let key = rate_key(&headers, &body.username);
+    if !state.rate_limiter.check_and_record(&key) {
         return Err(StatusCode::TOO_MANY_REQUESTS);
     }
 
@@ -47,7 +52,7 @@ pub async fn login(
         .verify_password(body.password.as_bytes(), &parsed_hash)
         .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
-    state.rate_limiter.reset(&ip);
+    state.rate_limiter.reset(&key);
     let token = state.sessions.create_session();
     Ok(Json(LoginResponse { token, expires_in: 86400 }))
 }

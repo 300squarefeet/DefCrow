@@ -11,13 +11,15 @@ use std::{sync::Arc, time::{Duration, Instant}};
 const SESSION_TTL: Duration = Duration::from_secs(86400);
 const TOKEN_LEN:   usize    = 64;
 
-/// Sliding-window rate limiter for login attempts (keyed by client IP).
-/// Tracks (attempt_count, window_start) per key.
+/// Sliding-window rate limiter for login attempts.
+/// Keyed on `username@ip` to slow both per-IP brute-force and credential-stuffing.
+/// Hard cap of 10 000 entries prevents unbounded growth from attacker-supplied keys.
 #[derive(Clone)]
 pub struct LoginRateLimiter {
     inner:        Arc<DashMap<String, (u32, Instant)>>,
     max_attempts: u32,
     window:       Duration,
+    max_entries:  usize,
 }
 
 impl LoginRateLimiter {
@@ -26,12 +28,18 @@ impl LoginRateLimiter {
             inner:        Arc::new(DashMap::new()),
             max_attempts,
             window:       Duration::from_secs(window_secs),
+            max_entries:  10_000,
         }
     }
 
     /// Returns false if the key is currently rate-limited; records the attempt.
     pub fn check_and_record(&self, key: &str) -> bool {
         let now = Instant::now();
+        // Prevent unbounded map growth from attacker-supplied keys.
+        if self.inner.len() >= self.max_entries {
+            self.evict_expired(now);
+            if self.inner.len() >= self.max_entries { return false; }
+        }
         let mut entry = self.inner.entry(key.to_string()).or_insert((0, now));
         if now.duration_since(entry.1) > self.window {
             *entry = (1, now);
@@ -46,6 +54,10 @@ impl LoginRateLimiter {
 
     pub fn reset(&self, key: &str) {
         self.inner.remove(key);
+    }
+
+    fn evict_expired(&self, now: Instant) {
+        self.inner.retain(|_, v| now.duration_since(v.1) <= self.window);
     }
 }
 
