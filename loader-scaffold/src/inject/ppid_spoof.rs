@@ -127,7 +127,6 @@ pub unsafe fn spawn_with_ppid(target_exe: &[u8], parent_name: &[u8]) -> Option<(
 }
 
 #[cfg(target_os = "windows")]
-#[cfg(target_os = "windows")]
 pub unsafe fn spawn_with_safe_ppid(target_exe: &[u8]) -> Option<(isize, isize)> {
     let candidates: &[&[u8]] = &[
         b"explorer.exe\0",
