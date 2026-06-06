@@ -1,9 +1,8 @@
 /// Get ntdll base via PEB walk on x64 — no GetModuleHandleA in IAT.
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 unsafe fn ntdll_base() -> *const u8 {
-    use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base};
-    const NTDLL_H: u32 = djb2_hash_lower(b"ntdll.dll");
-    peb_get_module_base(NTDLL_H)
+    use crate::resolve::api_hash::{peb_get_module_base, h};
+    peb_get_module_base(h::DLL_NTDLL)
 }
 
 #[cfg(all(target_os = "windows", not(target_arch = "x86_64")))]

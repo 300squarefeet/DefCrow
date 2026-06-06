@@ -9,10 +9,9 @@ struct UnicodeString {
 
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 pub unsafe fn ldr_load_dll_by_name(dll_name: &[u8]) {
-    use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    use crate::resolve::api_hash::{peb_get_module_base, resolve_by_hash};
     use crate::resolve::api_hash::h;
-    const NTDLL_H: u32 = djb2_hash_lower(b"ntdll.dll");
-    let ntdll = peb_get_module_base(NTDLL_H);
+    let ntdll = peb_get_module_base(h::DLL_NTDLL);
     if ntdll.is_null() { return; }
     let ldr_fn = match resolve_by_hash(ntdll, h::LDR_LOAD) {
         Some(p) => p, None => return,
