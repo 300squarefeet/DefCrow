@@ -64,8 +64,8 @@ pub fn build_scaffold_rlib(workspace_root: &str) -> Result<String> {
 mod tests {
     #[test]
     fn test_rlib_path_format() {
-        let path = format!("{}/target/x86_64-pc-windows-gnu/release/libscaffold.rlib", "/workspace");
-        assert!(path.ends_with("libscaffold.rlib"));
+        let path = format!("{}/target/x86_64-pc-windows-gnu/release/libloader_scaffold.rlib", "/workspace");
+        assert!(path.ends_with("libloader_scaffold.rlib"));
         assert!(path.contains("x86_64-pc-windows-gnu"));
     }
 }
