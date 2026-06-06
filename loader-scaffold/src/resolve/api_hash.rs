@@ -6,6 +6,61 @@ pub fn djb2_hash(name: &[u8]) -> u32 {
     h
 }
 
+/// Case-insensitive (ASCII) DJB2 hash — usable as `const` for compile-time module name hashes.
+pub const fn djb2_hash_lower(name: &[u8]) -> u32 {
+    let mut h: u32 = 5381;
+    let mut i = 0;
+    while i < name.len() {
+        let c = name[i];
+        let lo = if c >= b'A' && c <= b'Z' { c + 32 } else { c };
+        h = h.wrapping_shl(5).wrapping_add(h).wrapping_add(lo as u32);
+        i += 1;
+    }
+    h
+}
+
+/// Walk PEB.Ldr.InLoadOrderModuleList and return the DllBase whose BaseDllName
+/// (lowercased) matches `name_hash` (computed with `djb2_hash_lower`).
+/// Avoids GetModuleHandle, leaving no call-site strings in the import table.
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+pub unsafe fn peb_get_module_base(name_hash: u32) -> *const u8 {
+    let peb: *const u8;
+    core::arch::asm!(
+        "mov {}, gs:[0x60]",
+        out(reg) peb,
+        options(nostack, readonly, preserves_flags),
+    );
+    if peb.is_null() { return core::ptr::null(); }
+
+    // PEB.Ldr at +0x18; PEB_LDR_DATA.InLoadOrderModuleList at +0x10
+    let ldr      = *(peb.add(0x18) as *const *const u8);
+    if ldr.is_null() { return core::ptr::null(); }
+    let head_ptr = ldr.add(0x10);           // address of the head LIST_ENTRY
+    let mut node = *(head_ptr as *const *const u8); // first Flink (first real entry)
+
+    while !node.is_null() && node != head_ptr {
+        // LDR_DATA_TABLE_ENTRY (x64):
+        //  +0x030  DllBase     *const u8
+        //  +0x058  BaseDllName UNICODE_STRING { Length:u16, MaxLength:u16, pad:u32, Buffer:*u16 }
+        let dll_base  = *(node.add(0x30) as *const *const u8);
+        let name_len  = *(node.add(0x58) as *const u16) as usize;  // bytes
+        let name_buf  = *(node.add(0x60) as *const *const u16);
+
+        if !dll_base.is_null() && !name_buf.is_null() && name_len > 0 {
+            let num_wchars = name_len / 2;
+            let mut h: u32 = 5381;
+            for i in 0..num_wchars {
+                let wc = (*name_buf.add(i)) as u8;
+                let lo = if wc >= b'A' && wc <= b'Z' { wc + 32 } else { wc };
+                h = h.wrapping_shl(5).wrapping_add(h).wrapping_add(lo as u32);
+            }
+            if h == name_hash { return dll_base; }
+        }
+        node = *(node as *const *const u8); // follow InLoadOrderLinks.Flink
+    }
+    core::ptr::null()
+}
+
 /// Resolve a WinAPI address by hash from a loaded module.
 /// Safety: base must be a valid PE image in memory.
 #[cfg(target_os = "windows")]
