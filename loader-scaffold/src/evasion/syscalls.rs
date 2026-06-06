@@ -1,10 +1,20 @@
-#[cfg(target_os = "windows")]
-use windows_sys::Win32::System::LibraryLoader::GetModuleHandleA;
+/// Get ntdll base via PEB walk on x64 — no GetModuleHandleA in IAT.
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+unsafe fn ntdll_base() -> *const u8 {
+    use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base};
+    const NTDLL_H: u32 = djb2_hash_lower(b"ntdll.dll");
+    peb_get_module_base(NTDLL_H)
+}
+
+#[cfg(all(target_os = "windows", not(target_arch = "x86_64")))]
+unsafe fn ntdll_base() -> *const u8 {
+    windows_sys::Win32::System::LibraryLoader::GetModuleHandleA(b"ntdll.dll\0".as_ptr()) as *const u8
+}
 
 #[cfg(target_os = "windows")]
 pub unsafe fn get_ssn(function_name: &[u8]) -> Option<(u16, *const u8)> {
     use crate::resolve::api_hash::{djb2_hash, resolve_by_hash};
-    let ntdll = GetModuleHandleA(b"ntdll.dll\0".as_ptr()) as *const u8;
+    let ntdll = ntdll_base();
     if ntdll.is_null() { return None; }
     let hash = djb2_hash(function_name);
     let func_ptr = resolve_by_hash(ntdll, hash)?;

