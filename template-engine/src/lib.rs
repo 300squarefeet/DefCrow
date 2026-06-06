@@ -257,6 +257,9 @@ fn build_context(config: &LoaderConfig) -> Context {
         ("jsc_sys_refl_asm",      "System.Reflection.Assembly"),
         ("jsc_stub_loader",       "Stub.Loader"),
         ("jsc_stub_run",          "Run"),
+        ("jsc_winmgmts",          "winmgmts:"),
+        ("jsc_fs_obj",            "Scripting.FileSystemObject"),
+        ("jsc_wscript_shell",     "WScript.Shell"),
     ];
     for &(k, s) in jsc_pairs {
         vars.insert(k, to_charcode_jscript(s));

