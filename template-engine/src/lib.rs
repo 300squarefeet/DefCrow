@@ -274,6 +274,9 @@ fn build_context(config: &LoaderConfig) -> Context {
         ("jsc_sys_win_forms",     "System.Windows.Forms"),
         ("jsc_sys_win_forms_cur", "System.Windows.Forms.Cursor"),
         ("jsc_cursor_position",   "Position"),
+        // NT function names — for byte-array export lookups in C# templates
+        ("jsc_nt_alloc_vm",       "NtAllocateVirtualMemory"),
+        ("jsc_nt_prot_vm",        "NtProtectVirtualMemory"),
     ];
     for &(k, s) in jsc_pairs {
         vars.insert(k, to_charcode_jscript(s));

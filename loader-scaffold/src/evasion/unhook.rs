@@ -97,8 +97,8 @@ pub(crate) unsafe fn get_text_section(base: *const u8) -> (usize, usize) {
     for i in 0..num_sections {
         let sec = &*sections.add(i);
         if &sec[0..5] == b".text" {
-            let virt_size = u32::from_le_bytes(sec[16..20].try_into().unwrap()) as usize;
-            let virt_rva  = u32::from_le_bytes(sec[12..16].try_into().unwrap()) as usize;
+            let virt_size = u32::from_le_bytes([sec[16],sec[17],sec[18],sec[19]]) as usize;
+            let virt_rva  = u32::from_le_bytes([sec[12],sec[13],sec[14],sec[15]]) as usize;
             return (virt_rva, virt_size);
         }
     }
