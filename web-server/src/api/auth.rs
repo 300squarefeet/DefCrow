@@ -1,11 +1,20 @@
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::{
     extract::State,
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::Json,
 };
 use serde::{Deserialize, Serialize};
 use crate::state::AppState;
+
+fn client_ip(headers: &HeaderMap) -> String {
+    headers.get("X-Forwarded-For")
+        .or_else(|| headers.get("X-Real-IP"))
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "direct".to_string())
+}
 
 #[derive(Deserialize)]
 pub struct LoginRequest {
@@ -21,8 +30,14 @@ pub struct LoginResponse {
 
 pub async fn login(
     State(state): State<AppState>,
+    headers:      HeaderMap,
     Json(body):   Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, StatusCode> {
+    let ip = client_ip(&headers);
+    if !state.rate_limiter.check_and_record(&ip) {
+        return Err(StatusCode::TOO_MANY_REQUESTS);
+    }
+
     if body.username != state.config.username {
         return Err(StatusCode::UNAUTHORIZED);
     }
@@ -32,6 +47,7 @@ pub async fn login(
         .verify_password(body.password.as_bytes(), &parsed_hash)
         .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
+    state.rate_limiter.reset(&ip);
     let token = state.sessions.create_session();
     Ok(Json(LoginResponse { token, expires_in: 86400 }))
 }

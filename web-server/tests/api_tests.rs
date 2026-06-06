@@ -7,7 +7,7 @@ use web_server::{
     api::download::download_artifact,
     builder::job_store::JobStore,
     config::Config,
-    middleware::auth::SessionStore,
+    middleware::auth::{LoginRateLimiter, SessionStore},
     state::AppState,
 };
 
@@ -21,8 +21,9 @@ fn make_state(artifacts_dir: &str) -> AppState {
             scaffold_rlib: "libscaffold.rlib".into(),
             artifacts_dir: artifacts_dir.to_string(),
         },
-        sessions: SessionStore::new(),
-        jobs: JobStore::new(),
+        sessions:     SessionStore::new(),
+        jobs:         JobStore::new(),
+        rate_limiter: LoginRateLimiter::new(5, 60),
     }
 }
 

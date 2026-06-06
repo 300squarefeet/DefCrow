@@ -11,6 +11,44 @@ use std::{sync::Arc, time::{Duration, Instant}};
 const SESSION_TTL: Duration = Duration::from_secs(86400);
 const TOKEN_LEN:   usize    = 64;
 
+/// Sliding-window rate limiter for login attempts (keyed by client IP).
+/// Tracks (attempt_count, window_start) per key.
+#[derive(Clone)]
+pub struct LoginRateLimiter {
+    inner:        Arc<DashMap<String, (u32, Instant)>>,
+    max_attempts: u32,
+    window:       Duration,
+}
+
+impl LoginRateLimiter {
+    pub fn new(max_attempts: u32, window_secs: u64) -> Self {
+        Self {
+            inner:        Arc::new(DashMap::new()),
+            max_attempts,
+            window:       Duration::from_secs(window_secs),
+        }
+    }
+
+    /// Returns false if the key is currently rate-limited; records the attempt.
+    pub fn check_and_record(&self, key: &str) -> bool {
+        let now = Instant::now();
+        let mut entry = self.inner.entry(key.to_string()).or_insert((0, now));
+        if now.duration_since(entry.1) > self.window {
+            *entry = (1, now);
+            true
+        } else if entry.0 >= self.max_attempts {
+            false
+        } else {
+            entry.0 += 1;
+            true
+        }
+    }
+
+    pub fn reset(&self, key: &str) {
+        self.inner.remove(key);
+    }
+}
+
 #[derive(Clone)]
 pub struct SessionStore {
     inner: Arc<DashMap<String, Instant>>,

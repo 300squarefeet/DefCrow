@@ -1,8 +1,9 @@
-use crate::{builder::job_store::JobStore, config::Config, middleware::auth::SessionStore};
+use crate::{builder::job_store::JobStore, config::Config, middleware::auth::{LoginRateLimiter, SessionStore}};
 
 #[derive(Clone)]
 pub struct AppState {
-    pub config:   Config,
-    pub sessions: SessionStore,
-    pub jobs:     JobStore,
+    pub config:       Config,
+    pub sessions:     SessionStore,
+    pub jobs:         JobStore,
+    pub rate_limiter: LoginRateLimiter,
 }

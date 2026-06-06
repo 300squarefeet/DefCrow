@@ -5,7 +5,7 @@ use tracing_subscriber::EnvFilter;
 
 use builder::{job_store::JobStore, scaffold::build_scaffold_rlib};
 use config::Config;
-use middleware::auth::{require_auth, SessionStore};
+use middleware::auth::{LoginRateLimiter, require_auth, SessionStore};
 use state::AppState;
 
 pub fn build_router(state: AppState) -> Router {
@@ -43,9 +43,10 @@ async fn main() {
     cfg.scaffold_rlib = rlib;
 
     let state = AppState {
-        config:   cfg.clone(),
-        sessions: SessionStore::new(),
-        jobs:     JobStore::new(),
+        config:       cfg.clone(),
+        sessions:     SessionStore::new(),
+        jobs:         JobStore::new(),
+        rate_limiter: LoginRateLimiter::new(5, 60),
     };
 
     web_server::api::cleanup::spawn_cleanup_task(cfg.artifacts_dir.clone());
