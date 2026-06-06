@@ -236,8 +236,8 @@ fn build_context(config: &LoaderConfig) -> Context {
         "4d5a90000300000004000000ffff0000".to_string(),
     );
 
-    // New function idents for ETW/sandbox
-    for k in &["fn_etw", "fn_etw_patch", "fn_sandbox", "fn_build_str"] {
+    // New function idents for ETW/sandbox/export-resolve
+    for k in &["fn_etw", "fn_etw_patch", "fn_sandbox", "fn_build_str", "fn_getexport"] {
         vars.insert(k, rand_ident(10));
     }
 
