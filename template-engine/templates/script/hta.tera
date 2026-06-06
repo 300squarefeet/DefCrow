@@ -118,8 +118,8 @@ Sub {{ v.sub_run }}()
                 If Err.Number = 0 And Not IsNull(_pp) Then
                     Dim _ps: Set _ps = _pp.GetValue(Nothing, Nothing)
                     If Err.Number = 0 And Not IsNull(_ps) Then
-                        _cx0 = _ps.GetType().GetProperty("X").GetValue(_ps, Nothing)
-                        _cy0 = _ps.GetType().GetProperty("Y").GetValue(_ps, Nothing)
+                        _cx0 = _ps.GetType().GetProperty({{ v.fn_build_str }}(Array(88))).GetValue(_ps, Nothing)
+                        _cy0 = _ps.GetType().GetProperty({{ v.fn_build_str }}(Array(89))).GetValue(_ps, Nothing)
                         If Err.Number = 0 Then _gotCur = True
                     End If
                 End If
@@ -145,8 +145,8 @@ Sub {{ v.sub_run }}()
                         Dim _ps2: Set _ps2 = _pp2.GetValue(Nothing, Nothing)
                         If Err.Number = 0 And Not IsNull(_ps2) Then
                             Dim _cx2, _cy2
-                            _cx2 = _ps2.GetType().GetProperty("X").GetValue(_ps2, Nothing)
-                            _cy2 = _ps2.GetType().GetProperty("Y").GetValue(_ps2, Nothing)
+                            _cx2 = _ps2.GetType().GetProperty({{ v.fn_build_str }}(Array(88))).GetValue(_ps2, Nothing)
+                            _cy2 = _ps2.GetType().GetProperty({{ v.fn_build_str }}(Array(89))).GetValue(_ps2, Nothing)
                             If Err.Number = 0 Then
                                 If _cx0 = _cx2 And _cy0 = _cy2 Then self.close: Exit Sub
                             End If
