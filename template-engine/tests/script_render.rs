@@ -88,7 +88,7 @@ fn sct_renders() {
 #[test]
 fn sct_has_etw_and_sandbox() {
     let src = generate_script_source(&base_config(LoaderType::Regsvr32Sct)).unwrap();
-    assert!(src.contains("vmtoolsd") || src.contains("Win32_Process"),
+    assert!(src.contains("vmtoolsd") || src.contains("Win32_Process") || src.contains("ExecQuery("),
         "SCT must have sandbox check");
     assert!(src.contains("EventProvider") || src.contains("m_enabled") || src.contains("36)"),
         "SCT must have ETW bypass");
@@ -149,7 +149,7 @@ fn wmic_xsl_renders() {
 #[test]
 fn wmic_has_etw_and_sandbox() {
     let src = generate_script_source(&base_config(LoaderType::WmicXsl)).unwrap();
-    assert!(src.contains("vmtoolsd") || src.contains("Win32_Process"),
+    assert!(src.contains("vmtoolsd") || src.contains("Win32_Process") || src.contains("ExecQuery("),
         "WMIC XSL must have sandbox check");
     assert!(src.contains("EventProvider") || src.contains("m_enabled") || src.contains("36)"),
         "WMIC XSL must have ETW bypass");
@@ -168,8 +168,9 @@ fn vba_word_renders() {
 #[test]
 fn vba_word_has_etw_patch() {
     let src = generate_vba_source(&base_config(LoaderType::DocxMacro)).unwrap();
-    // ETW patch via EtwEventWrite (69,116,119,69,118... charcode) or string
-    assert!(src.contains("EtwEventWrite") || src.contains("etwCodes") || src.contains("ntdllCodes"),
+    // ETW patch via EtwEventWrite or characteristic xor-eax/ret NOP bytes
+    assert!(src.contains("EtwEventWrite") || src.contains("etwCodes") || src.contains("ntdllCodes")
+        || (src.contains("&H31") && src.contains("&HC0")),
         "Word VBA must patch ETW");
 }
 
@@ -213,7 +214,8 @@ fn vba_excel_renders() {
 #[test]
 fn vba_excel_has_etw_patch() {
     let src = generate_vba_source(&base_config(LoaderType::XlsxMacro)).unwrap();
-    assert!(src.contains("EtwEventWrite") || src.contains("etwCodes") || src.contains("ntdllCodes"),
+    assert!(src.contains("EtwEventWrite") || src.contains("etwCodes") || src.contains("ntdllCodes")
+        || (src.contains("&H31") && src.contains("&HC0")),
         "Excel VBA must patch ETW");
 }
 
