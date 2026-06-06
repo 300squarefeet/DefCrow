@@ -220,7 +220,7 @@ fn build_context(config: &LoaderConfig) -> Context {
         "fn_amsi", "fn_decrypt", "fn_hex2arr", "fn_hex", "fn_xor",
         "fn_exec", "var_sc", "var_key", "sub_amsi", "sub_run",
         "task_name", "target_name", "class_name", "namespace", "module_name",
-        "fn_valloc", "fn_callwp", "fn_amsi_patch",
+        "fn_valloc", "fn_movemem", "fn_vprotect", "fn_callwp", "fn_amsi_patch",
         "progid", "desc", "service_name", "short_name",
         "title", "app_id", "app_name", "job_id",
     ] {
