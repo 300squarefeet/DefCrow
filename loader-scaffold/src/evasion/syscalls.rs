@@ -11,6 +11,26 @@ unsafe fn ntdll_base() -> *const u8 {
     windows_sys::Win32::System::LibraryLoader::GetModuleHandleA(b"ntdll.dll\0".as_ptr()) as *const u8
 }
 
+/// Look up a syscall number and trampoline pointer by pre-computed hash.
+/// Prefer this over `get_ssn` — the string never appears in the binary.
+#[cfg(target_os = "windows")]
+pub unsafe fn get_ssn_h(name_hash: u32) -> Option<(u16, *const u8)> {
+    use crate::resolve::api_hash::resolve_by_hash;
+    let ntdll = ntdll_base();
+    if ntdll.is_null() { return None; }
+    let func_ptr = resolve_by_hash(ntdll, name_hash)?;
+    let bytes = core::slice::from_raw_parts(func_ptr, 10);
+    let ssn = if bytes[0] == 0x4C && bytes[1] == 0x8B && bytes[2] == 0xD1 {
+        u16::from_le_bytes([bytes[4], bytes[5]])
+    } else if bytes[0] == 0xE9 {
+        find_ssn_neighbour(ntdll, func_ptr)?
+    } else {
+        return None;
+    };
+    let trampoline = func_ptr.add(18);
+    Some((ssn, trampoline))
+}
+
 #[cfg(target_os = "windows")]
 pub unsafe fn get_ssn(function_name: &[u8]) -> Option<(u16, *const u8)> {
     use crate::resolve::api_hash::{djb2_hash, resolve_by_hash};

