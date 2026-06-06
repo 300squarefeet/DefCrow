@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react'
+import { useState, FormEvent, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GenerateRequest, Feature, LoaderType, Encryption, ALL_FEATURES, LOADER_GROUPS, generate } from '../api/generate'
 import OpsecFeatures from '../components/OpsecFeatures'
@@ -22,6 +22,8 @@ export default function GeneratorPage() {
   const [encryption, setEncryption]   = useState<Encryption>('Aes256')
   const [features, setFeatures]       = useState<Feature[]>(['DirectSyscall', 'AmsiHwbp', 'EtwHwbp', 'SleepEncrypt', 'StackSpoof'])
   const [shellcodeHex, setShellcodeHex] = useState('')
+  const [binFilename, setBinFilename]   = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [keyHex, setKeyHex]           = useState('')
   const [ivHex, setIvHex]             = useState('')
   const [peEnabled, setPeEnabled]     = useState(false)
@@ -29,6 +31,20 @@ export default function GeneratorPage() {
   const [adConfig, setAdConfig]       = useState(DEFAULT_APPDOMAIN)
   const [submitting, setSubmitting]   = useState(false)
   const [error, setError]             = useState<string | null>(null)
+
+  function handleBinUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setBinFilename(file.name)
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const buf = ev.target?.result as ArrayBuffer
+      const bytes = new Uint8Array(buf)
+      const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
+      setShellcodeHex(hex)
+    }
+    reader.readAsArrayBuffer(file)
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault(); setError(null); setSubmitting(true)
@@ -105,8 +121,32 @@ export default function GeneratorPage() {
             <ExecHint type={loaderType} />
             <div className="space-y-3">
               <div>
-                <label className="block text-xs mb-1" style={{ color: '#64748b' }}>Shellcode (hex)</label>
-                <textarea required rows={4} placeholder="fc4883e4f0e8..."
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs" style={{ color: '#64748b' }}>Shellcode (hex)</label>
+                  <div className="flex items-center gap-2">
+                    {binFilename && (
+                      <span className="text-xs font-mono truncate max-w-[160px]" style={{ color: '#7c3aed' }}>
+                        {binFilename}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-xs px-2 py-1 rounded-lg transition"
+                      style={{ border: '1px solid #1e1e2e', backgroundColor: '#0a0a0f', color: '#64748b' }}
+                    >
+                      Upload .bin
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".bin,application/octet-stream"
+                      className="hidden"
+                      onChange={handleBinUpload}
+                    />
+                  </div>
+                </div>
+                <textarea required rows={4} placeholder="fc4883e4f0e8… or upload a .bin file above"
                   value={shellcodeHex} onChange={(e) => setShellcodeHex(e.target.value)}
                   className="w-full rounded-lg px-3 py-2 text-xs font-mono focus:outline-none resize-none"
                   style={{ backgroundColor: '#0a0a0f', border: '1px solid #1e1e2e', color: '#e2e8f0' }} />
