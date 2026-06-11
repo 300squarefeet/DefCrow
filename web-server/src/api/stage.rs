@@ -40,11 +40,12 @@ pub fn verify_jwt(key: &[u8; 32], token: &str) -> Option<StageClaims> {
     let header  = parts.next()?;
     let payload = parts.next()?;
     let sig     = parts.next()?;
+    let sig_bytes = URL_SAFE_NO_PAD.decode(sig).ok()?;
     let data = format!("{}.{}", header, payload);
     let mut mac = HmacSha256::new_from_slice(key).unwrap();
     mac.update(data.as_bytes());
-    let expected = URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes());
-    if expected != sig { return None; }
+    // constant-time comparison prevents timing side-channel on HMAC verification
+    mac.verify_slice(&sig_bytes).ok()?;
     let raw = URL_SAFE_NO_PAD.decode(payload).ok()?;
     serde_json::from_slice(&raw).ok()
 }
