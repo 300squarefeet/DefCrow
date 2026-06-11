@@ -25,4 +25,10 @@ describe('useTheme', () => {
     act(() => result.current.setTheme('clean'))
     expect(localStorage.getItem('defcrow_theme')).toBe('clean')
   })
+
+  it('reads back a valid stored theme on mount', () => {
+    localStorage.setItem('defcrow_theme', 'clean')
+    const { result } = renderHook(() => useTheme())
+    expect(result.current.theme).toBe('clean')
+  })
 })

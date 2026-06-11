@@ -41,7 +41,7 @@ describe('stage API', () => {
     mockedClient.post.mockResolvedValue({ data: { jwt: 'new.jwt.token' } })
     const { rotateToken } = await import('../stage')
     const res = await rotateToken('abc123')
-    expect(mockedClient.post).toHaveBeenCalledWith('/v1/stage/abc123/token', undefined, undefined)
+    expect(mockedClient.post).toHaveBeenCalledWith('/v1/stage/abc123/token')
     expect(res.jwt).toBe('new.jwt.token')
   })
 })

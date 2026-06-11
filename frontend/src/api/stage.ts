@@ -35,6 +35,6 @@ export async function deleteStage(pid: string): Promise<void> {
 }
 
 export async function rotateToken(pid: string): Promise<{ jwt: string }> {
-  const { data } = await client.post<{ jwt: string }>(`/v1/stage/${pid}/token`, undefined, undefined)
+  const { data } = await client.post<{ jwt: string }>(`/v1/stage/${pid}/token`)
   return data
 }
