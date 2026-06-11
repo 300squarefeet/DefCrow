@@ -15,7 +15,7 @@ path = "src/lib.rs"
 axum = { version = "0.7", features = ["ws", "macros", "multipart"] }
 hmac    = "0.12"
 sha2    = "0.10"
-base64  = "0.21"
+base64  = "0.22"
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.5", features = ["fs", "cors"] }
 argon2 = "0.5"
