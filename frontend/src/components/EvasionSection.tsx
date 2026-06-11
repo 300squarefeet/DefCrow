@@ -12,6 +12,13 @@ const TECH_GROUPS: TechGroup[] = [
     ],
   },
   {
+    id: 'encryption', name: 'Shellcode encryption',
+    items: [
+      { id: 'aes_gcm_payload',  name: 'AES-256-GCM (recommended)', risk: 'low',  desc: 'Authenticated encryption, per-build key.',      encryption: 'Aes256' as Encryption },
+      { id: 'chacha20_payload', name: 'ChaCha20-Poly1305',          risk: 'low',  desc: 'Fast auth encryption, no AES-NI required.', encryption: 'Chacha20' as Encryption },
+    ],
+  },
+  {
     id: 'injection', name: 'Execution & injection',
     items: [
       { id: 'module_stomping', name: 'Module stomping',    risk: 'low', desc: 'Overwrite benign signed DLL .text. MEM_IMAGE not MEM_PRIVATE.', feature: 'ModuleStomp' },

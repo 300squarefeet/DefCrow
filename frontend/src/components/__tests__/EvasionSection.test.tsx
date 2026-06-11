@@ -22,6 +22,7 @@ describe('EvasionSection', () => {
   it('renders technique group headings', () => {
     render(React.createElement(EvasionSection, defaultProps))
     expect(screen.getByText(/Syscalls/i)).toBeInTheDocument()
+    expect(screen.getByText(/Shellcode encryption/i)).toBeInTheDocument()
     expect(screen.getByText(/Anti-analysis/i)).toBeInTheDocument()
   })
 
@@ -39,6 +40,6 @@ describe('EvasionSection', () => {
       ...defaultProps,
       features: ['DirectSyscall' as Feature],
     }))
-    expect(screen.getByText(/1\/\d+ enabled/)).toBeInTheDocument()
+    expect(screen.getAllByText(/1\/\d+ enabled/).length).toBeGreaterThan(0)
   })
 })
