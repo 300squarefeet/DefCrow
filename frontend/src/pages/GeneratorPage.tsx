@@ -148,6 +148,7 @@ export default function GeneratorPage() {
             canForge={canForge} onForge={handleForge}
             artifactId={artifactId} artifactName={artifactId ? `loader_${artifactId.slice(0, 8)}.exe` : null}
             smugHost={smugHost}
+            configXml={configXml}
           />
         </aside>
       </div>

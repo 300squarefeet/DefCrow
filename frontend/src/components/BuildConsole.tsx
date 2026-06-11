@@ -25,9 +25,10 @@ interface Props {
   artifactId:   string | null
   artifactName: string | null
   smugHost:     string
+  configXml?:   string | null
 }
 
-export default function BuildConsole({ logs, status, canForge, onForge, artifactId, artifactName, smugHost }: Props) {
+export default function BuildConsole({ logs, status, canForge, onForge, artifactId, artifactName, smugHost, configXml }: Props) {
   const logRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -82,6 +83,33 @@ export default function BuildConsole({ logs, status, canForge, onForge, artifact
               onSmuggle={(fakeName) => createSmugLink(artifactId, fakeName)}
             />
           </div>
+          {configXml && (
+            <div className="mt-2 rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+              <div
+                className="flex items-center justify-between px-3 py-1.5"
+                style={{ backgroundColor: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}
+              >
+                <span className="text-[10px] font-mono" style={{ color: 'var(--ink-muted)' }}>
+                  MSBuild.exe.config
+                </span>
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(configXml)}
+                  className="text-[10px] px-2 py-0.5 rounded transition"
+                  style={{ border: '1px solid var(--border)', color: 'var(--blue-500)' }}
+                >
+                  Copy
+                </button>
+              </div>
+              <textarea
+                readOnly
+                value={configXml}
+                rows={6}
+                className="w-full font-mono text-[10px] px-3 py-2 resize-none outline-none"
+                style={{ backgroundColor: 'var(--surface)', color: 'var(--ink-muted)' }}
+              />
+            </div>
+          )}
         </div>
       )}
 

@@ -36,4 +36,27 @@ describe('BuildConsole', () => {
     render(React.createElement(BuildConsole, { ...defaultProps, status: 'building' }))
     expect(screen.getByText(/Building/i)).toBeInTheDocument()
   })
+
+  it('shows config XML textarea when configXml prop is set and status is done', () => {
+    render(React.createElement(BuildConsole, {
+      ...defaultProps,
+      status:      'done' as const,
+      artifactId:  'abc123',
+      artifactName: 'loader_abc123.exe',
+      configXml:   '<?xml version="1.0"?><configuration></configuration>',
+    }))
+    expect(screen.getByText(/MSBuild\.exe\.config/i)).toBeInTheDocument()
+    expect(screen.getByRole('textbox')).toBeInTheDocument()
+  })
+
+  it('does not show config section when configXml is null', () => {
+    render(React.createElement(BuildConsole, {
+      ...defaultProps,
+      status:      'done' as const,
+      artifactId:  'abc123',
+      artifactName: 'loader_abc123.exe',
+      configXml:   null,
+    }))
+    expect(screen.queryByText(/MSBuild\.exe\.config/i)).not.toBeInTheDocument()
+  })
 })
