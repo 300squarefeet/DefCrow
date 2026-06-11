@@ -12,7 +12,7 @@ vi.mock('../client', () => ({
 const mockedClient = clientModule.client as any
 
 describe('stage API', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
 
   it('uploadStage posts to /v1/stage with FormData', async () => {
     mockedClient.post.mockResolvedValue({ data: { pid: 'abc123', size: 512, name: 'payload.bin', jwt: 'x.y.z', url: '/api/v1/stage/abc123' } })
