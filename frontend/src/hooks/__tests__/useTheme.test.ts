@@ -4,6 +4,7 @@ import { useTheme } from '../useTheme'
 
 describe('useTheme', () => {
   beforeEach(() => {
+    localStorage.clear()
     document.documentElement.removeAttribute('data-theme')
   })
 

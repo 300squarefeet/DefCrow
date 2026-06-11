@@ -4,15 +4,22 @@ export type Theme = 'hacker' | 'clean'
 
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme>(
-    () => (localStorage.getItem('defcrow_theme') as Theme) ?? 'hacker'
+    () => {
+      try {
+        const stored = localStorage.getItem('defcrow_theme')
+        return (stored === 'hacker' || stored === 'clean' ? stored : 'hacker') as Theme
+      } catch {
+        return 'hacker'
+      }
+    }
   )
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('defcrow_theme', theme)
   }, [theme])
 
   function setTheme(t: Theme) {
-    localStorage.setItem('defcrow_theme', t)
     setThemeState(t)
   }
 
