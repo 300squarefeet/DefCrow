@@ -23,15 +23,17 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/jobs/:id",        get(api::jobs::get_job_status))
         .route("/api/jobs/:id",        delete(api::jobs::delete_job))
         .route("/api/download/:id",    get(api::download::download_artifact))
+        .route("/api/v1/smug",         post(api::smuggler::create_smug))
         .route_layer(axum_mw::from_fn_with_state(state.clone(), require_auth));
 
     Router::new()
-        .route("/api/auth/login",  post(api::auth::login))
-        .route("/api/auth/logout", post(api::auth::logout))
-        .route("/api/health",      get(|| async { "ok" }))
-        .route("/ws/jobs/:id",     get(ws::progress::ws_job_progress))
+        .route("/api/auth/login",        post(api::auth::login))
+        .route("/api/auth/logout",       post(api::auth::logout))
+        .route("/api/health",            get(|| async { "ok" }))
+        .route("/ws/jobs/:id",           get(ws::progress::ws_job_progress))
         // Stage fetch uses Bearer JWT — no session cookie required
-        .route("/api/v1/stage/:pid", get(api::stage::fetch_stage))
+        .route("/api/v1/stage/:pid",     get(api::stage::fetch_stage))
+        .route("/d/:link_id/:fake_name", get(api::smuggler::serve_smug))
         .merge(stage_authed)
         .merge(protected)
         .fallback_service(ServeDir::new("frontend/dist"))

@@ -47,6 +47,30 @@ fn sweep(dir: &str) {
             }
         }
     }
+    sweep_smuggler(dir);
+}
+
+fn sweep_smuggler(artifacts_dir: &str) {
+    let smuggler_dir = std::path::Path::new(artifacts_dir).join("smuggler");
+    let now = SystemTime::now();
+    let Ok(entries) = std::fs::read_dir(&smuggler_dir) else { return };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        // Only process .html files whose stem is a 32-char lowercase hex string (link_id format)
+        let stem_ok = path.file_stem()
+            .and_then(|s| s.to_str())
+            .map_or(false, |s| s.len() == 32
+                && s.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f')));
+        if path.extension().map_or(false, |e| e == "html") && stem_ok {
+            if let Ok(meta) = std::fs::metadata(&path) {
+                if let Ok(age) = now.duration_since(meta.modified().unwrap_or(now)) {
+                    if age > TTL {
+                        let _ = std::fs::remove_file(&path);
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -67,5 +91,19 @@ mod tests {
         sweep(dir.to_str().unwrap());
         assert!(path_file.exists(), "fresh .path file should not be deleted");
         assert!(art_file.exists(), "fresh artifact should not be deleted");
+    }
+
+    #[test]
+    fn sweep_smuggler_preserves_fresh_html() {
+        let tmp      = tempfile::tempdir().unwrap();
+        let dir      = tmp.path();
+        let smug_dir = dir.join("smuggler");
+        std::fs::create_dir_all(&smug_dir).unwrap();
+
+        let html_file = smug_dir.join("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4.html");
+        std::fs::write(&html_file, b"<html/>").unwrap();
+
+        sweep_smuggler(dir.to_str().unwrap());
+        assert!(html_file.exists(), "fresh smuggler html should not be deleted");
     }
 }
