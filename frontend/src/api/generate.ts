@@ -17,7 +17,6 @@ export const LOADER_GROUPS: Record<string, LoaderTypeMeta[]> = {
   'PE Compiled': [
     { type: 'Binary',      label: 'Binary',      ext: '.exe' },
     { type: 'Dll',         label: 'DLL',         ext: '.dll' },
-    { type: 'AppDomain',   label: 'AppDomain',   ext: '.dll + .config' },
     { type: 'Injector',    label: 'Injector',    ext: '.exe' },
     { type: 'Rundll32',    label: 'Rundll32',    ext: '.dll' },
   ],
@@ -34,7 +33,8 @@ export const LOADER_GROUPS: Record<string, LoaderTypeMeta[]> = {
     { type: 'XlsxMacro',   label: 'Excel VBA',   ext: '.bas (paste manually)' },
   ],
   '.NET LOLBIN': [
-    { type: 'InstallUtil', label: 'InstallUtil', ext: '.dll' },
+    { type: 'AppDomain',   label: 'AppDomain',   ext: '.dll + .config' },
+    { type: 'InstallUtil', label: 'InstallUtil',  ext: '.dll' },
   ],
 }
 
@@ -66,8 +66,8 @@ export interface PeMetadataReq {
 }
 
 export interface AppDomainReq {
-  clr_version: string; net_version: string
-  appdomain_type: string; target_assembly: string
+  clr_version?: string
+  net_version?: string
 }
 
 export interface GenerateRequest {

@@ -27,21 +27,7 @@ export default function AppDomainConfig({ value, onChange }: Props) {
           </select>
         </div>
       </div>
-      <div>
-        <label className="block text-xs mb-1" style={{ color: '#64748b' }}>AppDomainManager Type</label>
-        <input type="text" placeholder="EvilDomain.Manager"
-          value={value.appdomain_type} onChange={(e) => set('appdomain_type', e.target.value)}
-          className="w-full rounded-lg px-3 py-1.5 text-sm focus:outline-none"
-          style={{ backgroundColor: '#0a0a0f', border: '1px solid #1e1e2e', color: '#e2e8f0' }} />
-      </div>
-      <div>
-        <label className="block text-xs mb-1" style={{ color: '#64748b' }}>Target Assembly</label>
-        <input type="text" placeholder="C:\path\to\evil.dll"
-          value={value.target_assembly} onChange={(e) => set('target_assembly', e.target.value)}
-          className="w-full rounded-lg px-3 py-1.5 text-sm focus:outline-none"
-          style={{ backgroundColor: '#0a0a0f', border: '1px solid #1e1e2e', color: '#e2e8f0' }} />
-      </div>
-      <div className="rounded-lg p-3" style={{ backgroundColor: 'rgba(180,120,0,0.1)', border: '1px solid rgba(180,120,0,0.4)' }}>
+<div className="rounded-lg p-3" style={{ backgroundColor: 'rgba(180,120,0,0.1)', border: '1px solid rgba(180,120,0,0.4)' }}>
         <p className="text-xs font-medium mb-1" style={{ color: '#fbbf24' }}>Generated Output</p>
         <p className="text-xs" style={{ color: '#64748b' }}>1. <code style={{ color: '#e2e8f0' }}>loader.dll</code> — AppDomainManager via ICLRRuntimeHost2</p>
         <p className="text-xs mt-1" style={{ color: '#64748b' }}>2. <code style={{ color: '#e2e8f0' }}>loader.exe.config</code> — .config hijacking profile</p>

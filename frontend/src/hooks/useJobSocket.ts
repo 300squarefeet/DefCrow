@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 
 export interface JobStatus {
-  status: 'queued' | 'building' | 'done' | 'error'
-  progress?: number; msg?: string; download_id?: string
+  status:       'queued' | 'building' | 'done' | 'error'
+  progress?:    number
+  msg?:         string
+  download_id?: string
+  config_xml?:  string
 }
 
 export function useJobSocket(jobId: string | null) {

@@ -27,6 +27,7 @@ export default function GeneratorPage() {
   const [logs, setLogs]             = useState<LogLine[]>([])
   const [buildStatus, setBuildStatus] = useState<BuildStatus>('idle')
   const [artifactId, setArtifactId] = useState<string | null>(null)
+  const [configXml, setConfigXml] = useState<string | null>(null)
 
   const [currentStep, setCurrentStep] = useState<StepId>(1)
   const sectionRefs = useRef<Record<StepId, HTMLElement | null>>({ 1: null, 2: null, 3: null, 4: null, 5: null })
@@ -42,6 +43,7 @@ export default function GeneratorPage() {
     if (status.status === 'done') {
       setBuildStatus('done')
       if (status.download_id) setArtifactId(status.download_id)
+      if (status.config_xml)  setConfigXml(status.config_xml)
     } else if (status.status === 'error') {
       setBuildStatus('error')
     }
@@ -87,6 +89,7 @@ export default function GeneratorPage() {
     setLogs([])
     setJobId(null)
     setArtifactId(null)
+    setConfigXml(null)
     try {
       const req: GenerateRequest = {
         loader_type: loaderType,
@@ -95,6 +98,7 @@ export default function GeneratorPage() {
         shellcode_hex: shellcodeHex.replace(/\s+/g, ''),
         key_hex: '',
         iv_hex: '',
+        appdomain_config: loaderType === 'AppDomain' ? {} : undefined,
       }
       const { job_id } = await generate(req)
       setJobId(job_id)
