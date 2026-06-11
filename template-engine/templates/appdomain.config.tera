@@ -5,5 +5,6 @@
   </startup>
   <runtime>
     <AppDomainManagerType value="{{ appdomain_name }}" />
+    <AppDomainManagerAssembly value="{{ assembly_name }}, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" />
   </runtime>
 </configuration>
