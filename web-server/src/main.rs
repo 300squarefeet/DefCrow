@@ -2,6 +2,8 @@ use web_server::{api, builder, config, middleware, state, ws};
 use axum::{middleware as axum_mw, routing::{delete, get, post}, Router};
 use tower_http::{cors::CorsLayer, services::ServeDir};
 use tracing_subscriber::EnvFilter;
+use rand::Rng;
+use std::path::PathBuf;
 
 use builder::{job_store::JobStore, scaffold::build_scaffold_rlib};
 use config::Config;
@@ -9,6 +11,13 @@ use middleware::auth::{LoginRateLimiter, require_auth, SessionStore};
 use state::AppState;
 
 pub fn build_router(state: AppState) -> Router {
+    let stage_authed = Router::new()
+        .route("/api/v1/stage",           post(api::stage::upload_stage))
+        .route("/api/v1/stage",           get(api::stage::list_stages))
+        .route("/api/v1/stage/:pid",      delete(api::stage::delete_stage))
+        .route("/api/v1/stage/:pid/token", post(api::stage::rotate_token))
+        .route_layer(axum_mw::from_fn_with_state(state.clone(), require_auth));
+
     let protected = Router::new()
         .route("/api/generate",        post(api::generate::generate))
         .route("/api/jobs/:id",        get(api::jobs::get_job_status))
@@ -21,6 +30,9 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/auth/logout", post(api::auth::logout))
         .route("/api/health",      get(|| async { "ok" }))
         .route("/ws/jobs/:id",     get(ws::progress::ws_job_progress))
+        // Stage fetch uses Bearer JWT — no session cookie required
+        .route("/api/v1/stage/:pid", get(api::stage::fetch_stage))
+        .merge(stage_authed)
         .merge(protected)
         .fallback_service(ServeDir::new("frontend/dist"))
         .with_state(state)
@@ -35,12 +47,14 @@ async fn main() {
 
     let mut cfg = Config::from_env().expect("failed to load config");
 
-    let workspace = std::env::var("DEFCROW_WORKSPACE")
-        .unwrap_or_else(|_| ".".into());
-
-    let rlib = build_scaffold_rlib(&workspace)
-        .expect("failed to build libscaffold.rlib");
+    let workspace = std::env::var("DEFCROW_WORKSPACE").unwrap_or_else(|_| ".".into());
+    let rlib = build_scaffold_rlib(&workspace).expect("failed to build libscaffold.rlib");
     cfg.scaffold_rlib = rlib;
+
+    let staged_dir = PathBuf::from(&cfg.artifacts_dir).join("staged");
+    std::fs::create_dir_all(&staged_dir).expect("failed to create staged dir");
+
+    let staged_key: [u8; 32] = rand::thread_rng().gen();
 
     let state = AppState {
         config:           cfg.clone(),
@@ -48,6 +62,8 @@ async fn main() {
         jobs:             JobStore::new(),
         rate_limiter:     LoginRateLimiter::new(5, 60),
         generate_limiter: LoginRateLimiter::new(20, 60),
+        staged_key,
+        staged_dir,
     };
 
     web_server::api::cleanup::spawn_cleanup_task(cfg.artifacts_dir.clone());
