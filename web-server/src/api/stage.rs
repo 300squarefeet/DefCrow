@@ -61,6 +61,12 @@ pub struct StageMeta {
     pub created_at: String,
 }
 
+// ── PID validation ───────────────────────────────────────────────────────────
+
+fn validate_pid(pid: &str) -> bool {
+    pid.len() == 16 && pid.chars().all(|c| c.is_ascii_hexdigit())
+}
+
 // ── POST /api/v1/stage ────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
@@ -150,6 +156,10 @@ pub async fn fetch_stage(
         return (StatusCode::UNAUTHORIZED, "token expired").into_response();
     }
 
+    if !validate_pid(&pid) {
+        return (StatusCode::BAD_REQUEST, "invalid pid").into_response();
+    }
+
     if claims.pid != pid {
         return (StatusCode::FORBIDDEN, "pid mismatch").into_response();
     }
@@ -170,6 +180,9 @@ pub async fn delete_stage(
     State(state): State<AppState>,
     Path(pid): Path<String>,
 ) -> StatusCode {
+    if !validate_pid(&pid) {
+        return StatusCode::BAD_REQUEST;
+    }
     let bin_path  = state.staged_dir.join(format!("{}.bin", pid));
     let meta_path = state.staged_dir.join(format!("{}.json", pid));
     let _ = tokio::fs::remove_file(&bin_path).await;
@@ -205,6 +218,9 @@ pub async fn rotate_token(
     State(state): State<AppState>,
     Path(pid): Path<String>,
 ) -> Result<Json<TokenResponse>, StatusCode> {
+    if !validate_pid(&pid) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
     let meta_path = state.staged_dir.join(format!("{}.json", pid));
     let raw = tokio::fs::read_to_string(&meta_path).await.map_err(|_| StatusCode::NOT_FOUND)?;
     let meta: StageMeta = serde_json::from_str(&raw).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
