@@ -37,8 +37,11 @@ fn sanitize_fake_name(name: &str) -> String {
         .last()
         .unwrap_or("")
         .to_string();
-    // Truncate to 128 chars
-    last.chars().take(128).collect()
+    // Strip HTML special chars and truncate to 128 chars
+    last.chars()
+        .filter(|&c| !matches!(c, '<' | '>' | '&'))
+        .take(128)
+        .collect()
 }
 
 fn validate_link_id(id: &str) -> bool {
@@ -233,6 +236,13 @@ mod tests {
     fn fake_name_preserves_clean_name() {
         assert_eq!(sanitize_fake_name("Invoice_2024.pdf"), "Invoice_2024.pdf");
         assert_eq!(sanitize_fake_name("loader.exe"), "loader.exe");
+    }
+
+    #[test]
+    fn fake_name_strips_html_special_chars() {
+        assert_eq!(sanitize_fake_name("file<script>.pdf"), "filescript.pdf");
+        assert_eq!(sanitize_fake_name("</script>alert.pdf"), "scriptalert.pdf");
+        assert_eq!(sanitize_fake_name("a&b.pdf"), "ab.pdf");
     }
 
     // validate_link_id
