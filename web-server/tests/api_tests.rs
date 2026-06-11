@@ -21,9 +21,13 @@ fn make_state(artifacts_dir: &str) -> AppState {
             scaffold_rlib: "libscaffold.rlib".into(),
             artifacts_dir: artifacts_dir.to_string(),
         },
-        sessions:     SessionStore::new(),
-        jobs:         JobStore::new(),
-        rate_limiter: LoginRateLimiter::new(5, 60),
+        sessions:         SessionStore::new(),
+        jobs:             JobStore::new(),
+        rate_limiter:     LoginRateLimiter::new(5, 60),
+        generate_limiter: LoginRateLimiter::new(20, 60),
+        staged_key:       [0u8; 32],
+        staged_dir:       std::path::PathBuf::from(artifacts_dir).join("staged"),
+        smuggler_dir:     std::path::PathBuf::from(artifacts_dir).join("smuggler"),
     }
 }
 

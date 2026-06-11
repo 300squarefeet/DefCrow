@@ -54,6 +54,9 @@ async fn main() {
     let staged_dir = PathBuf::from(&cfg.artifacts_dir).join("staged");
     std::fs::create_dir_all(&staged_dir).expect("failed to create staged dir");
 
+    let smuggler_dir = PathBuf::from(&cfg.artifacts_dir).join("smuggler");
+    std::fs::create_dir_all(&smuggler_dir).expect("failed to create smuggler dir");
+
     let staged_key: [u8; 32] = rand::thread_rng().gen();
 
     let state = AppState {
@@ -64,6 +67,7 @@ async fn main() {
         generate_limiter: LoginRateLimiter::new(20, 60),
         staged_key,
         staged_dir,
+        smuggler_dir,
     };
 
     web_server::api::cleanup::spawn_cleanup_task(cfg.artifacts_dir.clone());

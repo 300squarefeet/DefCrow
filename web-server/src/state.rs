@@ -10,4 +10,5 @@ pub struct AppState {
     pub generate_limiter: LoginRateLimiter,
     pub staged_key:       [u8; 32],
     pub staged_dir:       PathBuf,
+    pub smuggler_dir:     PathBuf,
 }
