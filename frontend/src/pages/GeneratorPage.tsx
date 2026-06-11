@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate }    from 'react-router-dom'
-import { Feature, Encryption, LoaderType, GenerateRequest, generate } from '../api/generate'
+import { Feature, Encryption, LoaderType, GenerateRequest, AppDomainReq, generate } from '../api/generate'
 import { StagePayload, listStages, uploadStage, deleteStage, rotateToken } from '../api/stage'
 import { useJobSocket }   from '../hooks/useJobSocket'
 import Header, { StepId } from '../components/Header'
@@ -28,6 +28,7 @@ export default function GeneratorPage() {
   const [buildStatus, setBuildStatus] = useState<BuildStatus>('idle')
   const [artifactId, setArtifactId] = useState<string | null>(null)
   const [configXml, setConfigXml] = useState<string | null>(null)
+  const [appDomainConfig, setAppDomainConfig] = useState<AppDomainReq>({})
 
   const [currentStep, setCurrentStep] = useState<StepId>(1)
   const sectionRefs = useRef<Record<StepId, HTMLElement | null>>({ 1: null, 2: null, 3: null, 4: null, 5: null })
@@ -98,7 +99,10 @@ export default function GeneratorPage() {
         shellcode_hex: shellcodeHex.replace(/\s+/g, ''),
         key_hex: '',
         iv_hex: '',
-        appdomain_config: loaderType === 'AppDomain' ? {} : undefined,
+        appdomain_config: loaderType === 'AppDomain' ? {
+          clr_version: appDomainConfig.clr_version || undefined,
+          net_version: appDomainConfig.net_version || undefined,
+        } : undefined,
       }
       const { job_id } = await generate(req)
       setJobId(job_id)
@@ -138,7 +142,12 @@ export default function GeneratorPage() {
           </div>
 
           <div ref={el => { sectionRefs.current[4] = el }}>
-            <OutputSection loaderType={loaderType} onLoaderTypeChange={setLoaderType} encryption={encryption} onEncryptionChange={setEncryption} />
+            <OutputSection
+              loaderType={loaderType} onLoaderTypeChange={setLoaderType}
+              encryption={encryption} onEncryptionChange={setEncryption}
+              appDomainConfig={appDomainConfig}
+              onAppDomainConfigChange={setAppDomainConfig}
+            />
           </div>
         </main>
 

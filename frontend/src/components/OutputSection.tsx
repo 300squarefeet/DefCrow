@@ -1,4 +1,5 @@
-import { LoaderType, Encryption } from '../api/generate'
+import { LoaderType, Encryption, AppDomainReq } from '../api/generate'
+import AppDomainConfig from './AppDomainConfig'
 
 interface FormatCard {
   id:       string
@@ -27,13 +28,15 @@ const OPSEC_COLOR: Record<string, string> = {
 const LOLBIN_ROADMAP = ['regsvr32', 'mshta', 'rundll32', 'regasm', 'cmstp', 'msiexec', 'wmic']
 
 interface Props {
-  loaderType:         LoaderType
-  onLoaderTypeChange: (t: LoaderType) => void
-  encryption:         Encryption
-  onEncryptionChange: (e: Encryption) => void
+  loaderType:              LoaderType
+  onLoaderTypeChange:      (t: LoaderType) => void
+  encryption:              Encryption
+  onEncryptionChange:      (e: Encryption) => void
+  appDomainConfig:         AppDomainReq
+  onAppDomainConfigChange: (v: AppDomainReq) => void
 }
 
-export default function OutputSection({ loaderType, onLoaderTypeChange, encryption, onEncryptionChange }: Props) {
+export default function OutputSection({ loaderType, onLoaderTypeChange, encryption, onEncryptionChange, appDomainConfig, onAppDomainConfigChange }: Props) {
   return (
     <section id="section-output" className="space-y-4">
       <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--ink-muted)' }}>
@@ -69,6 +72,10 @@ export default function OutputSection({ loaderType, onLoaderTypeChange, encrypti
           )
         })}
       </div>
+
+      {loaderType === 'AppDomain' && (
+        <AppDomainConfig value={appDomainConfig} onChange={onAppDomainConfigChange} />
+      )}
 
       {/* LOLBIN roadmap chips */}
       <div>
