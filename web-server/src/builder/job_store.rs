@@ -9,7 +9,7 @@ use uuid::Uuid;
 pub enum JobStatus {
     Queued,
     Building { progress: u8, msg: String },
-    Done     { download_id: String },
+    Done     { download_id: String, #[serde(skip_serializing_if = "Option::is_none")] config_xml: Option<String> },
     Error    { msg: String },
 }
 
@@ -75,7 +75,7 @@ mod tests {
             _ => panic!("expected Building"),
         }
 
-        store.set_status(&id, JobStatus::Done { download_id: "xyz".into() });
+        store.set_status(&id, JobStatus::Done { download_id: "xyz".into(), config_xml: None });
         assert!(matches!(store.get_status(&id), Some(JobStatus::Done { .. })));
     }
 

@@ -258,5 +258,5 @@ fn run_build(
         out_path.to_str().unwrap(),
     );
 
-    jobs.set_status(&job_id, JobStatus::Done { download_id });
+    jobs.set_status(&job_id, JobStatus::Done { download_id, config_xml: None });
 }
