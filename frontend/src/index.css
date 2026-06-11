@@ -1,8 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root { color-scheme: dark; }
-  body { background-color: #0a0a0f; color: #e2e8f0; }
+  :root,
+  [data-theme="hacker"] {
+    --bg:           #0a0a0f;
+    --surface:      #12121a;
+    --surface-2:    #1a1a26;
+    --border:       #1e1e2e;
+    --ink:          #e2e8f0;
+    --ink-muted:    #64748b;
+    --blue-500:     #7c3aed;
+    --blue-alpha:   rgba(124, 58, 237, 0.15);
+    --ok:           #22c55e;
+    --warn:         #f59e0b;
+    --danger:       #dc2626;
+    color-scheme: dark;
+  }
+  [data-theme="clean"] {
+    --bg:           #f5f7fb;
+    --surface:      #ffffff;
+    --surface-2:    #f0f2f8;
+    --border:       #e2e8f0;
+    --ink:          #0b1424;
+    --ink-muted:    #64748b;
+    --blue-500:     #2f6bff;
+    --blue-alpha:   rgba(47, 107, 255, 0.15);
+    --ok:           #16a34a;
+    --warn:         #d97706;
+    --danger:       #dc2626;
+    color-scheme: light;
+  }
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+  }
 }
