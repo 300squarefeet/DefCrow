@@ -85,4 +85,11 @@ describe('DeliveryCard', () => {
     fireEvent.click(screen.getByRole('button', { name: /smuggle/i }))
     await waitFor(() => expect(screen.getByRole('button', { name: /send to discord/i })).toBeInTheDocument())
   })
+
+  it('shows error state when onSmuggle rejects', async () => {
+    const onSmuggle = vi.fn().mockRejectedValue(new Error('network error'))
+    render(React.createElement(DeliveryCard, { ...defaultProps, downloadId: 'abc-123', onSmuggle }))
+    fireEvent.click(screen.getByRole('button', { name: /smuggle/i }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /failed/i })).toBeInTheDocument())
+  })
 })

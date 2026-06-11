@@ -14,6 +14,7 @@ export default function DeliveryCard({ artifactName, stageHost, downloadId, onSm
   const [ext, setExt]                   = useState('.pdf')
   const [smugUrl, setSmugUrl]           = useState<string | null>(null)
   const [smugLoading, setSmugLoading]   = useState(false)
+  const [smugError, setSmugError]       = useState(false)
   const [discordSent, setDiscordSent]   = useState(false)
   const [discordError, setDiscordError] = useState(false)
 
@@ -27,6 +28,9 @@ export default function DeliveryCard({ artifactName, stageHost, downloadId, onSm
     try {
       const res = await onSmuggle(fakeName)
       setSmugUrl(`https://${stageHost}${res.url}`)
+    } catch {
+      setSmugError(true)
+      setTimeout(() => setSmugError(false), 3000)
     } finally {
       setSmugLoading(false)
     }
@@ -123,7 +127,7 @@ export default function DeliveryCard({ artifactName, stageHost, downloadId, onSm
           className="w-full py-2 rounded-lg text-xs font-medium transition disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ backgroundColor: 'var(--blue-500)', color: '#fff' }}
         >
-          {smugLoading ? 'Generating…' : 'Smuggle'}
+          {smugLoading ? 'Generating…' : smugError ? 'Failed — retry' : 'Smuggle'}
         </button>
       )}
     </div>
