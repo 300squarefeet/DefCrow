@@ -30,7 +30,7 @@ export default function AppDomainConfig({ value, onChange }: Props) {
 <div className="rounded-lg p-3" style={{ backgroundColor: 'rgba(180,120,0,0.1)', border: '1px solid rgba(180,120,0,0.4)' }}>
         <p className="text-xs font-medium mb-1" style={{ color: '#fbbf24' }}>Generated Output</p>
         <p className="text-xs" style={{ color: '#64748b' }}>1. <code style={{ color: '#e2e8f0' }}>loader.dll</code> — AppDomainManager via ICLRRuntimeHost2</p>
-        <p className="text-xs mt-1" style={{ color: '#64748b' }}>2. <code style={{ color: '#e2e8f0' }}>loader.exe.config</code> — .config hijacking profile</p>
+        <p className="text-xs mt-1" style={{ color: '#64748b' }}>2. <code style={{ color: '#e2e8f0' }}>MSBuild.exe.config</code> — place alongside MSBuild.exe</p>
       </div>
     </div>
   )
