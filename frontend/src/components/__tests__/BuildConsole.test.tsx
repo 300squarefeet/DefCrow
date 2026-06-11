@@ -4,12 +4,13 @@ import React from 'react'
 import BuildConsole from '../BuildConsole'
 
 const defaultProps = {
-  logs: [],
-  status: 'idle' as const,
-  canForge: true,
-  onForge: vi.fn(),
-  artifactId: null,
+  logs:         [],
+  status:       'idle' as const,
+  canForge:     true,
+  onForge:      vi.fn(),
+  artifactId:   null,
   artifactName: null,
+  smugHost:     'localhost:8080',
 }
 
 describe('BuildConsole', () => {

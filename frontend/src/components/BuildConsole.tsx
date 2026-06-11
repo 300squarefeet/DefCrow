@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react'
 import DeliveryCard from './DeliveryCard'
+import { createSmugLink } from '../api/smuggler'
 
 export interface LogLine { ts: string; tag: string; msg: string }
 export type BuildStatus = 'idle' | 'building' | 'done' | 'error'
@@ -23,9 +24,10 @@ interface Props {
   onForge:      () => void
   artifactId:   string | null
   artifactName: string | null
+  smugHost:     string
 }
 
-export default function BuildConsole({ logs, status, canForge, onForge, artifactId, artifactName }: Props) {
+export default function BuildConsole({ logs, status, canForge, onForge, artifactId, artifactName, smugHost }: Props) {
   const logRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -73,7 +75,12 @@ export default function BuildConsole({ logs, status, canForge, onForge, artifact
             </a>
           </div>
           <div className="mt-2">
-            <DeliveryCard artifactName={artifactName} stageHost="localhost:8080" />
+            <DeliveryCard
+              artifactName={artifactName}
+              stageHost={smugHost}
+              downloadId={artifactId}
+              onSmuggle={(fakeName) => createSmugLink(artifactId, fakeName)}
+            />
           </div>
         </div>
       )}

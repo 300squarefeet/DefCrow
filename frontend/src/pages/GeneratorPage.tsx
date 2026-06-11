@@ -104,6 +104,7 @@ export default function GeneratorPage() {
     }
   }
 
+  const smugHost = localStorage.getItem('defcrow_smug_host') ?? 'localhost:8080'
   const canForge = mode === 'stageless' ? shellcodeHex.length > 0 : stages.length > 0
   const showStageTransfer = mode === 'staged'
 
@@ -142,6 +143,7 @@ export default function GeneratorPage() {
             logs={logs} status={buildStatus}
             canForge={canForge} onForge={handleForge}
             artifactId={artifactId} artifactName={artifactId ? `loader_${artifactId.slice(0, 8)}.exe` : null}
+            smugHost={smugHost}
           />
         </aside>
       </div>
