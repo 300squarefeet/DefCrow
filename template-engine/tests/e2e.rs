@@ -1,6 +1,57 @@
 use template_engine::*;
 
 #[test]
+fn test_appdomain_csharp_renders() {
+    let config = LoaderConfig {
+        loader_type: LoaderType::AppDomain,
+        features:    vec![],
+        encryption:  Encryption::Aes256,
+        shellcode_hex: "9090909090".into(),
+        key_hex:      "aa".repeat(32),
+        iv_hex:       "bb".repeat(16),
+        pe_config:    None,
+        appdomain_config: Some(AppDomainConfig {
+            clr_version:   "v4.0.30319".into(),
+            net_version:   "4.0".into(),
+            assembly_name: "xTestLoader".into(),
+            type_name:     "yTestClass".into(),
+            namespace:     "zTestNs".into(),
+        }),
+    };
+    let src = generate_csharp_source(&config).unwrap();
+    assert!(src.contains("AppDomainManager"), "missing AppDomainManager base class");
+    assert!(src.contains("InitializeNewDomain"), "missing InitializeNewDomain override");
+    assert!(src.contains("zTestNs"), "missing namespace");
+    assert!(src.contains("yTestClass"), "missing class name");
+    assert!(!src.contains("ntdll.dll"), "plaintext ntdll.dll string in output");
+    assert!(!src.contains("NtAllocateVirtualMemory"), "plaintext NtAllocateVirtualMemory string in output");
+    assert!(!src.contains("NtCreateThreadEx"), "plaintext NtCreateThreadEx string in output");
+}
+
+#[test]
+fn test_appdomain_two_builds_produce_different_identifiers() {
+    let config = LoaderConfig {
+        loader_type: LoaderType::AppDomain,
+        features:    vec![],
+        encryption:  Encryption::Aes256,
+        shellcode_hex: "9090".into(),
+        key_hex:      "aa".repeat(32),
+        iv_hex:       "bb".repeat(16),
+        pe_config:    None,
+        appdomain_config: Some(AppDomainConfig {
+            clr_version:   "v4.0.30319".into(),
+            net_version:   "4.0".into(),
+            assembly_name: "Loader1".into(),
+            type_name:     "Class1".into(),
+            namespace:     "Ns1".into(),
+        }),
+    };
+    let src1 = generate_csharp_source(&config).unwrap();
+    let src2 = generate_csharp_source(&config).unwrap();
+    assert_ne!(src1, src2, "Two AppDomain builds produced identical source (no randomization)");
+}
+
+#[test]
 fn test_binary_template_generates_valid_rust() {
     // Only check that template generates valid-looking Rust source.
     // Full compilation test requires libscaffold.rlib which takes ~90s to build.
