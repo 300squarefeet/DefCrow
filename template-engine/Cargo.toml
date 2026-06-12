@@ -7,3 +7,6 @@ edition = "2021"
 tera = "1"
 rand = { version = "0.8", features = ["getrandom"] }
 serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+flate2 = "1"

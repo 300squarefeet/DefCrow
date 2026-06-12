@@ -44,6 +44,7 @@ export const ALL_FEATURES = [
   'SandboxDomain', 'SandboxUser',  'PpidSpoof',
   'AmsiHwbp',      'EtwHwbp',      'PeSpoofing',
   'Staged',        'AppDomain',     'ThreadlessInject',
+  'Compress',
 ] as const
 export type Feature = typeof ALL_FEATURES[number]
 

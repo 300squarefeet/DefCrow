@@ -16,6 +16,7 @@ const FEATURE_META: Record<Feature, { label: string; desc: string; category: str
   Staged:           { label: 'Staged Payload',            desc: 'Shellcode fetched from remote URL at runtime', category: 'Delivery' },
   AppDomain:        { label: 'AppDomain Injection',       desc: 'ICLRRuntimeHost2 + .config AppDomainManager hijacking', category: 'Injection' },
   ThreadlessInject: { label: 'Threadless Injection',      desc: 'TpAllocWork callback — no CreateRemoteThread', category: 'Injection' },
+  Compress:         { label: 'Compress Payload',          desc: 'Deflate shellcode before XOR-encrypt; C# loaders decompress via System.IO.Compression', category: 'Delivery' },
 }
 
 const CATEGORIES = ['Evasion', 'Bypass', 'Injection', 'Sandbox', 'Delivery', 'Misc']
