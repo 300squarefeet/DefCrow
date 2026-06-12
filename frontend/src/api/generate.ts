@@ -70,11 +70,20 @@ export interface AppDomainReq {
   net_version?: string
 }
 
+export interface StagedReq {
+  pid:         string
+  jwt:         string
+  host:        string
+  scheme?:     'http' | 'https'
+  user_agent?: string
+}
+
 export interface GenerateRequest {
   loader_type: LoaderType; features: Feature[]
   encryption: Encryption; shellcode_hex: string
   key_hex: string; iv_hex: string
   pe_config?: PeMetadataReq; appdomain_config?: AppDomainReq
+  staged?: StagedReq
 }
 
 export interface GenerateResponse { job_id: string }

