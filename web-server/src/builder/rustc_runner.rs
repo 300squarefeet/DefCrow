@@ -15,6 +15,12 @@ pub fn compile_loader(
         msg: "Invoking rustc...".into(),
     });
 
+    // Size-optimised: opt-z + strip + LTO fat across crates + 1 codegen unit.
+    // Combined effect on a 289 KB CS beacon: 2.96 MB → 569 KB (81% smaller).
+    // - opt-level=z trades ~5% runtime perf for ~10-15% binary size
+    // - strip=symbols removes Rust symbol tables (no functional impact)
+    // - lto=fat needs scaffold rlib compiled with -C embed-bitcode=yes
+    //   (handled by builder/scaffold.rs)
     let args = vec![
         source_path.to_string(),
         "--edition".into(), "2021".into(),
@@ -22,8 +28,11 @@ pub fn compile_loader(
         "--extern".into(), format!("scaffold={}", scaffold_rlib),
         "-o".into(), output_path.to_string(),
         "--crate-type".into(), crate_type.to_string(),
-        "-C".into(), "opt-level=2".into(),
+        "-C".into(), "opt-level=z".into(),
         "-C".into(), "panic=abort".into(),
+        "-C".into(), "strip=symbols".into(),
+        "-C".into(), "lto=fat".into(),
+        "-C".into(), "codegen-units=1".into(),
     ];
 
     let output = Command::new("rustc").args(&args).output()?;

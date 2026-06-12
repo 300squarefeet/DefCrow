@@ -29,15 +29,21 @@ pub fn build_scaffold_rlib(workspace_root: &str) -> Result<String> {
         "cargo".into()
     };
 
-    // Build the rlib with LTO disabled — prebuilt stdlib for windows-gnu
-    // only ships COFF objects (no bitcode), so linker-plugin-lto won't work.
+    // Build the rlib with size-optimised release + embedded bitcode so the
+    // loader's final rustc invocation can run LTO across both crates.
+    // (linker-plugin-lto requires bitcode in every rlib; the windows-gnu
+    // stdlib bundled with rustup does NOT ship bitcode, but as long as our
+    // OWN scaffold rlib carries bitcode, `-C lto=fat` on the loader works.)
     let output = Command::new(&cargo_bin)
         .args([
             "build", "--release",
             "-p", "loader-scaffold",
             "--target", "x86_64-pc-windows-gnu",
         ])
-        .env("CARGO_PROFILE_RELEASE_LTO", "off")
+        .env("CARGO_PROFILE_RELEASE_LTO",           "off")
+        .env("CARGO_PROFILE_RELEASE_OPT_LEVEL",     "z")
+        .env("CARGO_PROFILE_RELEASE_CODEGEN_UNITS", "1")
+        .env("RUSTFLAGS",                           "-C embed-bitcode=yes")
         .env(
             "RUSTC",
             format!(
