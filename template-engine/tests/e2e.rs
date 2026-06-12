@@ -17,6 +17,8 @@ fn test_appdomain_csharp_renders() {
             type_name:     "yTestClass".into(),
             namespace:     "zTestNs".into(),
         }),
+        wsf_stub_config: None,
+        dotnet_stub_hex: None,
     };
     let src = generate_csharp_source(&config).unwrap();
     assert!(src.contains("AppDomainManager"), "missing AppDomainManager base class");
@@ -45,6 +47,8 @@ fn test_appdomain_two_builds_produce_different_identifiers() {
             type_name:     "Class1".into(),
             namespace:     "Ns1".into(),
         }),
+        wsf_stub_config: None,
+        dotnet_stub_hex: None,
     };
     let src1 = generate_csharp_source(&config).unwrap();
     let src2 = generate_csharp_source(&config).unwrap();
@@ -64,6 +68,8 @@ fn test_binary_template_generates_valid_rust() {
         iv_hex:  format!("{:0>32}", "cafebabe"),
         pe_config: None,
         appdomain_config: None,
+        wsf_stub_config: None,
+        dotnet_stub_hex: None,
     };
     let source = generate_loader_source(&config).unwrap();
 
@@ -90,6 +96,8 @@ fn test_two_builds_produce_different_identifiers() {
         iv_hex: "bb".repeat(16),
         pe_config: None,
         appdomain_config: None,
+        wsf_stub_config: None,
+        dotnet_stub_hex: None,
     };
     let source1 = generate_loader_source(&config).unwrap();
     let source2 = generate_loader_source(&config).unwrap();
