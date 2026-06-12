@@ -12,6 +12,7 @@ fn base_config(t: LoaderType) -> LoaderConfig {
         appdomain_config: None,
         wsf_stub_config: None,
         dotnet_stub_hex: None,
+        staged: None,
     }
 }
 
