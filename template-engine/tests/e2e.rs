@@ -86,6 +86,29 @@ fn test_binary_template_generates_valid_rust() {
 }
 
 #[test]
+fn test_binary_key_is_masked() {
+    // key = all 0xAA bytes; plain decimal value is 170
+    let config = LoaderConfig {
+        loader_type: LoaderType::Binary,
+        features: vec![],
+        encryption: Encryption::Aes256,
+        shellcode_hex: "9090".into(),
+        key_hex: "aa".repeat(32),
+        iv_hex:  "bb".repeat(16),
+        pe_config: None,
+        appdomain_config: None,
+        wsf_stub_config: None,
+        dotnet_stub_hex: None,
+    };
+    let source = generate_loader_source(&config).unwrap();
+    // XOR unmask loop must appear
+    assert!(source.contains("^="), "key must be XOR-unmasked at runtime");
+    // Five consecutive plain key bytes (170,170,170,170,170) must NOT appear
+    assert!(!source.contains("170,170,170,170,170,"),
+        "plain key bytes must not appear consecutively in source");
+}
+
+#[test]
 fn test_two_builds_produce_different_identifiers() {
     let config = LoaderConfig {
         loader_type: LoaderType::Binary,
