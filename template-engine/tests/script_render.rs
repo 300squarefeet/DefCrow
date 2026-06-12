@@ -527,6 +527,38 @@ fn wsf_stub_has_patchless_amsi() {
 }
 
 #[test]
+fn msbuild_has_direct_syscall() {
+    let src = generate_script_source(&base_config(LoaderType::MsBuild)).unwrap();
+    // Syscall stub bytes: 4C 8B D1 (mov r10, rcx) and 0F 05 (syscall)
+    assert!(src.contains("0x4C") && src.contains("0x8B") && src.contains("0xD1"),
+        "MsBuild must contain mov r10, rcx syscall stub prologue");
+    assert!(src.contains("0x0F") && src.contains("0x05"),
+        "MsBuild must contain syscall opcode");
+}
+
+#[test]
+fn installutil_has_direct_syscall() {
+    let src = generate_csharp_source(&base_config(LoaderType::InstallUtil)).unwrap();
+    assert!(src.contains("0x4C") && src.contains("0x8B") && src.contains("0xD1"));
+    assert!(src.contains("0x0F") && src.contains("0x05"));
+}
+
+#[test]
+fn appdomain_has_direct_syscall() {
+    let mut cfg = base_config(LoaderType::AppDomain);
+    cfg.appdomain_config = Some(AppDomainConfig {
+        clr_version:   "v4.0.30319".into(),
+        net_version:   "4.0".into(),
+        assembly_name: "x".into(),
+        type_name:     "y".into(),
+        namespace:     "z".into(),
+    });
+    let src = generate_csharp_source(&cfg).unwrap();
+    assert!(src.contains("0x4C") && src.contains("0x8B") && src.contains("0xD1"));
+    assert!(src.contains("0x0F") && src.contains("0x05"));
+}
+
+#[test]
 fn wsf_stub_has_unhook() {
     let mut cfg = base_config(LoaderType::Wsf);
     cfg.wsf_stub_config = Some(WsfStubConfig {
