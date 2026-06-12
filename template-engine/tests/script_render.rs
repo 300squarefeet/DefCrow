@@ -92,7 +92,7 @@ fn sct_has_etw_and_sandbox() {
     let src = generate_script_source(&base_config(LoaderType::Regsvr32Sct)).unwrap();
     assert!(src.contains("vmtoolsd") || src.contains("Win32_Process") || src.contains("ExecQuery("),
         "SCT must have sandbox check");
-    assert!(src.contains("EventProvider") || src.contains("m_enabled") || src.contains("36)"),
+    assert!(src.contains("EventProvider") || src.contains("m_enabled") || src.contains("36)") || src.contains("(4|32)"),
         "SCT must have ETW bypass");
 }
 
@@ -153,7 +153,7 @@ fn wmic_has_etw_and_sandbox() {
     let src = generate_script_source(&base_config(LoaderType::WmicXsl)).unwrap();
     assert!(src.contains("vmtoolsd") || src.contains("Win32_Process") || src.contains("ExecQuery("),
         "WMIC XSL must have sandbox check");
-    assert!(src.contains("EventProvider") || src.contains("m_enabled") || src.contains("36)"),
+    assert!(src.contains("EventProvider") || src.contains("m_enabled") || src.contains("36)") || src.contains("(4|32)"),
         "WMIC XSL must have ETW bypass");
 }
 
@@ -280,7 +280,7 @@ fn wsf_two_builds_produce_different_registry_arrays() {
     let src2 = generate_script_source(&base_config(LoaderType::Wsf)).unwrap();
     // XOR key differs per build → encoded integer sequence differs
     let find_vmr_line = |s: &str| -> String {
-        s.lines().find(|l| l.contains("_vmr=[")).unwrap_or("").to_string()
+        s.lines().find(|l| l.contains("]^=")).unwrap_or("").to_string()
     };
     assert_ne!(find_vmr_line(&src1), find_vmr_line(&src2),
         "WSF registry arrays must differ between builds (per-build XOR key)");

