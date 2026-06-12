@@ -270,7 +270,7 @@ fn build_context(config: &LoaderConfig) -> Context {
         vars.insert(k, rand_ident(8));
     }
     // New function idents for ETW/sandbox/export-resolve
-    for k in &["fn_etw", "fn_etw_patch", "fn_sandbox", "fn_build_str", "fn_getexport"] {
+    for k in &["fn_etw", "fn_etw_patch", "fn_sandbox", "fn_build_str", "fn_getexport", "fn_unhook"] {
         vars.insert(k, rand_ident(10));
     }
     // Rust PE template key-unmask loop variable

