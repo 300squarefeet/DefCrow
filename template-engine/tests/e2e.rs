@@ -110,6 +110,10 @@ fn test_binary_key_is_masked() {
     // Five consecutive plain key bytes (170,170,170,170,170) must NOT appear
     assert!(!source.contains("170,170,170,170,170,"),
         "plain key bytes must not appear consecutively in source");
+    // The XOR-unmask loop must use black_box on the key tweak — otherwise rustc
+    // constant-folds the entire loop and the plaintext key lands in rodata.
+    assert!(source.contains("black_box"),
+        "stageless key unmask must wrap key_tweak in core::hint::black_box");
 }
 
 fn rust_pe_staged_config(t: LoaderType) -> LoaderConfig {
@@ -141,6 +145,10 @@ fn assert_pe_staged_source(label: &str, src: &str) {
         "{} staged JWT must be XOR-encoded, not plaintext", label);
     assert!(!src.contains("decrypt_aes256") && !src.contains("decrypt_chacha20"),
         "{} staged mode must skip embedded shellcode decryption path", label);
+    // black_box defeats rustc constant-folding the XOR loop; without it the
+    // plaintext URL/JWT would land in rodata of the compiled .exe.
+    assert!(src.contains("black_box"),
+        "{} staged must wrap XOR key in core::hint::black_box to prevent compiler constant-folding", label);
 }
 
 #[test]
