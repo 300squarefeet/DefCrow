@@ -14,9 +14,9 @@
 <body>
 <script language="VBScript">
 Function {{ v.fn_build_str }}(a)
-    Dim s, i: s = ""
-    For i = 0 To UBound(a): s = s & Chr(a(i)): Next
-    {{ v.fn_build_str }} = s
+    Dim {{ v.hta_lv_bs }}, {{ v.hta_lv_bi }}: {{ v.hta_lv_bs }} = ""
+    For {{ v.hta_lv_bi }} = 0 To UBound(a): {{ v.hta_lv_bs }} = {{ v.hta_lv_bs }} & Chr(a({{ v.hta_lv_bi }})): Next
+    {{ v.fn_build_str }} = {{ v.hta_lv_bs }}
 End Function
 
 Function {{ v.fn_hex2arr }}(h)

