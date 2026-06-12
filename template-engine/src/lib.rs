@@ -345,6 +345,8 @@ fn build_context(config: &LoaderConfig) -> Context {
         "hta_lv_ea", "hta_lv_et", "hta_lv_ef",
         // fn_build_str locals
         "hta_lv_bs", "hta_lv_bi",
+        // fn_hex2arr locals
+        "hta_lv_hn", "hta_lv_ha", "hta_lv_hi",
     ] {
         vars.insert(k, rand_ident(7));
     }

