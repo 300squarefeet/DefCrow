@@ -489,6 +489,28 @@ fn wmic_no_reflection_amsi_bypass() {
 }
 
 #[test]
+fn wsf_default_no_excel_com() {
+    let src = generate_script_source(&base_config(LoaderType::Wsf)).unwrap();
+    // "Excel.Application" charcode: 69,120,99,101,108,46,65,112,112,108,105,99,97,116,105,111,110
+    assert!(!src.contains("69,120,99,101,108,46,65,112,112,108,105,99,97,116,105,111,110"),
+        "WSF without ExcelComExec must not contain Excel.Application charcode");
+    assert!(!src.contains("AccessVBOM"),
+        "WSF without ExcelComExec must not contain AccessVBOM plaintext");
+    // "AccessVBOM" charcode = 65,99,99,101,115,115,86,66,79,77
+    assert!(!src.contains("65,99,99,101,115,115,86,66,79,77"),
+        "WSF without ExcelComExec must not contain AccessVBOM charcode");
+}
+
+#[test]
+fn wsf_with_excel_com_feature_includes_path() {
+    let mut cfg = base_config(LoaderType::Wsf);
+    cfg.features.push(Feature::ExcelComExec);
+    let src = generate_script_source(&cfg).unwrap();
+    assert!(src.contains("69,120,99,101,108,46,65,112,112,108,105,99,97,116,105,111,110"),
+        "WSF with ExcelComExec must include Excel.Application charcode");
+}
+
+#[test]
 fn wsf_stub_has_patchless_amsi() {
     let mut cfg = base_config(LoaderType::Wsf);
     cfg.wsf_stub_config = Some(WsfStubConfig {

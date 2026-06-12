@@ -100,6 +100,11 @@ pub enum Feature {
     /// the inverse: XOR-decrypt → deflate-decompress → execute. Free in .NET
     /// (System.IO.Compression in BCL); useful for repetitive payloads.
     Compress,
+    /// WSF spawns hidden Excel.Application and injects shellcode-running VBA
+    /// into a new workbook so the shellcode runs inside EXCEL.EXE. Loud
+    /// (process tree wscript.exe→EXCEL.EXE + AccessVBOM Trust-Center write).
+    /// Opt-in only — default falls back to DotNetToJScript in-process stub.
+    ExcelComExec,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]

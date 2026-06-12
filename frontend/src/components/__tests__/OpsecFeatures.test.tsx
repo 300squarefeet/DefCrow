@@ -4,9 +4,9 @@ import React from 'react'
 import OpsecFeatures from '../OpsecFeatures'
 
 describe('OpsecFeatures', () => {
-  it('renders all 16 feature toggles', () => {
+  it('renders all 17 feature toggles', () => {
     render(React.createElement(OpsecFeatures, { selected: [], onChange: vi.fn() }))
-    expect(screen.getAllByRole('switch')).toHaveLength(16)
+    expect(screen.getAllByRole('switch')).toHaveLength(17)
   })
   it('shows selected features as checked', () => {
     render(React.createElement(OpsecFeatures, { selected: ['AmsiHwbp', 'EtwHwbp'], onChange: vi.fn() }))
