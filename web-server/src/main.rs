@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use builder::{job_store::JobStore, scaffold::build_scaffold_rlib};
 use config::Config;
 use middleware::auth::{LoginRateLimiter, require_auth, SessionStore};
+use middleware::require_admin::require_admin;
 use state::AppState;
 
 pub fn build_router(state: AppState) -> Router {
@@ -27,6 +28,16 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/v1/smug",         post(api::smuggler::create_smug))
         .route_layer(axum_mw::from_fn_with_state(state.clone(), require_auth));
 
+    // Admin routes: role check on top of auth check. `route_layer`
+    // applies layers in reverse-add order, so `require_auth` runs
+    // first per request and `require_admin` reads the injected claims.
+    let admin = Router::new()
+        .route("/api/admin/users",            get(api::admin::list_users).post(api::admin::add_user))
+        .route("/api/admin/users/:username",  delete(api::admin::delete_user))
+        .route("/api/admin/settings",         get(api::admin::get_settings).put(api::admin::put_settings))
+        .route_layer(axum_mw::from_fn(require_admin))
+        .route_layer(axum_mw::from_fn_with_state(state.clone(), require_auth));
+
     Router::new()
         .route("/api/auth/request-key",  post(api::auth_keys::request_key))
         .route("/api/auth/login",        post(api::auth_keys::login))
@@ -38,6 +49,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/d/:link_id/:fake_name", get(api::smuggler::serve_smug))
         .merge(stage_authed)
         .merge(protected)
+        .merge(admin)
         .fallback_service(ServeDir::new("frontend/dist"))
         .with_state(state)
         .layer(CorsLayer::permissive())
