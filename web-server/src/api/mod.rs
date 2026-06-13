@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod auth_keys;
 pub mod cleanup;
 pub mod generate;
 pub mod jobs;

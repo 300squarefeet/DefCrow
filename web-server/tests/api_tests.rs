@@ -26,6 +26,8 @@ fn make_state(artifacts_dir: &str) -> AppState {
         jobs:             JobStore::new(),
         rate_limiter:     LoginRateLimiter::new(5, 60),
         generate_limiter: LoginRateLimiter::new(20, 60),
+        request_key_limiter: LoginRateLimiter::new(3, 60),
+        ip_rate_limiter:  LoginRateLimiter::new(10, 60),
         staged_key:       [0u8; 32],
         staged_dir:       std::path::PathBuf::from(artifacts_dir).join("staged"),
         smuggler_dir:     std::path::PathBuf::from(artifacts_dir).join("smuggler"),

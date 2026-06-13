@@ -3,6 +3,7 @@ use axum::{middleware as axum_mw, routing::{delete, get, post}, Router};
 use tower_http::{cors::CorsLayer, services::ServeDir};
 use tracing_subscriber::EnvFilter;
 use rand::Rng;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use builder::{job_store::JobStore, scaffold::build_scaffold_rlib};
@@ -27,7 +28,8 @@ pub fn build_router(state: AppState) -> Router {
         .route_layer(axum_mw::from_fn_with_state(state.clone(), require_auth));
 
     Router::new()
-        .route("/api/auth/login",        post(api::auth::login))
+        .route("/api/auth/request-key",  post(api::auth_keys::request_key))
+        .route("/api/auth/login",        post(api::auth_keys::login))
         .route("/api/auth/logout",       post(api::auth::logout))
         .route("/api/health",            get(|| async { "ok" }))
         .route("/ws/jobs/:id",           get(ws::progress::ws_job_progress))
@@ -72,12 +74,24 @@ async fn main() {
     ));
     let key_store     = std::sync::Arc::new(web_server::auth::KeyStore::new());
 
+    // Periodically purge expired/used pending keys so a long-running
+    // server does not accumulate dead entries.
+    {
+        let ks = key_store.clone();
+        tokio::spawn(async move {
+            let mut t = tokio::time::interval(std::time::Duration::from_secs(60));
+            loop { t.tick().await; ks.cleanup(); }
+        });
+    }
+
     let state = AppState {
-        config:           cfg.clone(),
-        sessions:         SessionStore::new(),
-        jobs:             JobStore::new(),
-        rate_limiter:     LoginRateLimiter::new(5, 60),
-        generate_limiter: LoginRateLimiter::new(20, 60),
+        config:              cfg.clone(),
+        sessions:            SessionStore::new(),
+        jobs:                JobStore::new(),
+        rate_limiter:        LoginRateLimiter::new(5, 60),
+        generate_limiter:    LoginRateLimiter::new(20, 60),
+        request_key_limiter: LoginRateLimiter::new(3, 60),
+        ip_rate_limiter:     LoginRateLimiter::new(20, 60),
         staged_key,
         staged_dir,
         smuggler_dir,
@@ -93,5 +107,9 @@ async fn main() {
 
     tracing::info!("DefCrow server listening on {}", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    // Propagate the peer SocketAddr so auth handlers can pull
+    // `ConnectInfo<SocketAddr>` for per-IP rate limiting.
+    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
+        .await
+        .unwrap();
 }

@@ -16,6 +16,14 @@ pub struct AppState {
     pub jobs:             JobStore,
     pub rate_limiter:     LoginRateLimiter,
     pub generate_limiter: LoginRateLimiter,
+    /// Rate limiter for `/api/auth/request-key`, keyed by lowercased
+    /// username. Decoupled from the login limiter so that asking for a
+    /// fresh key does not eat into the login attempt budget.
+    pub request_key_limiter: LoginRateLimiter,
+    /// Rate limiter for the auth endpoints keyed by client IP — a
+    /// second guard so per-username buckets cannot be sidestepped by
+    /// rotating usernames from the same address.
+    pub ip_rate_limiter:  LoginRateLimiter,
     pub staged_key:       [u8; 32],
     pub staged_dir:       PathBuf,
     pub smuggler_dir:     PathBuf,
