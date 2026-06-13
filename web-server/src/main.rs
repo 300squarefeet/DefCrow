@@ -75,15 +75,42 @@ async fn main() {
 
     let staged_key: [u8; 32] = rand::thread_rng().gen();
 
-    // TODO(Task 7): bootstrap admin user from DEFCROW_BOOTSTRAP_USERNAME
-    // and load these from `${artifacts_dir}` instead of constructing
-    // empty in-memory defaults here.
-    let user_store    = std::sync::Arc::new(tokio::sync::RwLock::new(
-        web_server::auth::UserStore::default(),
-    ));
-    let auth_settings = std::sync::Arc::new(tokio::sync::RwLock::new(
-        web_server::auth::AuthSettings::default(),
-    ));
+    // Bootstrap auth state from `${artifacts_dir}`.
+    //
+    // `UserStore::load` returns the parsed file if it exists, or
+    // seeds a single admin (with `bootstrap_username`) and persists it
+    // when missing. We re-check `users.json` existence beforehand so
+    // we can emit a one-time stderr notice (and seed the webhook from
+    // env) only on a true fresh-install path, not on every reload.
+    let artifacts_path = PathBuf::from(&cfg.artifacts_dir);
+    std::fs::create_dir_all(&artifacts_path)
+        .expect("failed to create artifacts dir");
+    let users_path        = artifacts_path.join("users.json");
+    let auth_settings_path = artifacts_path.join("auth_settings.json");
+    let fresh_users    = !users_path.exists();
+    let fresh_settings = !auth_settings_path.exists();
+
+    let user_store_inner = web_server::auth::UserStore::load(&artifacts_path, &cfg.bootstrap_username)
+        .expect("failed to load users.json");
+    if fresh_users {
+        eprintln!(
+            "Admin user '{}' bootstrapped. Configure Discord webhook before first login.",
+            cfg.bootstrap_username,
+        );
+    }
+    let user_store = std::sync::Arc::new(tokio::sync::RwLock::new(user_store_inner));
+
+    let mut auth_settings_inner = web_server::auth::AuthSettings::load(&artifacts_path)
+        .expect("failed to load auth_settings.json");
+    if fresh_settings {
+        if let Some(url) = cfg.bootstrap_webhook.clone() {
+            auth_settings_inner.set_webhook(Some(url));
+            auth_settings_inner.save(&artifacts_path)
+                .expect("failed to persist bootstrap auth_settings.json");
+        }
+    }
+    let auth_settings = std::sync::Arc::new(tokio::sync::RwLock::new(auth_settings_inner));
+
     let key_store     = std::sync::Arc::new(web_server::auth::KeyStore::new());
 
     // Periodically purge expired/used pending keys so a long-running

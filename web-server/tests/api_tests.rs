@@ -17,10 +17,11 @@ fn make_state(artifacts_dir: &str) -> AppState {
         config: Config {
             port: 8080,
             username: "admin".into(),
-            password_hash: "$argon2id$test".into(),
             session_secret: "testsecret".into(),
             scaffold_rlib: "libscaffold.rlib".into(),
             artifacts_dir: artifacts_dir.to_string(),
+            bootstrap_username: "admin".into(),
+            bootstrap_webhook:  None,
         },
         sessions:         SessionStore::new(),
         jobs:             JobStore::new(),
