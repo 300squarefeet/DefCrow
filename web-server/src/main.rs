@@ -1,6 +1,6 @@
 use web_server::{api, builder, config, middleware, state, ws};
 use axum::{middleware as axum_mw, routing::{delete, get, post}, Router};
-use tower_http::{cors::CorsLayer, services::ServeDir};
+use tower_http::{cors::CorsLayer, services::{ServeDir, ServeFile}};
 use tracing_subscriber::EnvFilter;
 use rand::Rng;
 use std::net::SocketAddr;
@@ -51,7 +51,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(stage_authed)
         .merge(protected)
         .merge(admin)
-        .fallback_service(ServeDir::new("frontend/dist"))
+        .fallback_service(ServeDir::new("frontend/dist").fallback(ServeFile::new("frontend/dist/index.html")))
         .with_state(state)
         .layer(CorsLayer::permissive())
 }
