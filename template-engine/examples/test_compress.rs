@@ -34,6 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     assembly_name: "TLoader".into(),
                     type_name: "EvilT".into(),
                     namespace: "EvilN".into(),
+                    host_binary: "MSBuild.exe".into(),
                 })
             } else { None },
             wsf_stub_config: None,

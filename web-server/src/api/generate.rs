@@ -24,10 +24,13 @@ pub struct AppDomainReq {
     pub clr_version: String,
     #[serde(default = "default_net_version")]
     pub net_version: String,
+    #[serde(default = "default_host_binary")]
+    pub host_binary: String,
 }
 
 fn default_clr_version() -> String { "v4.0.30319".into() }
 fn default_net_version()  -> String { "4.0".into() }
+fn default_host_binary()  -> String { "MSBuild.exe".into() }
 
 #[derive(Deserialize, Default)]
 pub struct StagedReq {
@@ -270,13 +273,24 @@ fn run_build(
         let req_ad = req.appdomain_config.unwrap_or(AppDomainReq {
             clr_version: "v4.0.30319".into(),
             net_version: "4.0".into(),
+            host_binary: "MSBuild.exe".into(),
         });
+        // Allowlist: only Microsoft-signed binaries we have a documented exec
+        // hint + .config drop path for. Reject anything else to prevent the
+        // operator wiring up an arbitrary host without tradecraft guidance.
+        if !matches!(req_ad.host_binary.as_str(), "MSBuild.exe" | "FileHistory.exe") {
+            jobs.set_status(&job_id, JobStatus::Error {
+                msg: format!("invalid appdomain host_binary: {} (allowed: MSBuild.exe, FileHistory.exe)", req_ad.host_binary),
+            });
+            return;
+        }
         Some(AppDomainConfig {
             clr_version:   req_ad.clr_version,
             net_version:   req_ad.net_version,
             assembly_name: rand_hex_ident(12),
             type_name:     rand_hex_ident(10),
             namespace:     rand_hex_ident(8),
+            host_binary:   req_ad.host_binary,
         })
     } else {
         None

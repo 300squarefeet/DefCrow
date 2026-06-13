@@ -26,6 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     assembly_name: "TestLoader".into(),
                     type_name:     "EvilType".into(),
                     namespace:     "EvilNs".into(),
+                    host_binary:   "MSBuild.exe".into(),
                 })
             } else { None },
             wsf_stub_config: if matches!(t, LoaderType::Wsf | LoaderType::Hta | LoaderType::Regsvr32Sct | LoaderType::WmicXsl) {

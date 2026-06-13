@@ -1,47 +1,67 @@
-import { useState, useRef, useEffect } from 'react'
-import { useNavigate }    from 'react-router-dom'
-import { Feature, Encryption, LoaderType, GenerateRequest, AppDomainReq, StagedReq, generate } from '../api/generate'
+import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Feature, Encryption, LoaderType, GenerateRequest, AppDomainReq, StagedReq, generate, appdomainConfigFilename } from '../api/generate'
 import { StagePayload, listStages, uploadStage, deleteStage, rotateToken } from '../api/stage'
-import { useJobSocket }   from '../hooks/useJobSocket'
+import { useJobSocket } from '../hooks/useJobSocket'
 import Header, { StepId } from '../components/Header'
-import PayloadSection     from '../components/PayloadSection'
+import PayloadSection from '../components/PayloadSection'
 import StageTransferSection from '../components/StageTransferSection'
-import EvasionSection     from '../components/EvasionSection'
-import OutputSection      from '../components/OutputSection'
+import EvasionSection from '../components/EvasionSection'
+import OutputSection from '../components/OutputSection'
 import BuildConsole, { LogLine, BuildStatus } from '../components/BuildConsole'
+import { PROFILES, OUTPUT_FORMATS, techsToBackend } from '../data/designData'
 
 export default function GeneratorPage() {
-  const navigate = useNavigate()
+  useNavigate()
 
-  const [mode, setMode]             = useState<'stageless' | 'staged'>('stageless')
+  const [mode, setMode] = useState<'stageless' | 'staged'>('stageless')
   const [shellcodeHex, setShellcodeHex] = useState('')
   const [binFilename, setBinFilename]   = useState<string | null>(null)
-  const [stages, setStages]             = useState<StagePayload[]>([])
-  const [tokens, setTokens]             = useState<Record<string, string>>({})
+  const [stages, setStages] = useState<StagePayload[]>([])
+  const [tokens, setTokens] = useState<Record<string, string>>({})
+  const [activeStagePid, setActiveStagePid] = useState<string | null>(null)
 
-  const [features, setFeatures]     = useState<Feature[]>(['DirectSyscall', 'AmsiHwbp', 'EtwHwbp', 'SleepEncrypt', 'StackSpoof'])
-  const [encryption, setEncryption] = useState<Encryption>('Aes256')
+  const [profile, setProfile]    = useState<'stealth' | 'balanced' | 'aggressive'>('stealth')
+  const [enabled, setEnabled]    = useState<Set<string>>(() => new Set(PROFILES[0].techIds))
+  const [formatId, setFormatId]  = useState<string>('exe')
   const [loaderType, setLoaderType] = useState<LoaderType>('Binary')
-  const [selectedStagePid, setSelectedStagePid] = useState<string | null>(null)
-
-  const [jobId, setJobId]           = useState<string | null>(null)
-  const [logs, setLogs]             = useState<LogLine[]>([])
-  const [buildStatus, setBuildStatus] = useState<BuildStatus>('idle')
-  const [artifactId, setArtifactId] = useState<string | null>(null)
-  const [configXml, setConfigXml] = useState<string | null>(null)
   const [appDomainConfig, setAppDomainConfig] = useState<AppDomainReq>({})
 
-  const [currentStep, setCurrentStep] = useState<StepId>(1)
-  const sectionRefs = useRef<Record<StepId, HTMLElement | null>>({ 1: null, 2: null, 3: null, 4: null, 5: null })
+  const [jobId, setJobId]             = useState<string | null>(null)
+  const [logs, setLogs]               = useState<LogLine[]>([])
+  const [buildStatus, setBuildStatus] = useState<BuildStatus>('idle')
+  const [artifactId, setArtifactId]   = useState<string | null>(null)
+  const [configXml, setConfigXml]     = useState<string | null>(null)
+  const [activeStep, setActiveStep]   = useState<StepId>('payload')
+
+  // Switching profile populates enabled techs with that profile's defaults.
+  useEffect(() => {
+    const p = PROFILES.find(x => x.id === profile)
+    if (p) setEnabled(new Set(p.techIds))
+  }, [profile])
+
+  // Hosts (auto-detect current host, override via localStorage / Settings).
+  const currentHost = typeof window !== 'undefined' ? window.location.host : 'localhost:8090'
+  const pickHost = (k: string) => {
+    const v = localStorage.getItem(k)
+    return !v || v === 'localhost:8080' ? currentHost : v
+  }
+  const stageHost = pickHost('defcrow_stage_host')
+  const smugHost  = pickHost('defcrow_smug_host')
 
   useEffect(() => {
-    listStages().then(setStages).catch(() => {})
+    listStages().then(s => {
+      setStages(s)
+      if (s.length > 0 && !activeStagePid) setActiveStagePid(s[0].pid)
+    }).catch(() => {})
   }, [])
 
   const { status } = useJobSocket(jobId)
   useEffect(() => {
     if (!status) return
-    setLogs(prev => [...prev, { ts: new Date().toISOString().slice(11, 19), tag: status.status === 'error' ? 'err' : 'info', msg: status.msg ?? status.status }])
+    const ts = new Date().toISOString().slice(11, 19)
+    const tag = status.status === 'error' ? 'err' : status.status === 'done' ? 'ok' : 'info'
+    setLogs(prev => [...prev, { ts, tag, msg: status.msg ?? status.status }])
     if (status.status === 'done') {
       setBuildStatus('done')
       if (status.download_id) setArtifactId(status.download_id)
@@ -51,10 +71,18 @@ export default function GeneratorPage() {
     }
   }, [status])
 
-  function scrollTo(step: StepId) {
-    setCurrentStep(step)
-    sectionRefs.current[step]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
+  // Scroll-into-view when step changes.
+  useEffect(() => {
+    const el = document.getElementById(activeStep)
+    if (el) {
+      const container = document.querySelector('.main-col') as HTMLElement | null
+      if (container) {
+        container.scrollTo({ top: el.offsetTop - 12, behavior: 'smooth' })
+      } else {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }
+  }, [activeStep])
 
   function handleFileUpload(file: File) {
     setBinFilename(file.name)
@@ -72,20 +100,27 @@ export default function GeneratorPage() {
       const res = await uploadStage(file)
       setStages(prev => [...prev, { pid: res.pid, name: res.name, size: res.size, arch: 'x64', created_at: '' }])
       setTokens(prev => ({ ...prev, [res.pid]: res.jwt }))
-      // Auto-select newly-uploaded stage so canForge becomes true immediately
-      setSelectedStagePid(res.pid)
-    } catch { /* ignore */ }
+      setActiveStagePid(res.pid)
+    } catch {/* ignore */}
   }
-
   async function handleStageDelete(pid: string) {
-    await deleteStage(pid)
+    await deleteStage(pid).catch(() => {})
     setStages(prev => prev.filter(s => s.pid !== pid))
     setTokens(prev => { const n = { ...prev }; delete n[pid]; return n })
   }
-
   async function handleRotate(pid: string) {
-    const res = await rotateToken(pid)
-    setTokens(prev => ({ ...prev, [pid]: res.jwt }))
+    try {
+      const res = await rotateToken(pid)
+      setTokens(prev => ({ ...prev, [pid]: res.jwt }))
+    } catch {/* ignore */}
+  }
+
+  function toggleTech(id: string) {
+    setEnabled(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
   }
 
   async function handleForge() {
@@ -95,35 +130,37 @@ export default function GeneratorPage() {
     setArtifactId(null)
     setConfigXml(null)
     try {
-      // In staged mode, resolve the selected (or first) PID and its JWT,
-      // and pass them with the configured stage host to the backend. The
-      // generated loader will fetch the encrypted shellcode at runtime.
+      const { features, encryption } = techsToBackend(enabled)
+
       let stagedReq: StagedReq | undefined
       if (mode === 'staged') {
-        const pid = selectedStagePid ?? stages[0]?.pid
+        const pid = activeStagePid ?? stages[0]?.pid
         const jwt = pid ? tokens[pid] : undefined
         if (!pid || !jwt) {
           setBuildStatus('error')
-          setLogs(prev => [...prev, { ts: new Date().toISOString().slice(11, 19), tag: 'err', msg: 'No staged payload selected (upload + select first)' }])
+          setLogs(prev => [...prev, { ts: new Date().toISOString().slice(11, 19), tag: 'err', msg: 'No staged payload selected — upload first' }])
           return
         }
         stagedReq = {
-          pid,
-          jwt,
+          pid, jwt,
           host: stageHost,
           scheme: stageHost.includes('localhost') || stageHost.startsWith('127.') ? 'http' : 'https',
         }
       }
+
       const req: GenerateRequest = {
-        loader_type: loaderType,
-        features: mode === 'staged' && !features.includes('Staged') ? [...features, 'Staged'] : features,
+        loader_type:   loaderType,
+        features:      mode === 'staged' && !features.includes('Staged' as Feature)
+                         ? [...features, 'Staged' as Feature]
+                         : features,
         encryption,
         shellcode_hex: mode === 'staged' ? '' : shellcodeHex.replace(/\s+/g, ''),
         key_hex: '',
-        iv_hex: '',
+        iv_hex:  '',
         appdomain_config: loaderType === 'AppDomain' ? {
           clr_version: appDomainConfig.clr_version || undefined,
           net_version: appDomainConfig.net_version || undefined,
+          host_binary: appDomainConfig.host_binary || undefined,
         } : undefined,
         staged: stagedReq,
       }
@@ -135,65 +172,91 @@ export default function GeneratorPage() {
     }
   }
 
-  const stageHost = localStorage.getItem('defcrow_stage_host') ?? 'localhost:8080'
-  const smugHost  = localStorage.getItem('defcrow_smug_host')  ?? 'localhost:8080'
-  const canForge  = mode === 'stageless'
+  const canForge = mode === 'stageless'
     ? shellcodeHex.length > 0
-    : stages.length > 0 && (selectedStagePid ? !!tokens[selectedStagePid] : !!tokens[stages[0]?.pid ?? ''])
-  const showStageTransfer = mode === 'staged'
+    : stages.length > 0 && (activeStagePid ? !!tokens[activeStagePid] : !!tokens[stages[0]?.pid ?? ''])
+
+  const EXT_BY_LOADER: Record<LoaderType, string> = {
+    Binary: 'exe', Dll: 'dll', Injector: 'exe', Rundll32: 'dll',
+    AppDomain: 'dll', InstallUtil: 'dll',
+    Wsf: 'wsf', Hta: 'hta', Regsvr32Sct: 'sct', MsBuild: 'csproj',
+    Cmstp: 'inf', WmicXsl: 'xsl',
+    DocxMacro: 'bas', XlsxMacro: 'bas',
+  }
+  const artifactName = artifactId ? `loader_${artifactId.slice(0, 8)}.${EXT_BY_LOADER[loaderType]}` : null
+
+  const summary = useMemo(() => {
+    const fmt = OUTPUT_FORMATS.find(f => f.id === formatId)
+    return `${mode} · ${enabled.size} tech · ${fmt?.name || '—'} · ${profile}`
+  }, [mode, enabled.size, formatId, profile])
 
   return (
-    <div style={{ backgroundColor: 'var(--bg)', minHeight: '100vh' }}>
-      <Header currentStep={currentStep} showStageTransfer={showStageTransfer} onStepClick={scrollTo} />
+    <div className="app">
+      <Header active={activeStep} setActive={setActiveStep} mode={mode}/>
 
-      <div className="flex gap-6 px-6 pt-6 max-w-[1400px] mx-auto">
-        <main className="flex-1 space-y-10 pb-20 min-w-0">
-          <div ref={el => { sectionRefs.current[1] = el }}>
-            <PayloadSection
-              mode={mode} onModeChange={setMode}
-              shellcodeHex={shellcodeHex} onShellcodeHexChange={setShellcodeHex}
-              binFilename={binFilename} stages={stages}
-              onFileUpload={handleFileUpload} onStageUpload={handleStageUpload} onStageDelete={handleStageDelete}
+      <div className="workspace">
+        <div className="main-col">
+          <PayloadSection
+            mode={mode} setMode={setMode}
+            shellcodeHex={shellcodeHex} setShellcodeHex={setShellcodeHex}
+            binFilename={binFilename} setBinFilename={setBinFilename}
+            stages={stages}
+            activeStagePid={activeStagePid}
+            setActiveStagePid={setActiveStagePid}
+            onFileUpload={handleFileUpload}
+            onStageUpload={handleStageUpload}
+            onStageDelete={handleStageDelete}
+          />
+
+          {mode === 'staged' && (
+            <StageTransferSection
+              stages={stages}
+              tokens={tokens}
+              stageHost={stageHost}
+              onRotate={handleRotate}
+              selectedPid={activeStagePid}
+              onSelect={setActiveStagePid}
             />
-          </div>
-
-          {showStageTransfer && (
-            <div ref={el => { sectionRefs.current[2] = el }}>
-              <StageTransferSection
-                stages={stages}
-                tokens={tokens}
-                stageHost={stageHost}
-                onRotate={handleRotate}
-                selectedPid={selectedStagePid ?? stages[0]?.pid ?? null}
-                onSelect={setSelectedStagePid}
-              />
-            </div>
           )}
 
-          <div ref={el => { sectionRefs.current[3] = el }}>
-            <EvasionSection features={features} encryption={encryption} onFeaturesChange={setFeatures} onEncryptionChange={setEncryption} />
-          </div>
+          <EvasionSection
+            profile={profile} setProfile={setProfile}
+            enabled={enabled} toggleTech={toggleTech}
+          />
 
-          <div ref={el => { sectionRefs.current[4] = el }}>
-            <OutputSection
-              loaderType={loaderType} onLoaderTypeChange={setLoaderType}
-              encryption={encryption} onEncryptionChange={setEncryption}
-              appDomainConfig={appDomainConfig}
-              onAppDomainConfigChange={setAppDomainConfig}
-            />
-          </div>
-        </main>
+          <OutputSection
+            formatId={formatId} setFormatId={setFormatId}
+            loaderType={loaderType} setLoaderType={setLoaderType}
+            appDomainConfig={appDomainConfig}
+            onAppDomainConfigChange={setAppDomainConfig}
+          />
+        </div>
 
-        <aside className="w-[380px] shrink-0" ref={el => { sectionRefs.current[5] = el }}>
+        <aside className="right-col">
           <BuildConsole
-            logs={logs} status={buildStatus}
-            canForge={canForge} onForge={handleForge}
-            artifactId={artifactId} artifactName={artifactId ? `loader_${artifactId.slice(0, 8)}.exe` : null}
+            logs={logs}
+            status={buildStatus}
+            canForge={canForge}
+            onForge={handleForge}
+            onClear={() => { setLogs([]); setBuildStatus('idle'); setArtifactId(null); setConfigXml(null) }}
+            artifactId={artifactId}
+            artifactName={artifactName}
             smugHost={smugHost}
             configXml={configXml}
+            configFilename={appdomainConfigFilename(appDomainConfig.host_binary)}
+            summary={summary}
           />
         </aside>
       </div>
+
+      <footer className="footer">
+        <span>defcrow</span>
+        <span className="sep">·</span>
+        <span>engine v0.5.0</span>
+        <span className="sep">·</span>
+        <span>build 2026.06</span>
+        <span className="lic">For authorized red-team engagements and security research only.</span>
+      </footer>
     </div>
   )
 }

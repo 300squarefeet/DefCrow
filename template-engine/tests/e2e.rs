@@ -16,6 +16,7 @@ fn test_appdomain_csharp_renders() {
             assembly_name: "xTestLoader".into(),
             type_name:     "yTestClass".into(),
             namespace:     "zTestNs".into(),
+            host_binary:   "MSBuild.exe".into(),
         }),
         wsf_stub_config: None,
         dotnet_stub_hex: None,
@@ -47,6 +48,7 @@ fn test_appdomain_two_builds_produce_different_identifiers() {
             assembly_name: "Loader1".into(),
             type_name:     "Class1".into(),
             namespace:     "Ns1".into(),
+            host_binary:   "MSBuild.exe".into(),
         }),
         wsf_stub_config: None,
         dotnet_stub_hex: None,
@@ -255,4 +257,32 @@ fn test_appdomain_config_xml_has_assembly_element() {
     assert!(xml.contains("AppDomainManagerAssembly"), "missing AppDomainManagerAssembly");
     assert!(xml.contains("xKqPm.nBvWs"),              "missing fqn type name");
     assert!(xml.contains("dKqRmFpX"),                 "missing assembly name");
+}
+
+#[test]
+fn test_appdomain_exec_command_msbuild() {
+    let cmd = appdomain_exec_command("MSBuild.exe", "loader.dll");
+    assert!(cmd.contains("MSBuild.exe.config"));
+    assert!(cmd.contains("Framework64"));
+}
+
+#[test]
+fn test_appdomain_exec_command_filehistory() {
+    let cmd = appdomain_exec_command("FileHistory.exe", "loader.dll");
+    assert!(cmd.contains("FileHistory.exe.config"));
+    assert!(cmd.contains("System32"));
+    assert!(cmd.contains("writable"));
+}
+
+#[test]
+fn test_appdomain_config_accepts_host_binary() {
+    let cfg = AppDomainConfig {
+        clr_version: "v4.0.30319".into(),
+        net_version: "4.0".into(),
+        assembly_name: "x".into(),
+        type_name: "y".into(),
+        namespace: "z".into(),
+        host_binary: "FileHistory.exe".into(),
+    };
+    assert_eq!(cfg.host_binary, "FileHistory.exe");
 }

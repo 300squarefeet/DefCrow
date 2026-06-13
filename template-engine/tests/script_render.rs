@@ -32,6 +32,7 @@ fn staged_config(t: LoaderType) -> LoaderConfig {
                 assembly_name: "x".into(),
                 type_name:     "y".into(),
                 namespace:     "z".into(),
+                host_binary:   "MSBuild.exe".into(),
             })
         } else { None },
         wsf_stub_config: if matches!(t, LoaderType::Wsf | LoaderType::Hta | LoaderType::Regsvr32Sct | LoaderType::WmicXsl) {
@@ -552,6 +553,7 @@ fn appdomain_has_direct_syscall() {
         assembly_name: "x".into(),
         type_name:     "y".into(),
         namespace:     "z".into(),
+        host_binary:   "MSBuild.exe".into(),
     });
     let src = generate_csharp_source(&cfg).unwrap();
     assert!(src.contains("0x4C") && src.contains("0x8B") && src.contains("0xD1"));
