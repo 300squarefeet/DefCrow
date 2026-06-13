@@ -61,6 +61,16 @@ async fn main() {
 
     let staged_key: [u8; 32] = rand::thread_rng().gen();
 
+    // TODO(Task 7): bootstrap admin user from DEFCROW_BOOTSTRAP_USERNAME
+    // and load these from `${artifacts_dir}` instead of constructing
+    // empty in-memory defaults here.
+    let user_store    = std::sync::Arc::new(tokio::sync::RwLock::new(
+        web_server::auth::UserStore::default(),
+    ));
+    let auth_settings = std::sync::Arc::new(tokio::sync::RwLock::new(
+        web_server::auth::AuthSettings::default(),
+    ));
+
     let state = AppState {
         config:           cfg.clone(),
         sessions:         SessionStore::new(),
@@ -70,6 +80,8 @@ async fn main() {
         staged_key,
         staged_dir,
         smuggler_dir,
+        user_store,
+        auth_settings,
     };
 
     web_server::api::cleanup::spawn_cleanup_task(cfg.artifacts_dir.clone());

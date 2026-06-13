@@ -5,6 +5,7 @@ use axum::{
 };
 use web_server::{
     api::download::download_artifact,
+    auth::{AuthSettings, UserStore},
     builder::job_store::JobStore,
     config::Config,
     middleware::auth::{LoginRateLimiter, SessionStore},
@@ -28,6 +29,8 @@ fn make_state(artifacts_dir: &str) -> AppState {
         staged_key:       [0u8; 32],
         staged_dir:       std::path::PathBuf::from(artifacts_dir).join("staged"),
         smuggler_dir:     std::path::PathBuf::from(artifacts_dir).join("smuggler"),
+        user_store:       std::sync::Arc::new(tokio::sync::RwLock::new(UserStore::default())),
+        auth_settings:    std::sync::Arc::new(tokio::sync::RwLock::new(AuthSettings::default())),
     }
 }
 
