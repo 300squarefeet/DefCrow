@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::{
-    auth::{AuthSettings, UserStore},
+    auth::{AuthSettings, KeyStore, UserStore},
     builder::job_store::JobStore,
     config::Config,
     middleware::auth::{LoginRateLimiter, SessionStore},
@@ -24,4 +24,5 @@ pub struct AppState {
     // Task 7 (bootstrap admin + load from artifacts dir).
     pub user_store:       Arc<RwLock<UserStore>>,
     pub auth_settings:    Arc<RwLock<AuthSettings>>,
+    pub key_store:        Arc<KeyStore>,
 }

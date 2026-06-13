@@ -70,6 +70,7 @@ async fn main() {
     let auth_settings = std::sync::Arc::new(tokio::sync::RwLock::new(
         web_server::auth::AuthSettings::default(),
     ));
+    let key_store     = std::sync::Arc::new(web_server::auth::KeyStore::new());
 
     let state = AppState {
         config:           cfg.clone(),
@@ -82,6 +83,7 @@ async fn main() {
         smuggler_dir,
         user_store,
         auth_settings,
+        key_store,
     };
 
     web_server::api::cleanup::spawn_cleanup_task(cfg.artifacts_dir.clone());
