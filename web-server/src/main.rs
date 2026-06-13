@@ -32,9 +32,10 @@ pub fn build_router(state: AppState) -> Router {
     // applies layers in reverse-add order, so `require_auth` runs
     // first per request and `require_admin` reads the injected claims.
     let admin = Router::new()
-        .route("/api/admin/users",            get(api::admin::list_users).post(api::admin::add_user))
-        .route("/api/admin/users/:username",  delete(api::admin::delete_user))
-        .route("/api/admin/settings",         get(api::admin::get_settings).put(api::admin::put_settings))
+        .route("/api/admin/users",                 get(api::admin::list_users).post(api::admin::add_user))
+        .route("/api/admin/users/:username",       delete(api::admin::delete_user))
+        .route("/api/admin/settings",              get(api::admin::get_settings).put(api::admin::put_settings))
+        .route("/api/admin/settings/test-webhook", post(api::admin::test_webhook))
         .route_layer(axum_mw::from_fn(require_admin))
         .route_layer(axum_mw::from_fn_with_state(state.clone(), require_auth));
 
@@ -104,7 +105,11 @@ async fn main() {
         .expect("failed to load auth_settings.json");
     if fresh_settings {
         if let Some(url) = cfg.bootstrap_webhook.clone() {
-            auth_settings_inner.set_webhook(Some(url));
+            // Refuse to bootstrap with a non-Discord URL — same
+            // validation as the admin endpoint.
+            if let Err(err) = auth_settings_inner.set_webhook(Some(url)) {
+                panic!("DEFCROW_BOOTSTRAP_WEBHOOK rejected: {}", err);
+            }
             auth_settings_inner.save(&artifacts_path)
                 .expect("failed to persist bootstrap auth_settings.json");
         }

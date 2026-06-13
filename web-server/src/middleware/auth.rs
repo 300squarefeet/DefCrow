@@ -69,12 +69,22 @@ impl LoginRateLimiter {
 
 // ── Session claims (HS256 JWT) ──────────────────────────────────────────────
 
+/// Schema version of [`SessionClaims`]. Bump whenever the claim set
+/// changes in a way that should invalidate every outstanding token
+/// (e.g. the password→Discord-key migration). `decode_session` refuses
+/// any token whose `ver` does not match this constant.
+pub const SESSION_CLAIMS_VERSION: u32 = 2;
+
 /// Claims carried inside the session JWT. `sub` holds the username,
-/// `role` is `"admin"` or `"operator"`, and `exp` is the unix expiry.
+/// `role` is `"admin"` or `"operator"`, `ver` pins the claim schema so
+/// pre-migration tokens get rejected even when the signing secret is
+/// reused, and `exp` is the unix expiry.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SessionClaims {
     pub sub:  String,
     pub role: String,
+    #[serde(default)]
+    pub ver:  u32,
     pub iat:  i64,
     pub exp:  i64,
 }
@@ -121,6 +131,10 @@ pub fn decode_session(token: &str, key: &[u8; 32]) -> Option<SessionClaims> {
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
     if claims.exp <= now { return None; }
+    // Reject any token signed against a prior claim schema. This is
+    // how the password→Discord-key migration invalidates outstanding
+    // sessions without having to rotate `DEFCROW_SESSION_SECRET`.
+    if claims.ver != SESSION_CLAIMS_VERSION { return None; }
     Some(claims)
 }
 
@@ -211,6 +225,7 @@ mod tests {
         SessionClaims {
             sub:  "alice".into(),
             role: role.into(),
+            ver:  SESSION_CLAIMS_VERSION,
             iat:  now,
             exp:  now + 3600,
         }
@@ -249,6 +264,19 @@ mod tests {
         let k = key();
         let mut claims = make_claims("admin");
         claims.exp = 0;
+        let tok = sign_session_jwt(&k, &claims);
+        assert!(decode_session(&tok, &k).is_none());
+    }
+
+    #[test]
+    fn decode_rejects_pre_migration_ver() {
+        // Tokens minted before the schema bump default to ver=0 via
+        // `#[serde(default)]`. Those must fail to decode so the
+        // password→Discord-key cutover invalidates outstanding
+        // sessions without rotating the signing secret.
+        let k = key();
+        let mut claims = make_claims("admin");
+        claims.ver = 0;
         let tok = sign_session_jwt(&k, &claims);
         assert!(decode_session(&tok, &k).is_none());
     }

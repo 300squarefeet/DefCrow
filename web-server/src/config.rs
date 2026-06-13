@@ -3,7 +3,6 @@ use std::env;
 #[derive(Clone, Debug)]
 pub struct Config {
     pub port:                u16,
-    pub username:            String,
     pub session_secret:      String,
     pub scaffold_rlib:       String,
     pub artifacts_dir:       String,
@@ -22,8 +21,6 @@ impl Config {
         Ok(Config {
             port:                env::var("DEFCROW_PORT")
                                    .unwrap_or("8080".into()).parse()?,
-            username:            env::var("DEFCROW_USERNAME")
-                                   .unwrap_or("admin".into()),
             session_secret:      env::var("DEFCROW_SESSION_SECRET")
                                    .expect("DEFCROW_SESSION_SECRET must be set"),
             scaffold_rlib:       env::var("DEFCROW_SCAFFOLD_RLIB")
@@ -51,7 +48,6 @@ mod tests {
         std::env::remove_var("DEFCROW_BOOTSTRAP_WEBHOOK");
         let cfg = Config::from_env().unwrap();
         assert_eq!(cfg.port, 8080);
-        assert_eq!(cfg.username, "admin");
         assert_eq!(cfg.bootstrap_username, "admin");
         assert!(cfg.bootstrap_webhook.is_none());
     }

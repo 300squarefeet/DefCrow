@@ -25,7 +25,7 @@ use web_server::{
     builder::job_store::JobStore,
     config::Config,
     middleware::{
-        auth::{derive_session_key, require_auth, sign_session_jwt, LoginRateLimiter, SessionClaims, SessionStore},
+        auth::{derive_session_key, require_auth, sign_session_jwt, LoginRateLimiter, SessionClaims, SessionStore, SESSION_CLAIMS_VERSION},
         require_admin::require_admin,
     },
     state::AppState,
@@ -35,7 +35,6 @@ fn make_state(artifacts_dir: &str) -> AppState {
     AppState {
         config: Config {
             port: 8080,
-            username: "admin".into(),
             session_secret: "testsecret".into(),
             scaffold_rlib: "libscaffold.rlib".into(),
             artifacts_dir: artifacts_dir.to_string(),
@@ -59,9 +58,10 @@ fn make_state(artifacts_dir: &str) -> AppState {
 
 fn build_app(state: AppState) -> Router {
     let admin = Router::new()
-        .route("/api/admin/users",           get(api::admin::list_users).post(api::admin::add_user))
-        .route("/api/admin/users/:username", delete(api::admin::delete_user))
-        .route("/api/admin/settings",        get(api::admin::get_settings).put(api::admin::put_settings))
+        .route("/api/admin/users",                 get(api::admin::list_users).post(api::admin::add_user))
+        .route("/api/admin/users/:username",       delete(api::admin::delete_user))
+        .route("/api/admin/settings",              get(api::admin::get_settings).put(api::admin::put_settings))
+        .route("/api/admin/settings/test-webhook", post(api::admin::test_webhook))
         .route_layer(axum_mw::from_fn(require_admin))
         .route_layer(axum_mw::from_fn_with_state(state.clone(), require_auth));
 
@@ -91,6 +91,7 @@ fn issue_token_for(state: &AppState, sub: &str, role: &str) -> String {
     let claims = SessionClaims {
         sub:  sub.into(),
         role: role.into(),
+        ver:  SESSION_CLAIMS_VERSION,
         iat:  now,
         exp:  now + 3600,
     };
@@ -115,16 +116,27 @@ async fn request_key_unknown_user_returns_200_no_enum() {
 }
 
 #[tokio::test]
-async fn request_key_with_webhook_unconfigured_returns_500_for_real_user() {
+async fn request_key_with_webhook_unconfigured_does_not_leak_user_existence() {
+    // Regression: an earlier impl returned 500 for real users and 200
+    // for unknown ones when the webhook was unset. Both paths must
+    // produce the same generic 200 so an attacker cannot use the
+    // webhook-misconfigured state as an enumeration oracle.
     let tmp = tempfile::tempdir().unwrap();
     let (server, _) = make_server(tmp.path().to_str().unwrap());
 
-    let resp = server.post("/api/auth/request-key")
+    let real = server.post("/api/auth/request-key")
         .json(&json!({ "username": "admin" }))
         .await;
-    resp.assert_status(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
-    let body: Value = resp.json();
-    assert_eq!(body["delivered"], false);
+    real.assert_status_ok();
+    let real_body: Value = real.json();
+    assert_eq!(real_body["delivered"], true);
+
+    let ghost = server.post("/api/auth/request-key")
+        .json(&json!({ "username": "ghost_user_xyz" }))
+        .await;
+    ghost.assert_status_ok();
+    let ghost_body: Value = ghost.json();
+    assert_eq!(ghost_body["delivered"], true);
 }
 
 #[tokio::test]
@@ -346,7 +358,7 @@ async fn admin_get_webhook_returns_value() {
     let (server, state) = make_server(tmp.path().to_str().unwrap());
     {
         let mut s = state.auth_settings.write().await;
-        s.set_webhook(Some("https://discord.com/api/webhooks/xyz".into()));
+        s.set_webhook(Some("https://discord.com/api/webhooks/xyz".into())).unwrap();
     }
     let tok = issue_token_for(&state, "admin", "admin");
 
@@ -359,6 +371,66 @@ async fn admin_get_webhook_returns_value() {
     resp.assert_status_ok();
     let body: Value = resp.json();
     assert_eq!(body["discord_webhook"], "https://discord.com/api/webhooks/xyz");
+}
+
+#[tokio::test]
+async fn admin_set_webhook_rejects_non_discord_host() {
+    // SSRF / token-exfil hardening: the webhook URL must point at the
+    // real Discord webhook host. Anything else gets rejected at the
+    // persistence boundary.
+    let tmp = tempfile::tempdir().unwrap();
+    let (server, state) = make_server(tmp.path().to_str().unwrap());
+    let tok = issue_token_for(&state, "admin", "admin");
+
+    let resp = server.put("/api/admin/settings")
+        .add_header(
+            axum::http::header::AUTHORIZATION,
+            format!("Bearer {}", tok).parse().unwrap(),
+        )
+        .json(&json!({ "discord_webhook": "https://evil.example/api/webhooks/abc" }))
+        .await;
+    resp.assert_status(axum::http::StatusCode::BAD_REQUEST);
+
+    // And nothing was persisted.
+    assert!(!tmp.path().join("auth_settings.json").exists()
+        || !std::fs::read_to_string(tmp.path().join("auth_settings.json")).unwrap().contains("evil"));
+}
+
+#[tokio::test]
+async fn test_webhook_without_configured_url_returns_ok_false() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (server, state) = make_server(tmp.path().to_str().unwrap());
+    let tok = issue_token_for(&state, "admin", "admin");
+
+    let resp = server.post("/api/admin/settings/test-webhook")
+        .add_header(
+            axum::http::header::AUTHORIZATION,
+            format!("Bearer {}", tok).parse().unwrap(),
+        )
+        .await;
+    resp.assert_status_ok();
+    let body: Value = resp.json();
+    assert_eq!(body["ok"], false);
+    assert!(body["error"].as_str().unwrap().contains("not configured"));
+}
+
+#[tokio::test]
+async fn test_webhook_requires_admin() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (server, state) = make_server(tmp.path().to_str().unwrap());
+    {
+        let mut store = state.user_store.write().await;
+        store.add("alice", ROLE_OPERATOR).unwrap();
+    }
+    let tok = issue_token_for(&state, "alice", ROLE_OPERATOR);
+
+    let resp = server.post("/api/admin/settings/test-webhook")
+        .add_header(
+            axum::http::header::AUTHORIZATION,
+            format!("Bearer {}", tok).parse().unwrap(),
+        )
+        .await;
+    resp.assert_status(axum::http::StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]

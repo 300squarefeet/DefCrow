@@ -27,18 +27,33 @@ function loadUser(): UserInfo | null {
     const raw = localStorage.getItem('defcrow_user')
     if (!raw) return null
     const parsed = JSON.parse(raw)
+    // Strict shape: a tampered or stale (pre-role) localStorage entry
+    // forces a re-login so a hand-edited role can't paint admin-only UI
+    // sections. The server still enforces auth, but suppressing the
+    // chrome avoids user confusion from clicking actions that 403.
     if (typeof parsed?.username !== 'string') return null
-    // Tolerate older payloads that didn't store a role: treat as operator until next login.
-    const role = typeof parsed?.role === 'string' ? parsed.role : 'operator'
-    return { username: parsed.username, role }
+    if (typeof parsed?.role !== 'string')     return null
+    if (parsed.role !== 'admin' && parsed.role !== 'operator') return null
+    return { username: parsed.username, role: parsed.role }
   } catch { return null }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  // If we have a token but the user blob is missing or malformed
+  // (e.g. an older client that didn't persist a role, or a tampered
+  // entry), drop the token too so we re-prompt rather than render an
+  // admin shell with operator data.
+  const [user, setUser] = useState<UserInfo | null>(() => {
+    const u = loadUser()
+    if (!u && localStorage.getItem('defcrow_token')) {
+      localStorage.removeItem('defcrow_token')
+      localStorage.removeItem('defcrow_user')
+    }
+    return u
+  })
   const [isAuthenticated, setIsAuthenticated] = useState(
     () => !!localStorage.getItem('defcrow_token')
   )
-  const [user, setUser] = useState<UserInfo | null>(() => loadUser())
 
   const requestKey = useCallback(async (username: string) => {
     return apiRequestKey(username)

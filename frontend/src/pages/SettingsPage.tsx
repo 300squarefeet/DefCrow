@@ -263,60 +263,68 @@ function OperatorsSection() {
         {loading ? (
           <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>Loading operators…</div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1.4fr 0.8fr 1.4fr auto',
-                gap: 12,
-                padding: '6px 8px',
-                fontSize: 11,
-                textTransform: 'uppercase',
-                letterSpacing: '0.08em',
-                color: 'var(--muted)',
-              }}
-            >
-              <span>Username</span>
-              <span>Role</span>
-              <span>Created</span>
-              <span/>
-            </div>
-            {users.length === 0 ? (
-              <div style={{ fontSize: 12.5, color: 'var(--muted)', padding: '6px 8px' }}>
-                No operators registered.
-              </div>
-            ) : users.map(u => {
-              const isSelf = u.username === user?.username
-              return (
-                <div
-                  key={u.username}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1.4fr 0.8fr 1.4fr auto',
-                    gap: 12,
-                    padding: '8px',
-                    borderRadius: 6,
-                    background: 'var(--surface-2, rgba(255,255,255,0.02))',
-                    border: '1px solid var(--border, rgba(255,255,255,0.06))',
-                    fontSize: 12.5,
-                    alignItems: 'center',
-                  }}
-                >
-                  <span className="mono">{u.username}{isSelf && ' (you)'}</span>
-                  <span style={{ textTransform: 'capitalize' }}>{u.role}</span>
-                  <span className="mono" style={{ color: 'var(--muted)' }}>{formatTimestamp(u.created_at)}</span>
-                  <button
-                    className="btn btn-sm"
-                    onClick={() => handleDelete(u.username)}
-                    disabled={deleting === u.username || isSelf}
-                    title={isSelf ? "Can't delete yourself" : 'Delete operator'}
-                  >
-                    {deleting === u.username ? 'Deleting…' : 'Delete'}
-                  </button>
-                </div>
-              )
-            })}
-          </div>
+          <table className="operators-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 6px' }}>
+            <caption className="visually-hidden" style={{
+              position: 'absolute', width: 1, height: 1, overflow: 'hidden',
+              clip: 'rect(0 0 0 0)', clipPath: 'inset(50%)', whiteSpace: 'nowrap',
+            }}>
+              Registered operators
+            </caption>
+            <thead>
+              <tr style={{
+                fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)',
+              }}>
+                <th scope="col" style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 500 }}>Username</th>
+                <th scope="col" style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 500 }}>Role</th>
+                <th scope="col" style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 500 }}>Created</th>
+                <th scope="col" style={{ padding: '6px 8px' }}>
+                  <span style={{
+                    position: 'absolute', width: 1, height: 1, overflow: 'hidden',
+                    clip: 'rect(0 0 0 0)', clipPath: 'inset(50%)', whiteSpace: 'nowrap',
+                  }}>Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.length === 0 ? (
+                <tr>
+                  <td colSpan={4} style={{ fontSize: 12.5, color: 'var(--muted)', padding: '6px 8px' }}>
+                    No operators registered.
+                  </td>
+                </tr>
+              ) : users.map(u => {
+                const isSelf = u.username === user?.username
+                const cellStyle: React.CSSProperties = {
+                  padding: '8px',
+                  background: 'var(--surface-2, rgba(255,255,255,0.02))',
+                  borderTop:    '1px solid var(--border, rgba(255,255,255,0.06))',
+                  borderBottom: '1px solid var(--border, rgba(255,255,255,0.06))',
+                  fontSize: 12.5,
+                }
+                return (
+                  <tr key={u.username}>
+                    <td style={{ ...cellStyle, borderLeft: '1px solid var(--border, rgba(255,255,255,0.06))', borderTopLeftRadius: 6, borderBottomLeftRadius: 6 }}>
+                      <span className="mono">{u.username}{isSelf && ' (you)'}</span>
+                    </td>
+                    <td style={{ ...cellStyle, textTransform: 'capitalize' }}>{u.role}</td>
+                    <td style={cellStyle}>
+                      <span className="mono" style={{ color: 'var(--muted)' }}>{formatTimestamp(u.created_at)}</span>
+                    </td>
+                    <td style={{ ...cellStyle, textAlign: 'right', borderRight: '1px solid var(--border, rgba(255,255,255,0.06))', borderTopRightRadius: 6, borderBottomRightRadius: 6 }}>
+                      <button
+                        className="btn btn-sm"
+                        onClick={() => handleDelete(u.username)}
+                        disabled={deleting === u.username || isSelf}
+                        title={isSelf ? "Can't delete yourself" : 'Delete operator'}
+                      >
+                        {deleting === u.username ? 'Deleting…' : 'Delete'}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         )}
 
         <form

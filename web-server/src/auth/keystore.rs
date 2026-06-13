@@ -73,10 +73,13 @@ impl KeyStore {
     }
 
     /// Drop entries past their expiry. Safe to call from a background
-    /// task on an interval.
+    /// task on an interval. Used-but-not-yet-expired entries are kept
+    /// so a follow-up replay attempt still finds the (used) sentinel
+    /// and we can log a replay rather than silently treating it like
+    /// "unknown user".
     pub fn cleanup(&self) {
         let now = unix_now();
-        self.inner.retain(|_, v| !v.is_expired(now) && !v.used);
+        self.inner.retain(|_, v| !v.is_expired(now));
     }
 
     #[cfg(test)]
@@ -201,14 +204,17 @@ mod tests {
     }
 
     #[test]
-    fn cleanup_drops_expired_and_used_entries() {
+    fn cleanup_drops_expired_entries_but_keeps_used_ones() {
+        // Keeping used+unexpired entries lets us distinguish a real
+        // replay attempt from an unknown user during diagnostics.
         let ks = KeyStore::new();
         let _ = ks.issue("alice", &SECRET);
         let b = ks.issue("bob",   &SECRET);
         ks.force_expire("alice");
-        // Mark bob used.
         assert!(ks.verify("bob", &b, &SECRET));
         ks.cleanup();
-        assert_eq!(ks.len(), 0);
+        assert_eq!(ks.len(), 1, "bob's used-but-unexpired entry should remain");
+        // A replay still fails verification.
+        assert!(!ks.verify("bob", &b, &SECRET));
     }
 }

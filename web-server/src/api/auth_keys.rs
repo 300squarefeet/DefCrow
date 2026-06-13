@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::auth::send_discord_key;
-use crate::middleware::auth::{derive_session_key, sign_session_jwt, SessionClaims};
+use crate::middleware::auth::{derive_session_key, sign_session_jwt, SessionClaims, SESSION_CLAIMS_VERSION};
 use crate::state::AppState;
 
 const SESSION_TTL_SECS: i64 = 86_400;
@@ -99,32 +99,36 @@ pub async fn request_key(
         }));
     }
 
-    // Look up the user. Unknown usernames quietly succeed so an
-    // attacker cannot enumerate operators by polling the endpoint.
+    // Resolve the webhook BEFORE the user lookup. We must produce an
+    // identical response shape for known and unknown usernames — if we
+    // short-circuit on "user exists?" first, a missing webhook would
+    // leak existence (real user → 500, unknown → 200). Reading the
+    // webhook first means the unconfigured-webhook branch lands the
+    // same generic 200 for everyone.
+    let webhook = {
+        let s = state.auth_settings.read().await;
+        s.get_webhook().map(|s| s.to_string())
+    };
     let known_user = {
         let users = state.user_store.read().await;
         users.find(&username).cloned()
     };
 
-    // Read webhook & generate key only if user exists. We still keep
-    // the response shape stable for the unknown-user branch.
-    let webhook = {
-        let s = state.auth_settings.read().await;
-        s.get_webhook().map(|s| s.to_string())
+    // Unconfigured webhook: behave the same regardless of whether the
+    // user exists. We log a warning server-side so an admin can spot
+    // the misconfiguration without surfacing it to anonymous callers.
+    let Some(webhook_url) = webhook else {
+        if known_user.is_some() {
+            warn!(%username, "request-key called with no Discord webhook configured");
+        }
+        return (StatusCode::OK, Json(RequestKeyResponse { delivered: true, error: None }));
     };
 
     if known_user.is_none() {
-        // Mirror the timing/shape of the success path without doing
-        // any actual work.
+        // Unknown user, webhook is configured — silently succeed so an
+        // attacker cannot enumerate operators by polling the endpoint.
         return (StatusCode::OK, Json(RequestKeyResponse { delivered: true, error: None }));
     }
-
-    let Some(webhook_url) = webhook else {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(RequestKeyResponse {
-            delivered: false,
-            error: Some("Discord webhook is not configured".into()),
-        }));
-    };
 
     let session_key = derive_session_key(&state.config.session_secret);
     let plain_key   = state.key_store.issue(&username, &session_key);
@@ -197,6 +201,7 @@ pub async fn login(
     let claims = SessionClaims {
         sub:  user.username.clone(),
         role: user.role.clone(),
+        ver:  SESSION_CLAIMS_VERSION,
         iat:  now,
         exp:  now + SESSION_TTL_SECS,
     };

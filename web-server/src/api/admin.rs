@@ -13,6 +13,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::auth::send_discord_key;
 use crate::auth::users::{UserRecord, ROLE_ADMIN, ROLE_OPERATOR};
 use crate::middleware::auth::SessionClaims;
 use crate::state::AppState;
@@ -116,10 +117,52 @@ pub async fn put_settings(
     Json(body):   Json<AuthSettingsBody>,
 ) -> Result<Json<AuthSettingsBody>, (StatusCode, String)> {
     let mut s = state.auth_settings.write().await;
-    s.set_webhook(body.discord_webhook);
+    s.set_webhook(body.discord_webhook)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     s.save(&artifacts_dir(&state))
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(AuthSettingsBody {
         discord_webhook: s.get_webhook().map(|s| s.to_string()),
     }))
+}
+
+// ── POST /api/admin/settings/test-webhook ──────────────────────────────────
+
+#[derive(Serialize)]
+pub struct TestWebhookResponse {
+    pub ok:    bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+/// Trigger a synthetic Discord delivery against the currently-saved
+/// webhook so an admin can verify the embed renders before relying on
+/// it for real logins. Uses a fixed `[test]` username + bogus key so a
+/// triggered embed can never be mistaken for a real credential.
+pub async fn test_webhook(
+    State(state): State<AppState>,
+    Extension(claims): Extension<SessionClaims>,
+) -> Json<TestWebhookResponse> {
+    let webhook = {
+        let s = state.auth_settings.read().await;
+        s.get_webhook().map(|s| s.to_string())
+    };
+    let Some(url) = webhook else {
+        return Json(TestWebhookResponse {
+            ok:    false,
+            error: Some("Discord webhook is not configured".into()),
+        });
+    };
+    // Synthetic username + sentinel "key" — anyone trying to reuse the
+    // delivered string against `/api/auth/login` is rejected because
+    // `verify` requires an actual `key_store` entry.
+    let actor   = format!("{} (test)", claims.sub);
+    let sentinel = "TEST-ONLY";
+    match send_discord_key(&url, &actor, sentinel).await {
+        Ok(()) => Json(TestWebhookResponse { ok: true,  error: None }),
+        Err(e) => Json(TestWebhookResponse {
+            ok:    false,
+            error: Some(format!("delivery failed: {}", e)),
+        }),
+    }
 }

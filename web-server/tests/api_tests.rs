@@ -16,7 +16,6 @@ fn make_state(artifacts_dir: &str) -> AppState {
     AppState {
         config: Config {
             port: 8080,
-            username: "admin".into(),
             session_secret: "testsecret".into(),
             scaffold_rlib: "libscaffold.rlib".into(),
             artifacts_dir: artifacts_dir.to_string(),
