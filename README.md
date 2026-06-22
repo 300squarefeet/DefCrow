@@ -6,7 +6,7 @@
 
 Generates 14 evasion-aware loader formats (PE, DLL, .NET, VBA, WSF, HTA, SCT, MSBuild, XSL, INF) from a single shellcode source, behind an authenticated operator console.
 
-![DefCrow login console](docs/screenshots/login.png)
+![DefCrow operator dashboard](docs/screenshots/dashboard.png)
 
 </div>
 
