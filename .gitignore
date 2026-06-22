@@ -33,8 +33,9 @@ artifacts/
 # Internal claude design references (not part of the public repo)
 docs/design-reference/
 
-# Internal Claude planning notes (kept local)
+# Internal planning notes + brainstorm artifacts (kept local, never push)
 .claude/
+.superpowers/
 docs/superpowers/
 
 # Temp
