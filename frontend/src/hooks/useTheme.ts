@@ -7,9 +7,9 @@ export function useTheme() {
     () => {
       try {
         const stored = localStorage.getItem('defcrow_theme')
-        return (stored === 'hacker' || stored === 'clean' ? stored : 'hacker') as Theme
+        return (stored === 'hacker' || stored === 'clean' ? stored : 'clean') as Theme
       } catch {
-        return 'hacker'
+        return 'clean'
       }
     }
   )

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { SmugResponse, sendDiscordWebhook } from '../api/smuggler'
 
-const EXTENSIONS = ['.pdf', '.jpg', '.png', '.gif', '.iso', '.zip', '.svg', '.jpeg', '.exe']
+const DELIVERY_EXTS = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'svg', 'iso', 'zip']
 
 interface Props {
   artifactName: string
@@ -10,126 +10,142 @@ interface Props {
   onSmuggle:    (fakeName: string) => Promise<SmugResponse>
 }
 
+function genKey(n = 6): string {
+  const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let s = ''; for (let i = 0; i < n; i++) s += a[Math.floor(Math.random() * a.length)]
+  return s
+}
+
 export default function DeliveryCard({ artifactName, stageHost, downloadId, onSmuggle }: Props) {
-  const [ext, setExt]                   = useState('.pdf')
+  const settings = loadSettings()
+  const [ext, setExt]                   = useState(settings.defaultExt || 'pdf')
   const [smugUrl, setSmugUrl]           = useState<string | null>(null)
   const [smugLoading, setSmugLoading]   = useState(false)
-  const [smugError, setSmugError]       = useState(false)
-  const [discordSent, setDiscordSent]   = useState(false)
-  const [discordError, setDiscordError] = useState(false)
+  const [accessKey] = useState(() => genKey(6))
+  const [discordStatus, setDiscordStatus] = useState<{ ok?: boolean; msg: string } | null>(null)
 
-  const baseName          = artifactName.replace(/\.[^.]+$/, '')
-  const fakeName          = `${baseName}${ext}`
-  const discordWebhookUrl = localStorage.getItem('defcrow_discord_url')
+  const baseName  = artifactName.replace(/\.[^.]+$/, '')
+  const fakeName  = `${baseName}.${ext}`
+  const scheme    = typeof window !== 'undefined' ? window.location.protocol.replace(':', '') : 'http'
 
   async function handleSmuggle() {
     if (!downloadId || smugLoading) return
     setSmugLoading(true)
     try {
       const res = await onSmuggle(fakeName)
-      setSmugUrl(`https://${stageHost}${res.url}`)
-    } catch {
-      setSmugError(true)
-      setTimeout(() => setSmugError(false), 3000)
+      setSmugUrl(`${scheme}://${stageHost}${res.url}`)
     } finally {
       setSmugLoading(false)
     }
   }
 
   async function handleDiscord() {
-    if (!smugUrl || !discordWebhookUrl) return
+    if (!smugUrl) return
+    const webhook = settings.discord?.webhook
+    if (!settings.discord?.enabled || !webhook) {
+      setDiscordStatus({ ok: false, msg: 'Discord not configured' })
+      return
+    }
+    setDiscordStatus({ msg: 'sending…' })
     try {
-      await sendDiscordWebhook(discordWebhookUrl, smugUrl, fakeName)
-      setDiscordSent(true)
-      setTimeout(() => setDiscordSent(false), 3000)
+      await sendDiscordWebhook(webhook, smugUrl, fakeName)
+      setDiscordStatus({ ok: true, msg: `sent to ${settings.discord?.channel || 'Discord'}` })
+      setTimeout(() => setDiscordStatus(null), 3000)
     } catch {
-      setDiscordError(true)
-      setTimeout(() => setDiscordError(false), 3000)
+      setDiscordStatus({ ok: false, msg: 'webhook failed' })
+      setTimeout(() => setDiscordStatus(null), 3000)
     }
   }
 
   return (
-    <div className="rounded-xl p-4 space-y-3" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--surface-2)' }}>
-      <div className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--ink-muted)' }}>
-        Delivery
+    <div className="delivery-card">
+      <div className="delivery-head">
+        <span className="title">Delivery — HTML smuggler link</span>
+        <span className="pill">extension cloak</span>
       </div>
-
-      {/* Extension picker */}
-      <div className="flex flex-wrap gap-1">
-        {EXTENSIONS.map(e => (
-          <button
-            key={e}
-            type="button"
-            onClick={() => setExt(e)}
-            className="text-[10px] px-2 py-0.5 rounded font-mono transition"
-            style={{
-              border:          `1px solid ${ext === e ? 'var(--blue-500)' : 'var(--border)'}`,
-              backgroundColor: ext === e ? 'var(--blue-alpha)' : 'transparent',
-              color:           ext === e ? 'var(--blue-500)' : 'var(--ink-muted)',
-            }}
-          >
-            {e}
-          </button>
-        ))}
-      </div>
-
-      {/* URL area — placeholder before smuggle, real link after */}
-      {smugUrl ? (
-        <div className="space-y-2">
-          <div className="rounded-lg px-3 py-2 font-mono text-xs break-all" style={{ backgroundColor: 'var(--surface)', color: 'var(--ok)' }}>
-            {smugUrl}
+      <div className="delivery-body">
+        <div>
+          <span className="login-label" style={{ marginBottom: 6, display: 'block' }}>Filename extension</span>
+          <div className="ext-picker">
+            {DELIVERY_EXTS.map(x => (
+              <button key={x}
+                className={'ext-chip' + (ext === x ? ' active' : '')}
+                onClick={() => setExt(x)}>.{x}</button>
+            ))}
           </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => window.open(smugUrl, '_blank')}
-              className="flex-1 py-1.5 rounded-lg text-xs font-medium transition"
-              style={{ border: '1px solid var(--border)', color: 'var(--ink)' }}
-            >
-              Open
-            </button>
-            <button
-              type="button"
-              onClick={() => navigator.clipboard?.writeText(smugUrl)}
-              className="flex-1 py-1.5 rounded-lg text-xs font-medium transition"
-              style={{ border: '1px solid var(--blue-500)', color: 'var(--blue-500)' }}
-            >
-              Copy link
+        </div>
+        <div>
+          <span className="login-label" style={{ marginBottom: 6, display: 'block' }}>Shareable URL</span>
+          <div className="delivery-url-row">
+            <span className="delivery-url">
+              {smugUrl ?? (downloadId ? `${scheme}://${stageHost}/d/…/${fakeName}` : 'Forge first to mint smuggler link')}
+            </span>
+            {smugUrl && (
+              <button className="btn btn-sm btn-ghost" onClick={() => navigator.clipboard?.writeText(smugUrl)}>
+                <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <rect x="8" y="8" width="12" height="12" rx="2"/>
+                  <path d="M16 8V5a2 2 0 00-2-2H5a2 2 0 00-2 2v9a2 2 0 002 2h3"/>
+                </svg>
+                <span>Copy</span>
+              </button>
+            )}
+          </div>
+        </div>
+        <div>
+          <span className="login-label" style={{ marginBottom: 6, display: 'block' }}>Access key (deliver out-of-band)</span>
+          <div className="delivery-key-row">
+            <span className="delivery-key-val">{accessKey}</span>
+            <button className="btn btn-sm btn-ghost" onClick={() => navigator.clipboard?.writeText(accessKey)}>
+              <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <rect x="8" y="8" width="12" height="12" rx="2"/>
+                <path d="M16 8V5a2 2 0 00-2-2H5a2 2 0 00-2 2v9a2 2 0 002 2h3"/>
+              </svg>
+              <span>Copy</span>
             </button>
           </div>
-          {discordWebhookUrl && (
-            <button
-              type="button"
-              onClick={handleDiscord}
-              disabled={discordSent}
-              className="w-full py-1.5 rounded-lg text-xs font-medium transition disabled:opacity-60"
-              style={{
-                border: '1px solid var(--border)',
-                color:  discordError ? 'var(--danger)' : discordSent ? 'var(--ok)' : 'var(--ink-muted)',
-              }}
-            >
-              {discordSent ? 'Sent!' : discordError ? 'Failed' : 'Send to Discord'}
+        </div>
+        <div className="delivery-actions">
+          {!smugUrl ? (
+            <button className="btn btn-sm btn-primary" disabled={!downloadId || smugLoading}
+              onClick={handleSmuggle}>
+              {smugLoading ? 'Generating…' : 'Mint smuggler link'}
             </button>
+          ) : (
+            <a className="btn btn-sm btn-primary" href={smugUrl} target="_blank" rel="noopener">Open smuggler page</a>
+          )}
+          <button className="btn btn-sm" disabled={!smugUrl} onClick={handleDiscord}>Send to Discord</button>
+          {discordStatus && (
+            <span className={'discord-status' + (discordStatus.ok ? ' sent' : '')}>
+              <span className="led"/>{discordStatus.msg}
+            </span>
+          )}
+          {!settings.discord?.enabled && (
+            <span className="discord-status">
+              <span className="led"/>Discord disabled — enable in Settings
+            </span>
           )}
         </div>
-      ) : (
-        <div className="rounded-lg px-3 py-2 font-mono text-xs break-all" style={{ backgroundColor: 'var(--surface)', color: 'var(--ink-muted)' }}>
-          {downloadId ? `https://${stageHost}/d/…/${fakeName}` : 'Build first to create smuggle link'}
-        </div>
-      )}
-
-      {/* Smuggle button — hidden once link is created */}
-      {!smugUrl && (
-        <button
-          type="button"
-          disabled={!downloadId || smugLoading}
-          onClick={handleSmuggle}
-          className="w-full py-2 rounded-lg text-xs font-medium transition disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ backgroundColor: 'var(--blue-500)', color: '#fff' }}
-        >
-          {smugLoading ? 'Generating…' : smugError ? 'Failed — retry' : 'Smuggle'}
-        </button>
-      )}
+      </div>
     </div>
   )
+}
+
+interface Settings {
+  defaultExt:   string
+  stageHost:    string
+  smugglerHost: string
+  discord:      { enabled: boolean; webhook: string; channel: string }
+}
+const DEFAULT_SETTINGS: Settings = {
+  defaultExt:   'pdf',
+  stageHost:    '',
+  smugglerHost: '',
+  discord:      { enabled: false, webhook: '', channel: '#deliveries' },
+}
+function loadSettings(): Settings {
+  try {
+    return { ...DEFAULT_SETTINGS, ...(JSON.parse(localStorage.getItem('dc_settings') || 'null') || {}) }
+  } catch {
+    return { ...DEFAULT_SETTINGS }
+  }
 }

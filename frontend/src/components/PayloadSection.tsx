@@ -1,135 +1,181 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { StagePayload } from '../api/stage'
 
-type Mode = 'stageless' | 'staged'
-
 interface Props {
-  mode:                Mode
-  onModeChange:        (m: Mode) => void
-  shellcodeHex:        string
-  onShellcodeHexChange:(hex: string) => void
-  binFilename:         string | null
-  stages:              StagePayload[]
-  onFileUpload:        (file: File) => void
-  onStageUpload:       (file: File) => void
-  onStageDelete:       (pid: string) => void
+  mode:              'stageless' | 'staged'
+  setMode:           (m: 'stageless' | 'staged') => void
+  shellcodeHex:      string
+  setShellcodeHex:   (s: string) => void
+  binFilename:       string | null
+  setBinFilename:    (s: string | null) => void
+  stages:            StagePayload[]
+  activeStagePid:    string | null
+  setActiveStagePid: (pid: string) => void
+  onFileUpload:      (file: File) => void
+  onStageUpload:     (file: File) => Promise<void> | void
+  onStageDelete:     (pid: string) => Promise<void> | void
+}
+
+function bytesToSize(n: number): string {
+  if (!n) return '0 B'
+  const k = 1024, units = ['B','KB','MB','GB']
+  const i = Math.floor(Math.log(n)/Math.log(k))
+  return (n/Math.pow(k,i)).toFixed(i?2:0) + ' ' + units[i]
+}
+
+function ModeSelector({ mode, setMode, stageCount }: { mode: 'stageless' | 'staged'; setMode: (m:'stageless'|'staged')=>void; stageCount:number }) {
+  return (
+    <div className="mode-grid">
+      <button className={'mode-card' + (mode==='stageless' ? ' active' : '')} onClick={() => setMode('stageless')}>
+        <div className="mode-head">
+          <span className="mode-num">A</span>
+          <span className="mode-name">Stageless</span>
+          {mode==='stageless' && <span className="mode-tag">in use</span>}
+        </div>
+        <div className="mode-desc">Shellcode is embedded directly in the loader artifact. Single self-contained binary — no network fetch at runtime.</div>
+        <div className="mode-foot">
+          <span className="mode-pro">Air-gapped delivery</span>
+          <span className="mode-pro">No C2 dependency on exec</span>
+          <span className="mode-con">Larger artifact size</span>
+        </div>
+      </button>
+      <button className={'mode-card' + (mode==='staged' ? ' active' : '')} onClick={() => setMode('staged')}>
+        <div className="mode-head">
+          <span className="mode-num">B</span>
+          <span className="mode-name">Staged</span>
+          {mode==='staged' && <span className="mode-tag">{stageCount} hosted</span>}
+        </div>
+        <div className="mode-desc">
+          Tiny loader. At detonation it fetches shellcode from <code>/api/v1/stage/&lt;pid&gt;</code> over a signed JWT. Many payloads on one URL.
+        </div>
+        <div className="mode-foot">
+          <span className="mode-pro">Small loader</span>
+          <span className="mode-pro">Many payloads, one endpoint</span>
+          <span className="mode-con">Needs reachable stage host</span>
+        </div>
+      </button>
+    </div>
+  )
+}
+
+function StageBadge({ status }: { status: 'staged' | 'embedded' }) {
+  return (
+    <span className={'stage-status' + (status === 'embedded' ? ' embedded' : '')}>
+      <span className="led"/>{status}
+    </span>
+  )
 }
 
 export default function PayloadSection({
-  mode, onModeChange, shellcodeHex, onShellcodeHexChange,
-  binFilename, stages, onFileUpload, onStageUpload, onStageDelete,
+  mode, setMode,
+  shellcodeHex, setShellcodeHex,
+  binFilename, setBinFilename,
+  stages, activeStagePid, setActiveStagePid,
+  onFileUpload, onStageUpload, onStageDelete,
 }: Props) {
-  const fileRef  = useRef<HTMLInputElement>(null)
-  const stageRef = useRef<HTMLInputElement>(null)
-
-  function handleBinChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]
-    if (f) onFileUpload(f)
-  }
-
-  function handleStageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]
-    if (f) onStageUpload(f)
-  }
+  const inputRef = useRef<HTMLInputElement>(null)
+  const stageInputRef = useRef<HTMLInputElement>(null)
+  const [drag, setDrag] = useState(false)
+  const isStageless = mode === 'stageless'
+  const empty = isStageless ? !shellcodeHex : stages.length === 0
 
   return (
-    <section id="section-payload" className="space-y-4">
-      <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--ink-muted)' }}>
-        01 — Payload
-      </h2>
-
-      {/* Mode cards */}
-      <div className="grid grid-cols-2 gap-3">
-        {(['stageless', 'staged'] as Mode[]).map(m => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => onModeChange(m)}
-            className="rounded-xl p-4 text-left transition"
-            style={{
-              border: `1px solid ${mode === m ? 'var(--blue-500)' : 'var(--border)'}`,
-              backgroundColor: mode === m ? 'var(--blue-alpha)' : 'var(--surface)',
-              color: mode === m ? 'var(--blue-500)' : 'var(--ink-muted)',
-            }}
-          >
-            <div className="font-semibold text-sm capitalize">{m === 'stageless' ? 'A: Stageless' : 'B: Staged'}</div>
-            <div className="text-xs mt-1" style={{ color: 'var(--ink-muted)' }}>
-              {m === 'stageless' ? 'Shellcode embedded in loader' : 'Shellcode fetched at runtime'}
-            </div>
-          </button>
-        ))}
+    <section className="section" id="payload">
+      <div className="section-label">
+        <span className="num">01</span>
+        <span className="name">Payload</span>
+        {!empty && <StageBadge status={isStageless ? 'embedded' : 'staged'}/>}
+        <span className="meta">Pick delivery mode, then upload raw shellcode</span>
       </div>
 
-      {/* Stageless: hex input + file upload */}
-      {mode === 'stageless' && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="text-xs" style={{ color: 'var(--ink-muted)' }}>Shellcode (hex)</label>
-            <div className="flex items-center gap-2">
-              {binFilename && (
-                <span className="text-xs font-mono truncate max-w-[160px]" style={{ color: 'var(--blue-500)' }}>
-                  {binFilename}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="text-xs px-2 py-1 rounded-lg transition"
-                style={{ border: '1px solid var(--border)', color: 'var(--ink-muted)' }}
-              >
-                Upload .bin
-              </button>
-              <input ref={fileRef} type="file" accept=".bin,application/octet-stream" className="hidden" onChange={handleBinChange} />
-            </div>
-          </div>
-          <textarea
-            rows={4}
-            placeholder="fc4883e4f0e8… or upload a .bin file"
-            value={shellcodeHex}
-            onChange={e => onShellcodeHexChange(e.target.value)}
-            className="w-full rounded-lg px-3 py-2 text-xs font-mono focus:outline-none resize-none"
-            style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--ink)' }}
-          />
-        </div>
-      )}
+      <ModeSelector mode={mode} setMode={setMode} stageCount={stages.length}/>
 
-      {/* Staged: list + upload button */}
-      {mode === 'staged' && (
-        <div className="space-y-2">
-          {stages.map(s => (
-            <div
-              key={s.pid}
-              className="flex items-center justify-between rounded-lg px-3 py-2"
-              style={{ border: '1px solid var(--border)', backgroundColor: 'var(--surface-2)' }}
-            >
-              <div>
-                <span className="text-xs font-mono" style={{ color: 'var(--ink)' }}>{s.name}</span>
-                <span className="text-xs ml-2 font-mono" style={{ color: 'var(--ink-muted)' }}>{s.pid}</span>
+      <div className="payload-card">
+        {empty ? (
+          <div
+            className={'dropzone' + (drag ? ' drag' : '')}
+            onClick={() => (isStageless ? inputRef : stageInputRef).current?.click()}
+            onDragOver={e => { e.preventDefault(); setDrag(true) }}
+            onDragLeave={() => setDrag(false)}
+            onDrop={e => {
+              e.preventDefault(); setDrag(false)
+              const f = e.dataTransfer.files[0]
+              if (!f) return
+              isStageless ? onFileUpload(f) : onStageUpload(f)
+            }}
+          >
+            <svg className="ico-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <path d="M12 16V4m0 0L7 9m5-5l5 5M4 20h16"/>
+            </svg>
+            <div className="big">Drop shellcode here, or click to browse</div>
+            <div className="small">.bin · .raw · .sc — up to 10 MB · stays in your browser</div>
+            <input ref={inputRef} type="file" hidden accept=".bin,.raw,.sc"
+              onChange={e => { const f = e.target.files?.[0]; if (f) onFileUpload(f); e.target.value='' }}/>
+            <input ref={stageInputRef} type="file" hidden accept=".bin,.raw,.sc"
+              onChange={e => { const f = e.target.files?.[0]; if (f) onStageUpload(f); e.target.value='' }}/>
+          </div>
+        ) : isStageless ? (
+          <div className="staged">
+            <div className="staged-head">
+              <div className="filebox">BIN</div>
+              <div className="meta">
+                <div className="fname">{binFilename ?? 'shellcode.bin'}</div>
+                <div className="fdetails">Raw shellcode · x64 · {bytesToSize(shellcodeHex.length / 2)}</div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs" style={{ color: 'var(--ink-muted)' }}>{(s.size / 1024).toFixed(1)} KB</span>
-                <button
-                  type="button"
-                  onClick={() => onStageDelete(s.pid)}
-                  className="text-xs px-2 py-0.5 rounded transition"
-                  style={{ color: 'var(--danger)', border: '1px solid var(--danger)' }}
-                >
-                  Remove
+              <div className="actions">
+                <button className="btn btn-sm btn-ghost" onClick={() => { setShellcodeHex(''); setBinFilename(null) }}>
+                  <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                    <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>
+                  </svg>
+                  <span>Replace</span>
                 </button>
               </div>
             </div>
-          ))}
-          <button
-            type="button"
-            onClick={() => stageRef.current?.click()}
-            className="w-full rounded-lg py-2 text-xs font-medium transition"
-            style={{ border: '1px dashed var(--border)', color: 'var(--ink-muted)' }}
-          >
-            + Stage another .bin
-          </button>
-          <input ref={stageRef} type="file" accept=".bin,application/octet-stream" className="hidden" onChange={handleStageChange} />
-        </div>
-      )}
+            <div className="payload-stats">
+              <div className="stat"><div className="lbl">Size</div><div className="val">{bytesToSize(shellcodeHex.length / 2)}</div></div>
+              <div className="stat"><div className="lbl">Hex chars</div><div className="val small">{shellcodeHex.length.toLocaleString()}</div></div>
+              <div className="stat"><div className="lbl">Arch</div><div className="val">x64</div></div>
+              <div className="stat"><div className="lbl">Mode</div><div className="val small">Embedded</div></div>
+            </div>
+          </div>
+        ) : (
+          <div className="staged stage-multi">
+            <div className="stage-list-head">
+              <div className="slh-title">Staged payloads</div>
+              <div className="slh-meta">Click a row to mark it active for the next forge</div>
+            </div>
+            <div className="stage-list">
+              {stages.map(p => (
+                <div
+                  key={p.pid}
+                  className={'stage-row' + (activeStagePid === p.pid ? ' active' : '')}
+                  onClick={() => setActiveStagePid(p.pid)}
+                >
+                  <div className="stage-radio"/>
+                  <div className="filebox">BIN</div>
+                  <div className="stage-info">
+                    <div className="fname">{p.name}</div>
+                    <div className="fdetails">pid <span className="mono">{p.pid}</span> · {bytesToSize(p.size)} · {p.arch}</div>
+                  </div>
+                  <div className="stage-tags">
+                    {activeStagePid === p.pid && <span className="risk low">active</span>}
+                    <span className="stage-status sm"><span className="led"/>hosted</span>
+                  </div>
+                  <button className="btn btn-sm btn-ghost"
+                    onClick={(e) => { e.stopPropagation(); onStageDelete(p.pid) }}>Unstage</button>
+                </div>
+              ))}
+            </div>
+            <div className="stage-add" onClick={() => stageInputRef.current?.click()}>
+              <span className="plus">+</span>
+              <span>Stage another payload</span>
+              <span className="stage-add-hint">.bin · .raw · .sc</span>
+              <input ref={stageInputRef} type="file" hidden accept=".bin,.raw,.sc"
+                onChange={e => { const f = e.target.files?.[0]; if (f) onStageUpload(f); e.target.value='' }}/>
+            </div>
+          </div>
+        )}
+      </div>
     </section>
   )
 }

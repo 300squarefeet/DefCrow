@@ -27,6 +27,15 @@ artifacts/
 *.exe
 *.dll
 *.pdb
+*.rlib
+*.bin
+
+# Internal claude design references (not part of the public repo)
+docs/design-reference/
+
+# Internal Claude planning notes (kept local)
+.claude/
+docs/superpowers/
 
 # Temp
 *.tmp
