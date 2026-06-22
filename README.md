@@ -181,12 +181,14 @@ A standalone audit harness renders every loader against a real beacon and valida
 cargo run -p template-engine --example audit_all_loaders
 ```
 
-## Credits
+## Credits & inspiration
 
-- Rust 2021 edition, Axum 0.7, Tera 1.x, React 18, Vite 5
-- Vendored open-source offensive tooling (with attribution preserved in commit history):
-  - Selected templates inspired by [ScareCrow](https://github.com/optiv/ScareCrow) (Matthew Eidelberg / Optiv)
-  - VBA tradecraft references from [mgeeky](https://github.com/mgeeky)'s research
+DefCrow draws on prior open-source offensive security research. The following projects and authors deserve full credit for the techniques that informed parts of this codebase:
+
+- **[ScareCrow](https://github.com/optiv/ScareCrow)** by **Matthew Eidelberg (Tylous) / Optiv** — pioneering EDR-bypass loader generator; portions of the syscall, NTDLL-unhook, and loader-template approach in DefCrow are inspired by ScareCrow's design.
+- **[mgeeky (Mariusz Banach)](https://github.com/mgeeky)** — extensive offensive security research on VBA, Office tradecraft, and AMSI/ETW bypass; several detection-evasion patterns were studied from his published work.
+
+**Tech stack:** Rust 2021 edition, Axum 0.7, Tera 1.x, React 18, Vite 5.
 
 ## License
 
